@@ -2,9 +2,10 @@
 
 import { useRef, useState } from 'react';
 import Image from 'next/image';
-import { Camera, Dumbbell, Trash2 } from 'lucide-react';
+import { Camera, Dumbbell, Trash2, Ruler, TrendingUp, Images } from 'lucide-react';
 import { useProgress } from '@/web/hooks/useProgress';
 import { Sparkline } from '@/web/components/Sparkline';
+import { CardHead } from '@/web/components/CardHead';
 import { formatFullDate, todayKey } from '@/domain/dates';
 
 const METRIC_FIELDS = [
@@ -60,7 +61,7 @@ export function ProgressView() {
       {error && <p className="copy" style={{ color: 'var(--danger)' }}>{error}</p>}
 
       <section className="panel soft">
-        <h2 className="h2">Heutige Werte eintragen</h2>
+        <CardHead icon={Ruler} tone="violet" title="Heutige Werte eintragen" />
         <form onSubmit={handleSubmit} className="split" style={{ marginTop: 12, gridTemplateColumns: 'repeat(4, minmax(0,1fr))' }}>
           {METRIC_FIELDS.map(({ key, label, unit }) => (
             <div className="field" key={key}>
@@ -81,7 +82,7 @@ export function ProgressView() {
       </section>
 
       <section>
-        <div className="section-head"><h2 className="h2">Verlauf</h2></div>
+        <div className="section-head"><CardHead icon={TrendingUp} tone="teal" title="Verlauf" /></div>
         {loading ? (
           <p className="copy">Lädt …</p>
         ) : metrics.length < 2 ? (
@@ -116,7 +117,7 @@ export function ProgressView() {
 
       <section className="panel">
         <div className="section-head">
-          <h2 className="h2">Kraftwerte</h2>
+          <CardHead icon={Dumbbell} tone="gold" title="Kraftwerte" />
         </div>
         {strengthBests.length === 0 ? (
           <div className="empty-state">
@@ -139,7 +140,7 @@ export function ProgressView() {
 
       <section className="panel">
         <div className="section-head">
-          <h2 className="h2">Fotos</h2>
+          <CardHead icon={Images} tone="violet" title="Fotos" />
           <button type="button" className="button secondary compact" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
             <Camera size={16} /> {uploading ? 'Lädt hoch …' : 'Foto hinzufügen'}
           </button>

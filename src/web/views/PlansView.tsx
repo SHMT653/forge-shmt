@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Dumbbell, Plus, Trash2, X } from 'lucide-react';
+import { Dumbbell, Plus, Trash2, X, ListTree } from 'lucide-react';
 import { usePlans } from '@/web/hooks/usePlans';
+import { CardHead } from '@/web/components/CardHead';
 import { PLAN_TEMPLATES } from '@/domain/planTemplates';
 
 type DraftExercise = { name: string; targetSets: string; targetReps: string };
@@ -169,7 +170,7 @@ export function PlansView() {
 
       <section>
         <div className="section-head">
-          <h2 className="h2">Deine Pläne</h2>
+          <CardHead icon={Dumbbell} tone="violet" title="Deine Pläne" />
         </div>
         {loading ? (
           <p className="copy">Lädt …</p>
@@ -211,7 +212,7 @@ export function PlansView() {
 
       <section>
         <div className="section-head">
-          <h2 className="h2">Vorgefertigte Pläne</h2>
+          <CardHead icon={ListTree} tone="teal" title="Vorgefertigte Pläne" />
         </div>
         <div className="plan-grid">
           {PLAN_TEMPLATES.map((template) => (

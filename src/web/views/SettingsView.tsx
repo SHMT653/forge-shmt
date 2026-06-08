@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut } from 'lucide-react';
+import { LogOut, User, Target, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/web/hooks/useAuth';
 import { useSettings } from '@/web/hooks/useSettings';
 import { signOut } from '@/services/supabase/auth';
+import { CardHead } from '@/web/components/CardHead';
 
 function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
@@ -101,7 +102,7 @@ export function SettingsView() {
       )}
 
       <section className="panel">
-        <h2 className="h2">Profil</h2>
+        <CardHead icon={User} tone="violet" title="Profil" />
         <form className="auth-form" style={{ marginTop: 12 }} onSubmit={handleProfileSubmit}>
           <div className="field">
             <label className="field-label" htmlFor="displayName">Name</label>
@@ -114,7 +115,7 @@ export function SettingsView() {
       </section>
 
       <section className="panel">
-        <h2 className="h2">Ziele</h2>
+        <CardHead icon={Target} tone="teal" title="Ziele" />
         <p className="copy">Diese Werte steuern die Fortschrittsanzeigen auf "Heute".</p>
         <form className="split" style={{ marginTop: 12, gridTemplateColumns: 'repeat(3, minmax(0,1fr))' }} onSubmit={handleGoalsSubmit}>
           <div className="field">
@@ -136,7 +137,7 @@ export function SettingsView() {
       </section>
 
       <section className="panel">
-        <h2 className="h2">Sitzung</h2>
+        <CardHead icon={ShieldCheck} tone="danger" title="Sitzung" />
         <p className="copy">Melde dich ab, um das Konto zu wechseln oder FORGE auf einem anderen Gerät zu nutzen.</p>
         <button type="button" className="button danger compact" onClick={handleSignOut} disabled={signingOut}>
           <LogOut size={16} /> {signingOut ? 'Wird abgemeldet …' : 'Abmelden'}

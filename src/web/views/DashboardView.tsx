@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle } from 'lucide-react';
+import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle, ListChecks, Utensils, ArrowRight } from 'lucide-react';
 import { useTodayData } from '@/web/hooks/useTodayData';
 import { ProgressRing } from '@/web/components/ProgressRing';
+import { CardHead } from '@/web/components/CardHead';
 import type { Habit } from '@/domain/types';
 
 function formatDuration(seconds: number): string {
@@ -156,8 +157,8 @@ export function DashboardView() {
       <section className="split">
         <div className="panel">
           <div className="section-head">
-            <h2 className="h2">Gewohnheiten</h2>
-            <Link href="/habits" className="button ghost compact">Alle ansehen</Link>
+            <CardHead icon={ListChecks} tone="violet" title="Gewohnheiten" />
+            <Link href="/habits" className="card-link">Alle ansehen <ArrowRight size={14} /></Link>
           </div>
           <div className="list">
             {data.habits.slice(0, 4).map((habit) => (
@@ -175,7 +176,7 @@ export function DashboardView() {
         </div>
 
         <div className="panel">
-          <h2 className="h2">Ernährung</h2>
+          <CardHead icon={Utensils} tone="gold" title="Ernährung" />
           <p className="copy">
             Heute: <strong>{data.nutritionLog.calories} kcal</strong> · <strong>{data.nutritionLog.proteinG} g Protein</strong>
           </p>
@@ -209,7 +210,7 @@ export function DashboardView() {
       {data.trainingStreak > 0 && (
         <section className="panel soft">
           <div className="section-head">
-            <h2 className="h2">Dein Fortschritt spricht für sich</h2>
+            <CardHead icon={Flame} tone="gold" title="Dein Fortschritt spricht für sich" />
           </div>
           <div className="list">
             <p className="check-line"><Flame size={16} /> {data.trainingStreak} {data.trainingStreak === 1 ? 'Tag' : 'Tage'} am Stück trainiert</p>
