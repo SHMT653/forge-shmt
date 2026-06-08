@@ -57,7 +57,7 @@ export async function listPlans(userId: string): Promise<TrainingPlan[]> {
   const supabase = getSupabaseClient();
 
   const { data: plans, error: plansError } = await supabase
-    .from('training_plans')
+    .from('forge_training_plans')
     .select('id, name, focus, is_active, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
@@ -67,7 +67,7 @@ export async function listPlans(userId: string): Promise<TrainingPlan[]> {
   const planIds = plans.map((p) => p.id);
 
   const { data: days, error: daysError } = await supabase
-    .from('plan_days')
+    .from('forge_plan_days')
     .select('id, plan_id, name, order_index')
     .in('plan_id', planIds);
   if (daysError) throw daysError;
@@ -76,7 +76,7 @@ export async function listPlans(userId: string): Promise<TrainingPlan[]> {
   let exercises: ExerciseRow[] = [];
   if (dayIds.length > 0) {
     const { data, error } = await supabase
-      .from('plan_exercises')
+      .from('forge_plan_exercises')
       .select('id, plan_day_id, name, target_sets, target_reps, order_index')
       .in('plan_day_id', dayIds);
     if (error) throw error;
@@ -89,13 +89,13 @@ export async function listPlans(userId: string): Promise<TrainingPlan[]> {
 export async function setActivePlan(userId: string, planId: string): Promise<void> {
   const supabase = getSupabaseClient();
   const { error: clearError } = await supabase
-    .from('training_plans')
+    .from('forge_training_plans')
     .update({ is_active: false })
     .eq('user_id', userId);
   if (clearError) throw clearError;
 
   const { error } = await supabase
-    .from('training_plans')
+    .from('forge_training_plans')
     .update({ is_active: true })
     .eq('id', planId)
     .eq('user_id', userId);
@@ -104,7 +104,7 @@ export async function setActivePlan(userId: string, planId: string): Promise<voi
 
 export async function deletePlan(planId: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { error } = await supabase.from('training_plans').delete().eq('id', planId);
+  const { error } = await supabase.from('forge_training_plans').delete().eq('id', planId);
   if (error) throw error;
 }
 
@@ -112,7 +112,7 @@ async function insertDaysAndExercises(planId: string, days: { name: string; exer
   const supabase = getSupabaseClient();
 
   const { data: dayRows, error: dayError } = await supabase
-    .from('plan_days')
+    .from('forge_plan_days')
     .insert(days.map((day, index) => ({ plan_id: planId, name: day.name, order_index: index })))
     .select('id, name');
   if (dayError) throw dayError;
@@ -128,7 +128,7 @@ async function insertDaysAndExercises(planId: string, days: { name: string; exer
   );
 
   if (exerciseRows.length > 0) {
-    const { error } = await supabase.from('plan_exercises').insert(exerciseRows);
+    const { error } = await supabase.from('forge_plan_exercises').insert(exerciseRows);
     if (error) throw error;
   }
 }
@@ -136,7 +136,7 @@ async function insertDaysAndExercises(planId: string, days: { name: string; exer
 export async function createPlanFromTemplate(userId: string, template: PlanTemplate): Promise<string> {
   const supabase = getSupabaseClient();
   const { data: plan, error } = await supabase
-    .from('training_plans')
+    .from('forge_training_plans')
     .insert({ user_id: userId, name: template.name, focus: template.focus })
     .select('id')
     .single();
@@ -154,7 +154,7 @@ export async function createCustomPlan(
 ): Promise<string> {
   const supabase = getSupabaseClient();
   const { data: plan, error } = await supabase
-    .from('training_plans')
+    .from('forge_training_plans')
     .insert({ user_id: userId, name, focus })
     .select('id')
     .single();

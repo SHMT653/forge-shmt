@@ -69,7 +69,7 @@ async function fetchSessionDetail(sessionId: string): Promise<WorkoutSession | n
   const supabase = getSupabaseClient();
 
   const { data: session, error: sessionError } = await supabase
-    .from('workout_sessions')
+    .from('forge_workout_sessions')
     .select('id, plan_id, plan_name, day_name, started_at, completed_at, duration_seconds')
     .eq('id', sessionId)
     .maybeSingle();
@@ -77,7 +77,7 @@ async function fetchSessionDetail(sessionId: string): Promise<WorkoutSession | n
   if (!session) return null;
 
   const { data: exercises, error: exercisesError } = await supabase
-    .from('session_exercises')
+    .from('forge_session_exercises')
     .select('id, session_id, exercise_name, target_sets, target_reps, order_index')
     .eq('session_id', sessionId);
   if (exercisesError) throw exercisesError;
@@ -86,7 +86,7 @@ async function fetchSessionDetail(sessionId: string): Promise<WorkoutSession | n
   let sets: SetRow[] = [];
   if (exerciseIds.length > 0) {
     const { data, error } = await supabase
-      .from('session_sets')
+      .from('forge_session_sets')
       .select('id, session_exercise_id, set_index, reps, weight_kg, completed')
       .in('session_exercise_id', exerciseIds);
     if (error) throw error;
@@ -108,7 +108,7 @@ export async function startWorkoutSession(
   const supabase = getSupabaseClient();
 
   const { data: session, error: sessionError } = await supabase
-    .from('workout_sessions')
+    .from('forge_workout_sessions')
     .insert({ user_id: userId, plan_id: planId, plan_day_id: day.id, plan_name: planName, day_name: day.name })
     .select('id')
     .single();
@@ -118,7 +118,7 @@ export async function startWorkoutSession(
   if (sortedExercises.length === 0) return session.id;
 
   const { data: exerciseRows, error: exerciseError } = await supabase
-    .from('session_exercises')
+    .from('forge_session_exercises')
     .insert(
       sortedExercises.map((ex, index) => ({
         session_id: session.id,
@@ -141,7 +141,7 @@ export async function startWorkoutSession(
     })),
   );
   if (setRows.length > 0) {
-    const { error } = await supabase.from('session_sets').insert(setRows);
+    const { error } = await supabase.from('forge_session_sets').insert(setRows);
     if (error) throw error;
   }
 
@@ -151,7 +151,7 @@ export async function startWorkoutSession(
 export async function getActiveSession(userId: string): Promise<WorkoutSession | null> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
-    .from('workout_sessions')
+    .from('forge_workout_sessions')
     .select('id')
     .eq('user_id', userId)
     .is('completed_at', null)
@@ -166,7 +166,7 @@ export async function getActiveSession(userId: string): Promise<WorkoutSession |
 export async function updateSet(setId: string, reps: number | null, weightKg: number | null, completed: boolean): Promise<void> {
   const supabase = getSupabaseClient();
   const { error } = await supabase
-    .from('session_sets')
+    .from('forge_session_sets')
     .update({ reps, weight_kg: weightKg, completed })
     .eq('id', setId);
   if (error) throw error;
@@ -175,7 +175,7 @@ export async function updateSet(setId: string, reps: number | null, weightKg: nu
 export async function finishSession(sessionId: string, durationSeconds: number): Promise<void> {
   const supabase = getSupabaseClient();
   const { error } = await supabase
-    .from('workout_sessions')
+    .from('forge_workout_sessions')
     .update({ completed_at: new Date().toISOString(), duration_seconds: durationSeconds })
     .eq('id', sessionId);
   if (error) throw error;
@@ -183,7 +183,7 @@ export async function finishSession(sessionId: string, durationSeconds: number):
 
 export async function abandonSession(sessionId: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { error } = await supabase.from('workout_sessions').delete().eq('id', sessionId);
+  const { error } = await supabase.from('forge_workout_sessions').delete().eq('id', sessionId);
   if (error) throw error;
 }
 
@@ -195,7 +195,7 @@ export async function getLastPerformance(
   const supabase = getSupabaseClient();
 
   const { data: sessions, error: sessionsError } = await supabase
-    .from('workout_sessions')
+    .from('forge_workout_sessions')
     .select('id')
     .eq('user_id', userId)
     .not('completed_at', 'is', null)
@@ -206,7 +206,7 @@ export async function getLastPerformance(
 
   for (const session of sessions) {
     const { data: exercise, error: exerciseError } = await supabase
-      .from('session_exercises')
+      .from('forge_session_exercises')
       .select('id')
       .eq('session_id', session.id)
       .eq('exercise_name', exerciseName)
@@ -215,7 +215,7 @@ export async function getLastPerformance(
     if (!exercise) continue;
 
     const { data: sets, error: setsError } = await supabase
-      .from('session_sets')
+      .from('forge_session_sets')
       .select('reps, weight_kg')
       .eq('session_exercise_id', exercise.id)
       .eq('completed', true)
@@ -236,7 +236,7 @@ export async function getLastPerformance(
 export async function listCompletedSessionDates(userId: string, limit = 400): Promise<string[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
-    .from('workout_sessions')
+    .from('forge_workout_sessions')
     .select('completed_at')
     .eq('user_id', userId)
     .not('completed_at', 'is', null)
@@ -249,7 +249,7 @@ export async function listCompletedSessionDates(userId: string, limit = 400): Pr
 export async function listRecentSessions(userId: string, limit = 10): Promise<WorkoutSession[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
-    .from('workout_sessions')
+    .from('forge_workout_sessions')
     .select('id, plan_id, plan_name, day_name, started_at, completed_at, duration_seconds')
     .eq('user_id', userId)
     .not('completed_at', 'is', null)
@@ -272,7 +272,7 @@ export async function listRecentSessions(userId: string, limit = 10): Promise<Wo
 export async function getTotalTrainingSeconds(userId: string): Promise<number> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
-    .from('workout_sessions')
+    .from('forge_workout_sessions')
     .select('duration_seconds')
     .eq('user_id', userId)
     .not('completed_at', 'is', null);

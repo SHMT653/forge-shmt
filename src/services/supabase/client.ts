@@ -1,9 +1,9 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-let client: SupabaseClient<any, 'forge'> | null = null;
+let client: SupabaseClient | null = null;
 
 /** Lazily-created browser singleton — FORGE only ever talks to Supabase from the client. */
-export function getSupabaseClient(): SupabaseClient<any, 'forge'> {
+export function getSupabaseClient(): SupabaseClient {
   if (client) return client;
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -16,10 +16,6 @@ export function getSupabaseClient(): SupabaseClient<any, 'forge'> {
   }
 
   client = createClient(url, anonKey, {
-    // FORGE shares this Supabase project with other SHMT apps. All FORGE
-    // tables live in the `forge` Postgres schema (see supabase/schema.sql) so
-    // they never collide with another app's `public` tables.
-    db: { schema: 'forge' },
     auth: {
       persistSession: true,
       autoRefreshToken: true,

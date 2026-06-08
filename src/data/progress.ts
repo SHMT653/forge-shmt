@@ -22,7 +22,7 @@ function toMetric(row: {
 export async function listBodyMetrics(userId: string, limit = 90): Promise<BodyMetric[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
-    .from('body_metrics')
+    .from('forge_body_metrics')
     .select('id, log_date, weight_kg, waist_cm, chest_cm, arms_cm')
     .eq('user_id', userId)
     .order('log_date', { ascending: false })
@@ -37,7 +37,7 @@ export async function saveBodyMetric(
   values: { weightKg: number | null; waistCm: number | null; chestCm: number | null; armsCm: number | null },
 ): Promise<void> {
   const supabase = getSupabaseClient();
-  const { error } = await supabase.from('body_metrics').upsert(
+  const { error } = await supabase.from('forge_body_metrics').upsert(
     {
       user_id: userId,
       log_date: logDate,
@@ -56,7 +56,7 @@ const PHOTO_BUCKET = 'forge-progress-photos';
 export async function listProgressPhotos(userId: string): Promise<ProgressPhoto[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
-    .from('progress_photos')
+    .from('forge_progress_photos')
     .select('id, taken_at, storage_path')
     .eq('user_id', userId)
     .order('taken_at', { ascending: false })
@@ -86,7 +86,7 @@ export async function uploadProgressPhoto(userId: string, file: File, takenAt: s
   if (uploadError) throw uploadError;
 
   const { error } = await supabase
-    .from('progress_photos')
+    .from('forge_progress_photos')
     .insert({ user_id: userId, taken_at: takenAt, storage_path: path });
   if (error) throw error;
 }
@@ -94,7 +94,7 @@ export async function uploadProgressPhoto(userId: string, file: File, takenAt: s
 export async function deleteProgressPhoto(userId: string, photoId: string, storagePath: string): Promise<void> {
   const supabase = getSupabaseClient();
   await supabase.storage.from(PHOTO_BUCKET).remove([storagePath]);
-  const { error } = await supabase.from('progress_photos').delete().eq('id', photoId).eq('user_id', userId);
+  const { error } = await supabase.from('forge_progress_photos').delete().eq('id', photoId).eq('user_id', userId);
   if (error) throw error;
 }
 
@@ -102,8 +102,8 @@ export async function deleteProgressPhoto(userId: string, photoId: string, stora
 export async function listStrengthBests(userId: string): Promise<{ exerciseName: string; weightKg: number; reps: number; date: string }[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
-    .from('workout_sessions')
-    .select('id, completed_at, session_exercises(id, exercise_name, session_sets(reps, weight_kg, completed))')
+    .from('forge_workout_sessions')
+    .select('id, completed_at, forge_session_exercises(id, exercise_name, forge_session_sets(reps, weight_kg, completed))')
     .eq('user_id', userId)
     .not('completed_at', 'is', null)
     .order('completed_at', { ascending: false })
@@ -114,8 +114,8 @@ export async function listStrengthBests(userId: string): Promise<{ exerciseName:
 
   for (const session of data ?? []) {
     const completedAt = session.completed_at as string;
-    for (const exercise of session.session_exercises ?? []) {
-      for (const set of exercise.session_sets ?? []) {
+    for (const exercise of session.forge_session_exercises ?? []) {
+      for (const set of exercise.forge_session_sets ?? []) {
         if (!set.completed || set.weight_kg === null) continue;
         const weight = Number(set.weight_kg);
         const current = bestByExercise.get(exercise.exercise_name);

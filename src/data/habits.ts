@@ -17,7 +17,7 @@ function toHabit(row: { id: string; key: string; label: string; unit: string; ta
 export async function listHabits(userId: string): Promise<Habit[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
-    .from('habits')
+    .from('forge_habits')
     .select('id, key, label, unit, target, order_index, active')
     .eq('user_id', userId)
     .eq('active', true)
@@ -33,7 +33,7 @@ export async function ensureDefaultHabits(userId: string): Promise<Habit[]> {
 
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
-    .from('habits')
+    .from('forge_habits')
     .insert(
       DEFAULT_HABITS.map((habit, index) => ({
         user_id: userId,
@@ -52,7 +52,7 @@ export async function ensureDefaultHabits(userId: string): Promise<Habit[]> {
 export async function listHabitLogsForRange(userId: string, fromDate: string): Promise<HabitLog[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
-    .from('habit_logs')
+    .from('forge_habit_logs')
     .select('habit_id, log_date, value, completed')
     .eq('user_id', userId)
     .gte('log_date', fromDate);
@@ -74,7 +74,7 @@ export async function setHabitLog(
 ): Promise<void> {
   const supabase = getSupabaseClient();
   const { error } = await supabase
-    .from('habit_logs')
+    .from('forge_habit_logs')
     .upsert(
       { user_id: userId, habit_id: habitId, log_date: logDate, value, completed },
       { onConflict: 'habit_id,log_date' },
