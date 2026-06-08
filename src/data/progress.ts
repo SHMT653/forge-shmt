@@ -51,7 +51,7 @@ export async function saveBodyMetric(
   if (error) throw error;
 }
 
-const PHOTO_BUCKET = 'progress-photos';
+const PHOTO_BUCKET = 'forge-progress-photos';
 
 export async function listProgressPhotos(userId: string): Promise<ProgressPhoto[]> {
   const supabase = getSupabaseClient();
