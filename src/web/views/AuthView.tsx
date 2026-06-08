@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/web/hooks/useAuth';
 import { signInWithPassword, signUpWithPassword } from '@/services/supabase/auth';
+import { errorMessage } from '@/domain/errors';
 
 type Mode = 'login' | 'register';
 
@@ -36,7 +37,7 @@ export function AuthView() {
         setInfo('Konto erstellt. Falls eine Bestätigung nötig ist, prüfe dein Postfach — danach kannst du dich anmelden.');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Etwas ist schiefgelaufen.');
+      setError(errorMessage(err, 'Etwas ist schiefgelaufen.'));
     } finally {
       setSubmitting(false);
     }

@@ -10,6 +10,7 @@ import {
   saveBodyMetric,
   uploadProgressPhoto,
 } from '@/data/progress';
+import { errorMessage } from '@/domain/errors';
 import type { BodyMetric, ProgressPhoto } from '@/domain/types';
 
 export function useProgress() {
@@ -34,7 +35,7 @@ export function useProgress() {
       setPhotos(p);
       setStrengthBests(s);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fortschritt konnte nicht geladen werden.');
+      setError(errorMessage(err, 'Fortschritt konnte nicht geladen werden.'));
     } finally {
       setLoading(false);
     }

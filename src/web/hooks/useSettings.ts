@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
 import { ensureProfile, getUserGoals, saveUserGoals, updateDisplayName } from '@/data/profile';
 import { getTotalTrainingSeconds, listCompletedSessionDates } from '@/data/workouts';
+import { errorMessage } from '@/domain/errors';
 import type { Profile, UserGoals } from '@/domain/types';
 
 export function useSettings() {
@@ -30,7 +31,7 @@ export function useSettings() {
       setGoals(g);
       setStats({ totalSeconds, sessionCount: sessionDates.length });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Einstellungen konnten nicht geladen werden.');
+      setError(errorMessage(err, 'Einstellungen konnten nicht geladen werden.'));
     } finally {
       setLoading(false);
     }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
 import { abandonSession, finishSession, getLastPerformance, getSession, updateSet } from '@/data/workouts';
+import { errorMessage } from '@/domain/errors';
 import type { WorkoutSession } from '@/domain/types';
 
 export function useActiveWorkout(sessionId: string) {
@@ -32,7 +33,7 @@ export function useActiveWorkout(sessionId: string) {
         setLastPerformance(map);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Training konnte nicht geladen werden.');
+      setError(errorMessage(err, 'Training konnte nicht geladen werden.'));
     } finally {
       setLoading(false);
     }

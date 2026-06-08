@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
 import { createCustomPlan, createPlanFromTemplate, deletePlan, listPlans, setActivePlan } from '@/data/plans';
 import { startWorkoutSession } from '@/data/workouts';
+import { errorMessage } from '@/domain/errors';
 import type { PlanTemplate } from '@/domain/planTemplates';
 import type { PlanDay, TrainingPlan } from '@/domain/types';
 
@@ -20,7 +21,7 @@ export function usePlans() {
     try {
       setPlans(await listPlans(user.id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Pläne konnten nicht geladen werden.');
+      setError(errorMessage(err, 'Pläne konnten nicht geladen werden.'));
     } finally {
       setLoading(false);
     }

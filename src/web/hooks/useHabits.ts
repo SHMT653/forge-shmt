@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './useAuth';
 import { ensureDefaultHabits, listHabitLogsForRange, setHabitLog } from '@/data/habits';
+import { errorMessage } from '@/domain/errors';
 import { consecutiveDayStreak } from '@/domain/streaks';
 import { dateKeyAddDays, todayKey } from '@/domain/dates';
 import type { Habit, HabitLog } from '@/domain/types';
@@ -26,7 +27,7 @@ export function useHabits() {
       setHabits(habitList);
       setLogs(logList);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gewohnheiten konnten nicht geladen werden.');
+      setError(errorMessage(err, 'Gewohnheiten konnten nicht geladen werden.'));
     } finally {
       setLoading(false);
     }

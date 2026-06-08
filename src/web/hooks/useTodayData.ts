@@ -13,6 +13,7 @@ import { ensureDefaultHabits, listHabitLogsForRange, setHabitLog } from '@/data/
 import { getNutritionLog, saveNutritionLog } from '@/data/nutrition';
 import { getUserGoals } from '@/data/profile';
 import { listBodyMetrics } from '@/data/progress';
+import { errorMessage } from '@/domain/errors';
 import { consecutiveDayStreak, weeklyStreak } from '@/domain/streaks';
 import { dateKeyAddDays, todayKey } from '@/domain/dates';
 import type { BodyMetric, Habit, HabitLog, NutritionLog, PlanDay, TrainingPlan, UserGoals, WorkoutSession } from '@/domain/types';
@@ -90,7 +91,7 @@ export function useTodayData() {
         weeklyTrainingStreak: weeklyStreak(completedDates, 3),
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Daten konnten nicht geladen werden.');
+      setError(errorMessage(err, 'Daten konnten nicht geladen werden.'));
     } finally {
       setLoading(false);
     }
