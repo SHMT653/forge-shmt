@@ -30,12 +30,6 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="de">
-      <head>
-        {/* iOS 18 adaptive icons — dark/light mode */}
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-        <link rel="apple-touch-icon" media="(prefers-color-scheme: dark)" href="/icons/apple-touch-icon-dark.png" />
-        <link rel="apple-touch-icon" media="(prefers-color-scheme: light)" href="/icons/apple-touch-icon-light.png" />
-      </head>
       <body>
         <AuthProvider>{children}</AuthProvider>
       </body>
