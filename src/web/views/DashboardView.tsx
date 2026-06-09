@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle, ListChecks, Utensils, ArrowRight } from 'lucide-react';
+import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle, ListChecks, Utensils, ArrowRight, Search } from 'lucide-react';
 import { useTodayData } from '@/web/hooks/useTodayData';
 import { ProgressRing } from '@/web/components/ProgressRing';
 import { CardHead } from '@/web/components/CardHead';
 import { formatDuration } from '@/domain/dates';
+import { searchFood, type FoodItem } from '@/domain/foodDatabase';
 import type { Habit } from '@/domain/types';
 
 function HabitQuickRow({ habit, log, onToggle }: { habit: Habit; log: { value: number; completed: boolean } | undefined; onToggle: (next: boolean) => void }) {
@@ -42,6 +43,9 @@ export function DashboardView() {
   const [calorieInput, setCalorieInput] = useState('');
   const [proteinInput, setProteinInput] = useState('');
   const [savingNutrition, setSavingNutrition] = useState(false);
+  const [foodQuery, setFoodQuery] = useState('');
+  const [foodResults, setFoodResults] = useState<FoodItem[]>([]);
+  const foodSearchRef = useRef<HTMLInputElement>(null);
 
   if (loading || !data) {
     return (
@@ -90,6 +94,25 @@ export function DashboardView() {
     } finally {
       setSavingNutrition(false);
     }
+  }
+
+  function handleFoodSearch(q: string) {
+    setFoodQuery(q);
+    setFoodResults(q.trim().length >= 2 ? searchFood(q) : []);
+  }
+
+  function selectFood(item: FoodItem) {
+    setCalorieInput((prev) => {
+      const existing = Number(prev) || 0;
+      return String(existing + item.kcal);
+    });
+    setProteinInput((prev) => {
+      const existing = Number(prev) || 0;
+      return String(existing + item.proteinG);
+    });
+    setFoodQuery('');
+    setFoodResults([]);
+    foodSearchRef.current?.focus();
   }
 
   return (
@@ -192,7 +215,50 @@ export function DashboardView() {
             />
           </div>
 
-          <form className="button-row" style={{ marginTop: 16, alignItems: 'flex-end' }} onSubmit={handleNutritionSave}>
+          {/* Food search */}
+          <div style={{ position: 'relative', marginTop: 14 }}>
+            <div className="search-field" style={{ width: '100%' }}>
+              <Search size={14} />
+              <input
+                ref={foodSearchRef}
+                type="text"
+                placeholder="Mahlzeit suchen (z. B. Nudeln, Hähnchen …)"
+                value={foodQuery}
+                onChange={(e) => handleFoodSearch(e.target.value)}
+                aria-label="Mahlzeit suchen"
+                autoComplete="off"
+              />
+            </div>
+            {foodResults.length > 0 && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
+                background: 'var(--panel)', border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 'var(--radius)', marginTop: 4, boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                maxHeight: 280, overflowY: 'auto',
+              }}>
+                {foodResults.map((item) => (
+                  <button
+                    key={item.name}
+                    type="button"
+                    onClick={() => selectFood(item)}
+                    style={{
+                      width: '100%', textAlign: 'left', background: 'none', border: 'none',
+                      padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+                    }}
+                    className="nav-button"
+                  >
+                    <span style={{ color: 'var(--text)', fontSize: 14 }}>{item.name}</span>
+                    <span style={{ color: 'var(--subtle)', fontSize: 12, whiteSpace: 'nowrap' }}>
+                      {item.kcal} kcal · {item.proteinG} g P · {item.portionLabel}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <form className="button-row" style={{ marginTop: 10, alignItems: 'flex-end' }} onSubmit={handleNutritionSave}>
             <div className="field" style={{ flex: 1 }}>
               <label className="field-label" htmlFor="calories">Kalorien (kcal)</label>
               <input id="calories" className="input compact" inputMode="numeric" value={calorieInput} onChange={(e) => setCalorieInput(e.target.value)} placeholder={String(data.nutritionLog.calories)} />

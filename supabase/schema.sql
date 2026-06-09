@@ -218,8 +218,23 @@ create table if not exists public.forge_user_goals (
   user_id uuid primary key references auth.users (id) on delete cascade,
   calorie_goal integer not null default 2200,
   protein_goal integer not null default 150,
-  weight_goal numeric
+  weight_goal numeric,
+  -- fitness profile for auto-calculation
+  current_weight numeric,
+  height_cm integer,
+  birth_year integer,
+  gender text not null default 'other',        -- 'male' | 'female' | 'other'
+  activity_level text not null default 'moderate', -- sedentary|light|moderate|active|very_active
+  goal_type text not null default 'maintain'   -- 'muscle' | 'fat_loss' | 'maintain'
 );
+
+-- Migration: add new columns if table already exists (idempotent)
+alter table public.forge_user_goals add column if not exists current_weight numeric;
+alter table public.forge_user_goals add column if not exists height_cm integer;
+alter table public.forge_user_goals add column if not exists birth_year integer;
+alter table public.forge_user_goals add column if not exists gender text not null default 'other';
+alter table public.forge_user_goals add column if not exists activity_level text not null default 'moderate';
+alter table public.forge_user_goals add column if not exists goal_type text not null default 'maintain';
 
 create table if not exists public.forge_nutrition_logs (
   id uuid primary key default gen_random_uuid(),

@@ -83,10 +83,20 @@ export type ProgressPhoto = {
   url: string | null;
 };
 
+export type GoalType = 'muscle' | 'fat_loss' | 'maintain';
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
+export type Gender = 'male' | 'female' | 'other';
+
 export type UserGoals = {
   calorieGoal: number;
   proteinGoal: number;
   weightGoal: number | null;
+  currentWeight: number | null;
+  heightCm: number | null;
+  birthYear: number | null;
+  gender: Gender;
+  activityLevel: ActivityLevel;
+  goalType: GoalType;
 };
 
 export type NutritionLog = {

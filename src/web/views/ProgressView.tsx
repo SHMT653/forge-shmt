@@ -2,37 +2,29 @@
 
 import { useRef, useState } from 'react';
 import Image from 'next/image';
-import { Camera, Dumbbell, Trash2, Ruler, TrendingUp, Images } from 'lucide-react';
+import { Camera, Dumbbell, Trash2, TrendingUp, Images, Scale } from 'lucide-react';
 import { useProgress } from '@/web/hooks/useProgress';
 import { Sparkline } from '@/web/components/Sparkline';
 import { CardHead } from '@/web/components/CardHead';
 import { formatFullDate, todayKey } from '@/domain/dates';
 
-const METRIC_FIELDS = [
-  { key: 'weightKg', label: 'Gewicht', unit: 'kg' },
-  { key: 'waistCm', label: 'Bauchumfang', unit: 'cm' },
-  { key: 'chestCm', label: 'Brust', unit: 'cm' },
-  { key: 'armsCm', label: 'Arme', unit: 'cm' },
-] as const;
+const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
 export function ProgressView() {
   const { metrics, photos, strengthBests, loading, error, addMetric, addPhoto, removePhoto } = useProgress();
-  const [form, setForm] = useState({ weightKg: '', waistCm: '', chestCm: '', armsCm: '' });
+  const [weightInput, setWeightInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleWeightSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const kg = Number(weightInput);
+    if (!weightInput.trim() || Number.isNaN(kg) || kg <= 0) return;
     setSaving(true);
     try {
-      await addMetric(todayKey(), {
-        weightKg: form.weightKg.trim() ? Number(form.weightKg) : null,
-        waistCm: form.waistCm.trim() ? Number(form.waistCm) : null,
-        chestCm: form.chestCm.trim() ? Number(form.chestCm) : null,
-        armsCm: form.armsCm.trim() ? Number(form.armsCm) : null,
-      });
-      setForm({ weightKg: '', waistCm: '', chestCm: '', armsCm: '' });
+      await addMetric(todayKey(), { weightKg: kg, waistCm: null, chestCm: null, armsCm: null });
+      setWeightInput('');
     } finally {
       setSaving(false);
     }
@@ -50,71 +42,101 @@ export function ProgressView() {
     }
   }
 
+  // 2-week weight history (most recent 14 days with weight entries)
+  const cutoff = new Date(Date.now() - TWO_WEEKS_MS).toISOString().slice(0, 10);
+  const weightMetrics = metrics
+    .filter((m) => m.weightKg !== null && m.logDate >= cutoff)
+    .sort((a, b) => a.logDate.localeCompare(b.logDate));
+
+  const weightValues = weightMetrics.map((m) => m.weightKg as number);
+  const latestWeight = weightValues[weightValues.length - 1];
+  const firstWeight = weightValues[0];
+  const weightDelta = latestWeight !== undefined && firstWeight !== undefined && weightValues.length >= 2
+    ? latestWeight - firstWeight
+    : null;
+
+  // All-time weight for reference
+  const allWeightMetrics = metrics.filter((m) => m.weightKg !== null);
+
   return (
     <>
       <section className="panel">
         <p className="eyebrow">Fortschritt</p>
         <h1 className="h1" style={{ fontSize: 28 }}>Du wirst besser.</h1>
-        <p className="copy">Trage regelmäßig deine Werte ein — so siehst du schwarz auf weiß, wie weit du gekommen bist.</p>
+        <p className="copy">Trage täglich dein Gewicht ein und sieh deinen Verlauf der letzten 14 Tage.</p>
       </section>
 
       {error && <p className="copy" style={{ color: 'var(--danger)' }}>{error}</p>}
 
+      {/* Daily weight entry */}
       <section className="panel soft">
-        <CardHead icon={Ruler} tone="violet" title="Heutige Werte eintragen" />
-        <form onSubmit={handleSubmit} className="split-4" style={{ marginTop: 12 }}>
-          {METRIC_FIELDS.map(({ key, label, unit }) => (
-            <div className="field" key={key}>
-              <label className="field-label" htmlFor={key}>{label} ({unit})</label>
-              <input
-                id={key}
-                className="input compact"
-                inputMode="decimal"
-                value={form[key]}
-                onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
-              />
-            </div>
-          ))}
-          <div style={{ gridColumn: '1 / -1' }}>
-            <button type="submit" className="button compact" disabled={saving}>{saving ? 'Wird gespeichert …' : 'Speichern'}</button>
-          </div>
+        <CardHead icon={Scale} tone="violet" title="Heutiges Gewicht" />
+        <form onSubmit={handleWeightSubmit} className="button-row" style={{ marginTop: 12, gap: 8 }}>
+          <input
+            className="input compact"
+            inputMode="decimal"
+            value={weightInput}
+            onChange={(e) => setWeightInput(e.target.value)}
+            placeholder="z. B. 80.5 kg"
+            style={{ flex: 1 }}
+          />
+          <button type="submit" className="button compact" disabled={saving || !weightInput.trim()}>
+            {saving ? 'Speichert …' : 'Eintragen'}
+          </button>
         </form>
-      </section>
-
-      <section>
-        <div className="section-head"><CardHead icon={TrendingUp} tone="teal" title="Verlauf" /></div>
-        {loading ? (
-          <p className="copy">Lädt …</p>
-        ) : metrics.length < 2 ? (
-          <div className="empty-state">
-            <p className="copy">Trage mindestens zwei Messungen ein, um deinen Verlauf zu sehen.</p>
-          </div>
-        ) : (
-          <div className="metric-thumb-grid">
-            {METRIC_FIELDS.map(({ key, label, unit }) => {
-              const values = metrics.filter((m) => m[key] !== null).map((m) => m[key] as number);
-              const latest = values[values.length - 1];
-              const first = values[0];
-              const delta = latest !== undefined && first !== undefined ? latest - first : null;
-              return (
-                <div className="panel" key={key}>
-                  <div className="section-head" style={{ marginBottom: 0 }}>
-                    <h3 className="h3">{label}</h3>
-                    {latest !== undefined && <span className="metric-value" style={{ fontSize: 18 }}>{latest} {unit}</span>}
-                  </div>
-                  <Sparkline values={values} />
-                  {delta !== null && (
-                    <p className="copy" style={{ margin: 0 }}>
-                      {delta > 0 ? '+' : ''}{delta.toFixed(1)} {unit} seit Beginn
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+        {latestWeight !== undefined && (
+          <p className="copy" style={{ marginTop: 8, marginBottom: 0 }}>
+            Letzter Eintrag: <strong>{latestWeight} kg</strong>
+            {weightDelta !== null && (
+              <span style={{ color: weightDelta < 0 ? 'var(--teal)' : weightDelta > 0 ? 'var(--danger)' : 'var(--subtle)', marginLeft: 8 }}>
+                ({weightDelta > 0 ? '+' : ''}{weightDelta.toFixed(1)} kg in 2 Wochen)
+              </span>
+            )}
+          </p>
         )}
       </section>
 
+      {/* 2-week graph */}
+      <section className="panel">
+        <CardHead icon={TrendingUp} tone="teal" title="Gewichtsverlauf (14 Tage)" />
+        {loading ? (
+          <p className="copy">Lädt …</p>
+        ) : weightValues.length < 2 ? (
+          <div className="empty-state">
+            <Scale size={28} />
+            <p className="copy">Trage mindestens zwei Gewichtseinträge ein, um deinen Verlauf zu sehen.</p>
+          </div>
+        ) : (
+          <>
+            <Sparkline values={weightValues} width={320} height={72} color="var(--violet)" />
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+              {weightMetrics.slice(0, 1).map((m) => (
+                <span key={m.id} className="copy" style={{ margin: 0, fontSize: 11 }}>{formatFullDate(m.logDate)}</span>
+              ))}
+              {weightMetrics.slice(-1).map((m) => (
+                <span key={m.id} className="copy" style={{ margin: 0, fontSize: 11 }}>{formatFullDate(m.logDate)}</span>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* Weight history list */}
+      {allWeightMetrics.length > 0 && (
+        <section className="panel">
+          <p className="h3" style={{ marginBottom: 8 }}>Verlaufsprotokoll</p>
+          <div className="list">
+            {allWeightMetrics.slice(-10).reverse().map((m) => (
+              <div className="set-row" key={m.id}>
+                <span className="copy" style={{ margin: 0, color: 'var(--subtle)' }}>{formatFullDate(m.logDate)}</span>
+                <span className="copy" style={{ margin: 0, color: 'var(--text)', fontWeight: 800 }}>{m.weightKg} kg</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Strength bests */}
       <section className="panel">
         <div className="section-head">
           <CardHead icon={Dumbbell} tone="gold" title="Kraftwerte" />
@@ -130,7 +152,9 @@ export function ProgressView() {
               <div className="set-row" key={best.exerciseName}>
                 <span className="set-row-label"><Dumbbell size={14} /></span>
                 <span className="copy" style={{ margin: 0 }}>{best.exerciseName}</span>
-                <span className="copy" style={{ margin: 0, color: 'var(--text)', fontWeight: 800 }}>{best.weightKg} kg × {best.reps}</span>
+                <span className="copy" style={{ margin: 0, color: 'var(--text)', fontWeight: 800 }}>
+                  {best.weightKg} kg × {best.reps}
+                </span>
                 <span className="copy" style={{ margin: 0, color: 'var(--subtle)' }}>{formatFullDate(best.date.slice(0, 10))}</span>
               </div>
             ))}
@@ -138,6 +162,7 @@ export function ProgressView() {
         )}
       </section>
 
+      {/* Progress photos */}
       <section className="panel">
         <div className="section-head">
           <CardHead icon={Images} tone="violet" title="Fotos" />

@@ -2,9 +2,31 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, ChevronLeft, ChevronRight, Flag, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Flag, X, Dumbbell, Zap, Activity, PersonStanding } from 'lucide-react';
 import { useActiveWorkout } from '@/web/hooks/useActiveWorkout';
 import type { SetEntry } from '@/domain/types';
+
+type IconComponent = React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>;
+
+const EXERCISE_ICON_MAP: Array<{ keywords: string[]; icon: IconComponent; color: string }> = [
+  { keywords: ['bankdrücken', 'bench', 'dips', 'flieg', 'push-up', 'liegestütz', 'brust'], icon: Zap, color: 'var(--violet)' },
+  { keywords: ['klimmzug', 'latzug', 'ruder', 'kreuzheben', 'deadlift', 'row', 'rücken', 'cable'], icon: Dumbbell, color: 'var(--teal)' },
+  { keywords: ['schulter', 'overhead', 'press', 'seitheben', 'nacken'], icon: Zap, color: 'var(--gold)' },
+  { keywords: ['bizep', 'curl', 'hammer', 'trizep', 'skull'], icon: Dumbbell, color: 'var(--violet)' },
+  { keywords: ['kniebeuge', 'squat', 'beinpresse', 'leg', 'ausfallschritt', 'lunge', 'bein', 'waden'], icon: PersonStanding, color: 'var(--teal)' },
+  { keywords: ['crunch', 'plank', 'planke', 'sit-up', 'bauch', 'core', 'abs'], icon: Activity, color: 'var(--gold)' },
+  { keywords: ['lauf', 'sprint', 'cardio', 'fahrrad', 'bike', 'rowing', 'ruder'], icon: Activity, color: 'var(--danger)' },
+];
+
+function getExerciseIcon(name: string): { icon: IconComponent; color: string } {
+  const lower = name.toLowerCase();
+  for (const entry of EXERCISE_ICON_MAP) {
+    if (entry.keywords.some((kw) => lower.includes(kw))) {
+      return { icon: entry.icon, color: entry.color };
+    }
+  }
+  return { icon: Dumbbell, color: 'var(--subtle)' };
+}
 
 function SetRow({
   set,
@@ -119,7 +141,10 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
       <div className="section-head">
         <div>
           <p className="eyebrow">{session.dayName} · {session.planName}</p>
-          <h1 className="h1" style={{ fontSize: 26 }}>{exercise.exerciseName}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 2 }}>
+            {(() => { const { icon: Icon, color } = getExerciseIcon(exercise.exerciseName); return <Icon size={24} style={{ color }} />; })()}
+            <h1 className="h1" style={{ fontSize: 26, margin: 0 }}>{exercise.exerciseName}</h1>
+          </div>
           <p className="copy">
             Übung {exerciseIndex + 1} von {session.exercises.length} · Ziel: {exercise.targetSets} × {exercise.targetReps}
           </p>
