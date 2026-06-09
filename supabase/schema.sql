@@ -272,3 +272,36 @@ create policy "forge_progress_photos_storage_own"
   on storage.objects for all
   using (bucket_id = 'forge-progress-photos' and auth.uid()::text = (storage.foldername(name))[1])
   with check (bucket_id = 'forge-progress-photos' and auth.uid()::text = (storage.foldername(name))[1]);
+
+-- ─────────────────────────────────────────────────────────────
+-- forge_planned_sessions
+-- Stores the result of the daily auto-planner per user per day.
+-- Tracks which Neo calendar event was created so we can update
+-- instead of creating duplicates.
+-- ─────────────────────────────────────────────────────────────
+create table if not exists public.forge_planned_sessions (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references auth.users (id) on delete cascade,
+  plan_date    date not null,
+  plan_day_id  uuid references public.forge_plan_days (id) on delete set null,
+  plan_day_name text not null default '',
+  plan_name    text not null default '',
+  -- Neo integration
+  neo_event_id text,                          -- null = not yet created / no slot found
+  planned_start time,                         -- e.g. '17:00'
+  planned_end   time,                         -- e.g. '18:15'
+  -- 'scheduled' | 'no_slot' | 'skipped'
+  status       text not null default 'scheduled',
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  unique (user_id, plan_date)
+);
+
+alter table public.forge_planned_sessions enable row level security;
+
+drop policy if exists "forge_planned_sessions_all_own" on public.forge_planned_sessions;
+create policy "forge_planned_sessions_all_own" on public.forge_planned_sessions for all
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Run in Supabase SQL Editor to apply the new table:
+-- (already included above — just re-run the full schema.sql)
