@@ -59,8 +59,20 @@ export function useHabits() {
   const setLog = useCallback(
     async (habit: Habit, logDate: string, value: number, completed: boolean) => {
       if (!user) return;
+
+      // Optimistic update so the UI reacts instantly
+      setLogs((prev) => {
+        const exists = prev.some((l) => l.habitId === habit.id && l.logDate === logDate);
+        if (exists) {
+          return prev.map((l) =>
+            l.habitId === habit.id && l.logDate === logDate ? { ...l, value, completed } : l,
+          );
+        }
+        return [...prev, { habitId: habit.id, logDate, value, completed }];
+      });
+
       await setHabitLog(user.id, habit.id, logDate, value, completed);
-      await load();
+      void load(); // background sync (non-blocking)
     },
     [user, load],
   );

@@ -5,20 +5,21 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Flame, Dumbbell, TrendingUp, CheckCircle2, Settings, Search, LogOut, Menu, X, Check,
+  Flame, Dumbbell, TrendingUp, CheckCircle2, Settings, Search, LogOut, Menu, X, Check, Utensils,
 } from 'lucide-react';
 import { useAuth } from '@/web/hooks/useAuth';
 import { signOut } from '@/services/supabase/auth';
 
 const ALL_NAV = [
-  { href: '/',          label: 'Heute',          icon: Flame },
-  { href: '/plans',     label: 'Pläne',          icon: Dumbbell },
-  { href: '/progress',  label: 'Fortschritt',    icon: TrendingUp },
-  { href: '/habits',    label: 'Gewohnheiten',   icon: CheckCircle2 },
-  { href: '/settings',  label: 'Einstellungen',  icon: Settings },
+  { href: '/',           label: 'Heute',          icon: Flame },
+  { href: '/plans',      label: 'Pläne',          icon: Dumbbell },
+  { href: '/nutrition',  label: 'Ernährung',      icon: Utensils },
+  { href: '/progress',   label: 'Fortschritt',    icon: TrendingUp },
+  { href: '/habits',     label: 'Gewohnheiten',   icon: CheckCircle2 },
+  { href: '/settings',   label: 'Einstellungen',  icon: Settings },
 ] as const;
 
-const DEFAULT_BOTTOM = ['/', '/plans', '/progress', '/habits'] as const;
+const DEFAULT_BOTTOM = ['/', '/plans', '/nutrition', '/progress'] as const;
 const STORAGE_KEY = 'forge_bottom_nav';
 
 function loadBottomKeys(): string[] {
@@ -316,7 +317,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="app-shell">
       {/* Desktop sidebar */}
       <aside className="sidebar">
-        <Brand />
+        <Link href="/" aria-label="Startseite" style={{ textDecoration: 'none' }}>
+          <Brand />
+        </Link>
         <nav className="nav-list">
           {ALL_NAV.map(({ href, label, icon: Icon }) => (
             <Link key={href} href={href} className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}>
@@ -336,7 +339,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="main">
         {/* Mobile topbar */}
         <header className="topbar">
-          <Brand />
+          <Link href="/" aria-label="Startseite" style={{ textDecoration: 'none' }}>
+            <Brand />
+          </Link>
           <button type="button" className="hamburger" onClick={openDrawer} aria-label="Menü öffnen">
             <Menu size={20} />
           </button>

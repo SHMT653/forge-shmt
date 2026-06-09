@@ -146,17 +146,26 @@ function HabitCard({
         {isBinary ? (
           <p className="copy" style={{ marginTop: 0 }}>Heute {todayLog?.completed ? 'erledigt ✓' : 'noch offen'}</p>
         ) : (
-          <div className="button-row" style={{ marginTop: 4 }}>
+          <div className="button-row" style={{ marginTop: 4, gap: 8 }}>
             <input
               className="input compact"
-              style={{ maxWidth: 120 }}
+              style={{ maxWidth: 100 }}
               inputMode="decimal"
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onBlur={commitValue}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); commitValue(); } }}
               placeholder={String(habit.target)}
             />
-            <span className="copy" style={{ margin: 0 }}>von {habit.target} {habit.unit}</span>
+            <span className="copy" style={{ margin: 0, flex: 1 }}>/ {habit.target} {habit.unit}</span>
+            <button
+              type="button"
+              className="button secondary compact"
+              onClick={commitValue}
+              style={{ padding: '6px 12px' }}
+            >
+              OK
+            </button>
           </div>
         )}
 

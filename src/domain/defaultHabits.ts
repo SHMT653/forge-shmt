@@ -10,7 +10,7 @@ export type DefaultHabit = {
 };
 
 export const DEFAULT_HABITS: DefaultHabit[] = [
-  { key: 'water',   label: 'Wasser',         unit: 'ml', target: 2000, waterMode: true },
+  { key: 'water',   label: 'Wasser',         unit: 'ml', target: 2500, waterMode: true },
   { key: 'kreatin', label: 'Kreatin',         unit: '',   target: 1,   pinned: true },
   { key: 'protein', label: 'Protein Powder',  unit: '',   target: 1,   pinned: true },
   { key: 'sleep',   label: 'Schlaf',          unit: 'Std', target: 7 },

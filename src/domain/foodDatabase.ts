@@ -2,9 +2,23 @@ export type FoodItem = {
   name: string;
   kcal: number;
   proteinG: number;
+  carbsG?: number;
+  fatG?: number;
   portionG: number;
   portionLabel: string;
 };
+
+/** Estimate carbs/fat from kcal and protein if not explicitly provided */
+export function estimateMacros(item: FoodItem): { carbsG: number; fatG: number } {
+  if (item.carbsG !== undefined && item.fatG !== undefined) {
+    return { carbsG: item.carbsG, fatG: item.fatG };
+  }
+  const remaining = Math.max(0, item.kcal - item.proteinG * 4);
+  return {
+    carbsG: Math.round((remaining * 0.62) / 4),
+    fatG:   Math.round((remaining * 0.38) / 9),
+  };
+}
 
 export const FOOD_DATABASE: FoodItem[] = [
   // ── Pasta & Nudeln ──────────────────────────────────────────────

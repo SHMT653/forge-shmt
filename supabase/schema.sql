@@ -303,5 +303,23 @@ drop policy if exists "forge_planned_sessions_all_own" on public.forge_planned_s
 create policy "forge_planned_sessions_all_own" on public.forge_planned_sessions for all
   using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
--- Run in Supabase SQL Editor to apply the new table:
--- (already included above — just re-run the full schema.sql)
+-- ─────────────────────────────────────────────────────────────
+-- forge_meal_entries  (per-meal nutrition tracking)
+-- ─────────────────────────────────────────────────────────────
+create table if not exists public.forge_meal_entries (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  log_date   date not null,
+  name       text not null default '',
+  kcal       numeric not null default 0,
+  protein_g  numeric not null default 0,
+  carbs_g    numeric not null default 0,
+  fat_g      numeric not null default 0,
+  logged_at  timestamptz not null default now()
+);
+
+alter table public.forge_meal_entries enable row level security;
+
+drop policy if exists "forge_meal_entries_all_own" on public.forge_meal_entries;
+create policy "forge_meal_entries_all_own" on public.forge_meal_entries for all
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
