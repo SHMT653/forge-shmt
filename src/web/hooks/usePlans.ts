@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
-import { createCustomPlan, createPlanFromTemplate, deletePlan, listPlans, setActivePlan } from '@/data/plans';
+import {
+  addPlanDay, addPlanExercise, createCustomPlan, createPlanFromTemplate,
+  deletePlan, listPlans, removePlanDay, removePlanExercise,
+  renamePlan, renamePlanDay, setActivePlan, updatePlanExercise,
+} from '@/data/plans';
 import { startWorkoutSession } from '@/data/workouts';
 import { errorMessage } from '@/domain/errors';
 import type { PlanTemplate } from '@/domain/planTemplates';
@@ -77,5 +81,44 @@ export function usePlans() {
     [user],
   );
 
-  return { plans, loading, error, reload: load, useTemplate, createCustom, activate, remove, startDay };
+  const editPlanName = useCallback(async (planId: string, name: string, focus: string) => {
+    await renamePlan(planId, name, focus);
+    await load();
+  }, [load]);
+
+  const addDay = useCallback(async (planId: string, dayName: string, orderIndex: number) => {
+    await addPlanDay(planId, dayName, orderIndex);
+    await load();
+  }, [load]);
+
+  const renameDay = useCallback(async (dayId: string, name: string) => {
+    await renamePlanDay(dayId, name);
+    await load();
+  }, [load]);
+
+  const deleteDay = useCallback(async (dayId: string) => {
+    await removePlanDay(dayId);
+    await load();
+  }, [load]);
+
+  const addExercise = useCallback(async (dayId: string, name: string, sets: number, reps: string, orderIndex: number) => {
+    await addPlanExercise(dayId, name, sets, reps, orderIndex);
+    await load();
+  }, [load]);
+
+  const editExercise = useCallback(async (exerciseId: string, name: string, sets: number, reps: string) => {
+    await updatePlanExercise(exerciseId, name, sets, reps);
+    await load();
+  }, [load]);
+
+  const deleteExercise = useCallback(async (exerciseId: string) => {
+    await removePlanExercise(exerciseId);
+    await load();
+  }, [load]);
+
+  return {
+    plans, loading, error, reload: load,
+    useTemplate, createCustom, activate, remove, startDay,
+    editPlanName, addDay, renameDay, deleteDay, addExercise, editExercise, deleteExercise,
+  };
 }

@@ -26,27 +26,57 @@ export async function listHabits(userId: string): Promise<Habit[]> {
   return (data ?? []).map(toHabit);
 }
 
-/** Seeds the default habit set for a user the first time they open Habits. */
+/** Seeds the default habit set for a user the first time they open Habits.
+ *  Also ensures pinned habits (kreatin, protein) always exist even for old users. */
 export async function ensureDefaultHabits(userId: string): Promise<Habit[]> {
   const existing = await listHabits(userId);
-  if (existing.length > 0) return existing;
 
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from('forge_habits')
-    .insert(
-      DEFAULT_HABITS.map((habit, index) => ({
-        user_id: userId,
-        key: habit.key,
-        label: habit.label,
-        unit: habit.unit,
-        target: habit.target,
-        order_index: index,
-      })),
-    )
-    .select('id, key, label, unit, target, order_index, active');
-  if (error) throw error;
-  return (data ?? []).map(toHabit);
+  if (existing.length === 0) {
+    // First-time user: seed all defaults
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('forge_habits')
+      .insert(
+        DEFAULT_HABITS.map((habit, index) => ({
+          user_id: userId,
+          key: habit.key,
+          label: habit.label,
+          unit: habit.unit,
+          target: habit.target,
+          order_index: index,
+        })),
+      )
+      .select('id, key, label, unit, target, order_index, active');
+    if (error) throw error;
+    return (data ?? []).map(toHabit);
+  }
+
+  // Existing user: ensure pinned habits (kreatin, protein) are present
+  const pinnedDefaults = DEFAULT_HABITS.filter((d) => d.pinned);
+  const existingKeys = new Set(existing.map((h) => h.key));
+  const missing = pinnedDefaults.filter((d) => !existingKeys.has(d.key));
+
+  if (missing.length > 0) {
+    const supabase = getSupabaseClient();
+    const maxOrder = Math.max(...existing.map((h) => h.orderIndex), existing.length - 1);
+    const { data, error } = await supabase
+      .from('forge_habits')
+      .insert(
+        missing.map((habit, i) => ({
+          user_id: userId,
+          key: habit.key,
+          label: habit.label,
+          unit: habit.unit,
+          target: habit.target,
+          order_index: maxOrder + 1 + i,
+        })),
+      )
+      .select('id, key, label, unit, target, order_index, active');
+    if (error) throw error;
+    return [...existing, ...(data ?? []).map(toHabit)];
+  }
+
+  return existing;
 }
 
 export async function listHabitLogsForRange(userId: string, fromDate: string): Promise<HabitLog[]> {

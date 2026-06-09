@@ -47,18 +47,18 @@ export function DashboardView() {
   const [foodResults, setFoodResults] = useState<FoodItem[]>([]);
   const foodSearchRef = useRef<HTMLInputElement>(null);
 
-  if (loading || !data) {
+  if (error && !data) {
     return (
       <div className="panel">
-        <p className="copy">Dein Fortschritt wird geladen …</p>
+        <p className="copy" style={{ color: 'var(--danger)' }}>{error}</p>
       </div>
     );
   }
 
-  if (error) {
+  if (loading || !data) {
     return (
       <div className="panel">
-        <p className="copy" style={{ color: 'var(--danger)' }}>{error}</p>
+        <p className="copy">Dein Fortschritt wird geladen …</p>
       </div>
     );
   }
@@ -81,13 +81,15 @@ export function DashboardView() {
 
   async function handleNutritionSave(e: React.FormEvent) {
     e.preventDefault();
+    if (!calorieInput.trim() && !proteinInput.trim()) return;
     setSavingNutrition(true);
     try {
-      const currentCalories = data?.nutritionLog.calories ?? 0;
-      const currentProtein = data?.nutritionLog.proteinG ?? 0;
+      // Additive: add to the day's existing total
+      const savedCal = data?.nutritionLog.calories ?? 0;
+      const savedProt = data?.nutritionLog.proteinG ?? 0;
       await logNutrition(
-        calorieInput.trim() ? Number(calorieInput) : currentCalories,
-        proteinInput.trim() ? Number(proteinInput) : currentProtein,
+        savedCal + (calorieInput.trim() ? Number(calorieInput) : 0),
+        savedProt + (proteinInput.trim() ? Number(proteinInput) : 0),
       );
       setCalorieInput('');
       setProteinInput('');
@@ -102,14 +104,8 @@ export function DashboardView() {
   }
 
   function selectFood(item: FoodItem) {
-    setCalorieInput((prev) => {
-      const existing = Number(prev) || 0;
-      return String(existing + item.kcal);
-    });
-    setProteinInput((prev) => {
-      const existing = Number(prev) || 0;
-      return String(existing + item.proteinG);
-    });
+    setCalorieInput((prev) => String((Number(prev) || 0) + item.kcal));
+    setProteinInput((prev) => String((Number(prev) || 0) + item.proteinG));
     setFoodQuery('');
     setFoodResults([]);
     foodSearchRef.current?.focus();
@@ -267,7 +263,9 @@ export function DashboardView() {
               <label className="field-label" htmlFor="protein">Protein (g)</label>
               <input id="protein" className="input compact" inputMode="numeric" value={proteinInput} onChange={(e) => setProteinInput(e.target.value)} placeholder={String(data.nutritionLog.proteinG)} />
             </div>
-            <button type="submit" className="button secondary compact" disabled={savingNutrition}>Speichern</button>
+            <button type="submit" className="button secondary compact" disabled={savingNutrition || (!calorieInput.trim() && !proteinInput.trim())}>
+              {savingNutrition ? 'Speichert …' : 'Hinzufügen'}
+            </button>
           </form>
         </div>
       </section>

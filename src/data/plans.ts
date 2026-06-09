@@ -163,3 +163,69 @@ export async function createCustomPlan(
   if (days.length > 0) await insertDaysAndExercises(plan.id, days);
   return plan.id;
 }
+
+export async function renamePlan(planId: string, name: string, focus: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from('forge_training_plans').update({ name, focus }).eq('id', planId);
+  if (error) throw error;
+}
+
+export async function addPlanDay(planId: string, dayName: string, orderIndex: number): Promise<PlanDay> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('forge_plan_days')
+    .insert({ plan_id: planId, name: dayName, order_index: orderIndex })
+    .select('id, plan_id, name, order_index')
+    .single();
+  if (error) throw error;
+  return { id: data.id, name: data.name, orderIndex: data.order_index, exercises: [] };
+}
+
+export async function renamePlanDay(dayId: string, name: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from('forge_plan_days').update({ name }).eq('id', dayId);
+  if (error) throw error;
+}
+
+export async function removePlanDay(dayId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from('forge_plan_days').delete().eq('id', dayId);
+  if (error) throw error;
+}
+
+export async function addPlanExercise(
+  dayId: string,
+  name: string,
+  targetSets: number,
+  targetReps: string,
+  orderIndex: number,
+): Promise<Exercise> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('forge_plan_exercises')
+    .insert({ plan_day_id: dayId, name, target_sets: targetSets, target_reps: targetReps, order_index: orderIndex })
+    .select('id, plan_day_id, name, target_sets, target_reps, order_index')
+    .single();
+  if (error) throw error;
+  return toExercise(data);
+}
+
+export async function updatePlanExercise(
+  exerciseId: string,
+  name: string,
+  targetSets: number,
+  targetReps: string,
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('forge_plan_exercises')
+    .update({ name, target_sets: targetSets, target_reps: targetReps })
+    .eq('id', exerciseId);
+  if (error) throw error;
+}
+
+export async function removePlanExercise(exerciseId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from('forge_plan_exercises').delete().eq('id', exerciseId);
+  if (error) throw error;
+}
