@@ -1,38 +1,58 @@
-/** A free time slot returned by Neo's free-slots endpoint */
+/** A free slot returned by NEO's free-slots endpoint (times in UTC + Berlin local) */
 export type NeoFreeSlot = {
-  start: string; // "17:00" (local time, Europe/Berlin)
-  end:   string; // "18:15"
-  date:  string; // "2026-06-09"
+  start:       string; // UTC ISO: "2026-06-09T13:30:00.000Z"
+  end:         string; // UTC ISO: "2026-06-09T14:45:00.000Z"
+  start_local: string; // Berlin local: "15:30"
+  end_local:   string; // Berlin local: "16:45"
 };
 
-/** Payload to create or update a calendar event in Neo */
-export type NeoEventPayload = {
-  title:      string;           // "Training – Push Day"
-  date:       string;           // "2026-06-09"
-  start_time: string;           // "17:00"
-  end_time:   string;           // "18:15"
-  source_app: 'forge';
-  source_id:  string;           // forge planned_session id (used for idempotency)
-  type:       'training';
+export type NeoFreeSlotsResponse = {
+  free_slots: NeoFreeSlot[];
+  count:      number;
 };
 
-/** A calendar event as returned by Neo */
-export type NeoEvent = NeoEventPayload & {
-  id: string;                   // Neo's own event id
+/** Body for POST /api/calendar/events (create new) */
+export type NeoCreateEventPayload = {
+  user_id:     string;
+  title:       string;
+  start_at:    string;      // UTC ISO
+  end_at:      string;      // UTC ISO
+  description?: string;
+  source_app:  'forge';
+  source_id:   string;      // forge_planned_sessions.id (stable per user+date)
 };
 
-/** Query params for GET /api/calendar/free-slots */
-export type NeoFreeSlotsParams = {
-  date:             string;     // "2026-06-09"
-  duration_minutes: number;     // 75
-  earliest_time:    string;     // "15:30"
-  latest_time:      string;     // "21:00"
-  buffer_minutes:   number;     // 15
+/** Body for PATCH /api/calendar/events/by-source (upsert by source_id) */
+export type NeoPatchBySourcePayload = {
+  user_id:     string;
+  source_app:  'forge';
+  source_id:   string;
+  title:       string;
+  start_at:    string;      // UTC ISO
+  end_at:      string;      // UTC ISO
+  description?: string;
 };
 
-/** Query params for GET /api/calendar/events */
-export type NeoEventsQuery = {
-  date?:       string;
+export type NeoPatchBySourceResponse = {
+  action: 'created' | 'updated';
+  event:  NeoEventRecord;
+};
+
+export type NeoEventRecord = {
+  id:         string;
+  title:      string;
+  start_at:   string;
+  end_at:     string;
   source_app?: string;
-  type?:       string;
+  source_id?:  string;
+};
+
+/** 409 Conflict response */
+export type NeoCollisionError = {
+  error:              'collision';
+  conflicting_event:  {
+    title:    string;
+    start_at: string;
+    end_at:   string;
+  };
 };

@@ -3,22 +3,16 @@
  *
  * Orchestrates the daily training planning for a single user:
  * 1. Look up active plan + today's rotation day
- * 2. Check if a Forge event already exists in Neo for today
- * 3. Find a free slot via Neo API
- * 4. Create or update the Neo calendar event
- * 5. Persist the result in forge_planned_sessions
+ * 2. Get free slots from Neo (date, duration, buffer)
+ * 3. Try each slot via PATCH /by-source — skip on 409 collision
+ * 4. Persist the result in forge_planned_sessions
  */
 
-import { getActivePlanForUser, getPlannedSession, upsertPlannedSession } from '@/data/plannedSessions';
-import {
-  createNeoEvent,
-  deleteNeoEvent,
-  getFreeSlotsFromNeo,
-  getNeoEvents,
-  updateNeoEvent,
-} from '@/services/neo/client';
+import { getActivePlanForUser, getOrInitSourceId, getPlannedSession, upsertPlannedSession } from '@/data/plannedSessions';
+import { patchNeoEventBySource, getFreeSlotsFromNeo } from '@/services/neo/client';
 import {
   PLANNER_CONFIG,
+  addMinutesToISO,
   getTodaysPlanDay,
   makeLogger,
   minutesToTime,
@@ -28,9 +22,19 @@ import {
   type PlannerStatus,
 } from '@/domain/planner';
 
-/** Returns today's date in YYYY-MM-DD format in Europe/Berlin timezone */
+/** Returns today's date in YYYY-MM-DD in Europe/Berlin timezone */
 export function todayBerlin(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: PLANNER_CONFIG.timezone }).format(new Date());
+}
+
+/** Format a UTC ISO string as Berlin local "HH:MM" for display / storage */
+function isoToBerlinTime(iso: string): string {
+  return new Intl.DateTimeFormat('de-DE', {
+    timeZone: PLANNER_CONFIG.timezone,
+    hour:     '2-digit',
+    minute:   '2-digit',
+    hour12:   false,
+  }).format(new Date(iso));
 }
 
 export type PlannerResult = {
@@ -61,142 +65,159 @@ export async function runPlannerForUser(userId: string, date: string): Promise<P
       log.warn('No plan day resolved — skipping');
       return { userId, date, status: { status: 'no_plan' }, logs };
     }
-    log.info('Today\'s plan day', { dayId: todayDay.id, dayName: todayDay.name });
+    log.info("Today's plan day", { dayId: todayDay.id, dayName: todayDay.name });
 
     const trainingTitle = `Training – ${todayDay.name}`;
 
-    // ── 3. Check existing planned session for today ────────────────────────────
+    // ── 3. Get stable source_id (forge_planned_sessions row id) ───────────────
+    const sourceId = await getOrInitSourceId(userId, date, {
+      planDayId:   todayDay.id,
+      planDayName: todayDay.name,
+      planName:    activePlan.planName,
+    });
+    log.info('Source ID for Neo', { sourceId });
+
+    // ── 4. Check if already correctly scheduled ────────────────────────────────
     const existing = await getPlannedSession(userId, date);
-    log.info('Existing planned session', { existing });
-
-    // ── 4. Check Neo for existing Forge events today ───────────────────────────
-    log.info('Querying Neo calendar for existing Forge events');
-    const existingNeoEvents = await getFreeSlotsFromNeo(userId, {
-      date,
-      duration_minutes: PLANNER_CONFIG.durationMinutes,
-      earliest_time:    PLANNER_CONFIG.earliestTime,
-      latest_time:      PLANNER_CONFIG.latestTime,
-      buffer_minutes:   PLANNER_CONFIG.bufferMinutes,
-    }).catch(() => null);
-
-    // Also check for any Forge event already in Neo calendar
-    const forgeEventsToday = await getNeoEvents(userId, {
-      date,
-      source_app: 'forge',
-      type:       'training',
-    }).catch(() => []);
-
-    const existingNeoEventId = existing?.neoEventId ?? forgeEventsToday[0]?.id ?? null;
-    if (existingNeoEventId) {
-      log.info('Found existing Neo event', { eventId: existingNeoEventId });
+    if (existing?.status === 'scheduled' && existing.plannedStart && existing.neoEventId) {
+      log.info('Already scheduled — checking if slot is still valid');
+      // The cron will still run to handle reschedules if needed.
+      // Fall through to fetch free slots and verify.
     }
 
-    // ── 5. Find free slots ────────────────────────────────────────────────────
-    log.info('Querying Neo free-slots API');
-    const freeSlots = existingNeoEvents ?? [];
-    log.info('Free slots found', { count: freeSlots.length, slots: freeSlots });
+    // ── 5. Fetch free slots from Neo ───────────────────────────────────────────
+    log.info('Fetching Neo free slots', {
+      duration: PLANNER_CONFIG.durationMinutes,
+      buffer:   PLANNER_CONFIG.bufferMinutes,
+    });
+    const freeSlots = await getFreeSlotsFromNeo(
+      userId,
+      date,
+      PLANNER_CONFIG.durationMinutes,
+      PLANNER_CONFIG.bufferMinutes,
+    ).catch((err) => {
+      log.error('Failed to fetch free slots', { error: String(err) });
+      return null;
+    });
+
+    if (freeSlots === null) {
+      return { userId, date, status: { status: 'error', message: 'Neo free-slots API unavailable' }, logs };
+    }
+
+    log.info('Free slots received', { count: freeSlots.length, slots: freeSlots.map((s) => `${s.start_local}–${s.end_local}`) });
 
     if (freeSlots.length === 0) {
-      log.warn('No free slots available today — marking as no_slot');
-
-      // Clean up stale Neo event if it exists but there's no slot (shouldn't happen normally)
-      if (existingNeoEventId) {
-        log.warn('Deleting stale Neo event (no slot found but event existed)', { existingNeoEventId });
-        await deleteNeoEvent(userId, existingNeoEventId).catch((e) => log.error('Failed to delete stale Neo event', e));
-      }
-
+      log.warn('No free slots available today — no_slot');
       await upsertPlannedSession({
-        userId,
-        planDate:     date,
-        planDayId:    todayDay.id,
-        planDayName:  todayDay.name,
-        planName:     activePlan.planName,
-        neoEventId:   null,
-        plannedStart: null,
-        plannedEnd:   null,
-        status:       'no_slot',
+        userId, planDate: date,
+        planDayId: todayDay.id, planDayName: todayDay.name, planName: activePlan.planName,
+        neoEventId: existing?.neoEventId ?? null,
+        plannedStart: null, plannedEnd: null,
+        status: 'no_slot',
       });
-
       return { userId, date, status: { status: 'no_slot' }, logs };
     }
 
-    // ── 6. Select best slot ────────────────────────────────────────────────────
+    // ── 6. Sort slots by preference and try each until one works ──────────────
     const best = selectBestSlot(freeSlots, PLANNER_CONFIG.durationMinutes);
     if (!best) {
       log.warn('No slot long enough for workout duration');
       await upsertPlannedSession({
-        userId, planDate: date, planDayId: todayDay.id, planDayName: todayDay.name,
-        planName: activePlan.planName, neoEventId: null, plannedStart: null, plannedEnd: null, status: 'no_slot',
+        userId, planDate: date,
+        planDayId: todayDay.id, planDayName: todayDay.name, planName: activePlan.planName,
+        neoEventId: existing?.neoEventId ?? null,
+        plannedStart: null, plannedEnd: null, status: 'no_slot',
       });
       return { userId, date, status: { status: 'no_slot' }, logs };
     }
 
-    const slotEnd = minutesToTime(timeToMinutes(best.start) + PLANNER_CONFIG.durationMinutes);
-    log.info('Selected slot', { start: best.start, end: slotEnd });
-
-    // ── 7. Check if existing event is at the same time (no-op) ────────────────
+    // Check if the existing scheduled slot is identical (idempotent)
+    const slotEndLocal = minutesToTime(timeToMinutes(best.start_local) + PLANNER_CONFIG.durationMinutes);
     const isSameSlot =
-      existingNeoEventId &&
-      existing?.plannedStart === best.start &&
-      existing?.plannedEnd   === slotEnd;
+      existing?.neoEventId &&
+      existing.plannedStart === best.start_local &&
+      existing.plannedEnd   === slotEndLocal;
 
     if (isSameSlot) {
-      log.info('Existing event is still at the correct time — no update needed');
+      log.info('Slot unchanged — no Neo update needed', { start: best.start_local });
       return {
         userId, date,
-        status: { status: 'scheduled', slot: { start: best.start, end: slotEnd }, neoEventId: existingNeoEventId! },
+        status: {
+          status:    'scheduled',
+          slot:      { startLocal: best.start_local, endLocal: slotEndLocal, startAt: best.start, endAt: addMinutesToISO(best.start, PLANNER_CONFIG.durationMinutes) },
+          neoAction: 'updated',
+        },
         logs,
       };
     }
 
-    // ── 8. Create or update Neo event ─────────────────────────────────────────
-    const sessionId = existing?.id ?? crypto.randomUUID();
-    const eventPayload = {
-      title:      trainingTitle,
-      date,
-      start_time: best.start,
-      end_time:   slotEnd,
-      source_app: 'forge' as const,
-      source_id:  sessionId,
-      type:       'training' as const,
-    };
+    // ── 7. Try PATCH /by-source — slot by slot if collision ───────────────────
+    // Sort: best slot first, then others by preference
+    const orderedSlots = [
+      best,
+      ...freeSlots.filter((s) => s !== best).sort((a, b) => timeToMinutes(a.start_local) - timeToMinutes(b.start_local)),
+    ];
 
-    let neoEventId: string;
-    let finalStatus: 'scheduled' | 'updated';
+    for (const slot of orderedSlots) {
+      const endAt = addMinutesToISO(slot.start, PLANNER_CONFIG.durationMinutes);
+      const endLocal = isoToBerlinTime(endAt);
 
-    if (existingNeoEventId) {
-      log.info('Updating existing Neo event', { eventId: existingNeoEventId });
-      const updated = await updateNeoEvent(userId, existingNeoEventId, eventPayload);
-      neoEventId   = updated.id;
-      finalStatus  = 'updated';
-      log.info('Neo event updated', { eventId: neoEventId });
-    } else {
-      log.info('Creating new Neo event');
-      const created = await createNeoEvent(userId, eventPayload);
-      neoEventId  = created.id;
-      finalStatus = 'scheduled';
-      log.info('Neo event created', { eventId: neoEventId, title: trainingTitle });
+      log.info('Attempting Neo PATCH /by-source', { start_local: slot.start_local, end_local: endLocal });
+
+      const result = await patchNeoEventBySource({
+        user_id:    userId,
+        source_app: 'forge',
+        source_id:  sourceId,
+        title:      trainingTitle,
+        start_at:   slot.start,
+        end_at:     endAt,
+      });
+
+      if (!result.ok) {
+        log.warn('409 collision on slot — trying next', {
+          slot:             `${slot.start_local}–${endLocal}`,
+          conflicting_event: result.collision.title,
+          conflict_time:    isoToBerlinTime(result.collision.start_at),
+        });
+        continue;
+      }
+
+      // ── 8. Persist result ──────────────────────────────────────────────────
+      await upsertPlannedSession({
+        userId, planDate: date,
+        planDayId: todayDay.id, planDayName: todayDay.name, planName: activePlan.planName,
+        neoEventId:   result.event.id,
+        plannedStart: slot.start_local,
+        plannedEnd:   endLocal,
+        status:       'scheduled',
+      });
+
+      log.info('Planning complete', {
+        action:     result.action,
+        start:      slot.start_local,
+        end:        endLocal,
+        neoEventId: result.event.id,
+      });
+
+      return {
+        userId, date,
+        status: {
+          status:    'scheduled',
+          slot:      { startLocal: slot.start_local, endLocal, startAt: slot.start, endAt },
+          neoAction: result.action,
+        },
+        logs,
+      };
     }
 
-    // ── 9. Persist in Forge DB ────────────────────────────────────────────────
+    // All slots had collisions
+    log.warn('All slots had Neo collisions — no_slot');
     await upsertPlannedSession({
-      userId,
-      planDate:     date,
-      planDayId:    todayDay.id,
-      planDayName:  todayDay.name,
-      planName:     activePlan.planName,
-      neoEventId,
-      plannedStart: best.start,
-      plannedEnd:   slotEnd,
-      status:       'scheduled',
+      userId, planDate: date,
+      planDayId: todayDay.id, planDayName: todayDay.name, planName: activePlan.planName,
+      neoEventId: null, plannedStart: null, plannedEnd: null, status: 'no_slot',
     });
-
-    log.info('Planning complete', { status: finalStatus, start: best.start, end: slotEnd });
-    return {
-      userId, date,
-      status: { status: finalStatus, slot: { start: best.start, end: slotEnd }, neoEventId },
-      logs,
-    };
+    return { userId, date, status: { status: 'no_slot' }, logs };
 
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

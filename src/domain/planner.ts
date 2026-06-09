@@ -27,16 +27,16 @@ export function minutesToTime(minutes: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-/** Duration of a slot in minutes */
+/** Duration of a slot in minutes (uses Berlin local times from slot) */
 export function slotDurationMinutes(slot: NeoFreeSlot): number {
-  return timeToMinutes(slot.end) - timeToMinutes(slot.start);
+  return timeToMinutes(slot.end_local) - timeToMinutes(slot.start_local);
 }
 
-/** Trim a slot so only the first `durationMinutes` are used */
-export function trimSlot(slot: NeoFreeSlot, durationMinutes: number): { start: string; end: string } {
-  const start = slot.start;
-  const end   = minutesToTime(timeToMinutes(slot.start) + durationMinutes);
-  return { start, end };
+/** Add minutes to a UTC ISO string, return new UTC ISO string */
+export function addMinutesToISO(isoString: string, minutes: number): string {
+  const d = new Date(isoString);
+  d.setMinutes(d.getMinutes() + minutes);
+  return d.toISOString();
 }
 
 // ─── Slot selection ──────────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ export function trimSlot(slot: NeoFreeSlot, durationMinutes: number): { start: s
  * Pick the best free slot for a workout.
  *
  * Priority:
- * 1. A slot that starts between preferredStart and preferredEnd (e.g. 17:00–19:00)
+ * 1. A slot whose local start falls in the preferred window (17:00–19:00)
  * 2. The earliest remaining slot that fits the duration
  * 3. null if nothing fits
  */
@@ -54,21 +54,18 @@ export function selectBestSlot(slots: NeoFreeSlot[], durationMinutes: number): N
   const valid = slots.filter((s) => slotDurationMinutes(s) >= durationMinutes);
   if (valid.length === 0) return null;
 
-  // Prefer the preferred time window (start falls within it)
   const prefStart = timeToMinutes(PLANNER_CONFIG.preferredStart);
   const prefEnd   = timeToMinutes(PLANNER_CONFIG.preferredEnd);
   const preferred = valid.filter((s) => {
-    const start = timeToMinutes(s.start);
+    const start = timeToMinutes(s.start_local);
     return start >= prefStart && start <= prefEnd;
   });
 
-  // Within preferred window: pick earliest
   if (preferred.length > 0) {
-    return preferred.sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))[0]!;
+    return preferred.sort((a, b) => timeToMinutes(a.start_local) - timeToMinutes(b.start_local))[0]!;
   }
 
-  // Fallback: earliest overall (avoid planning too late)
-  return valid.sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))[0]!;
+  return valid.sort((a, b) => timeToMinutes(a.start_local) - timeToMinutes(b.start_local))[0]!;
 }
 
 // ─── Week / rotation logic ────────────────────────────────────────────────────
@@ -76,11 +73,8 @@ export function selectBestSlot(slots: NeoFreeSlot[], durationMinutes: number): N
 export type PlanDaySummary = { id: string; name: string };
 
 /**
- * Determine which plan day to schedule today.
- *
- * Simple round-robin: (completedSessionsForPlan % totalDays) gives next index.
- * A training day is needed every day the plan has days; the caller decides
- * whether to skip weekends or rest days (Forge doesn't enforce this yet).
+ * Determine which plan day to schedule today via round-robin.
+ * (completedSessionsForPlan % totalDays) gives the next index.
  */
 export function getTodaysPlanDay(days: PlanDaySummary[], completedCount: number): PlanDaySummary | null {
   if (days.length === 0) return null;
@@ -90,11 +84,10 @@ export function getTodaysPlanDay(days: PlanDaySummary[], completedCount: number)
 // ─── Status type ─────────────────────────────────────────────────────────────
 
 export type PlannerStatus =
-  | { status: 'scheduled'; slot: { start: string; end: string }; neoEventId: string }
-  | { status: 'updated';   slot: { start: string; end: string }; neoEventId: string }
+  | { status: 'scheduled'; slot: { startLocal: string; endLocal: string; startAt: string; endAt: string }; neoAction: 'created' | 'updated' }
   | { status: 'no_slot' }
   | { status: 'no_plan' }
-  | { status: 'error';     message: string };
+  | { status: 'error'; message: string };
 
 // ─── Logging helpers ──────────────────────────────────────────────────────────
 

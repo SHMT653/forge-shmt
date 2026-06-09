@@ -1,10 +1,18 @@
-import type { NeoEvent, NeoEventPayload, NeoEventsQuery, NeoFreeSlot, NeoFreeSlotsParams } from './types';
+import type {
+  NeoCollisionError,
+  NeoCreateEventPayload,
+  NeoEventRecord,
+  NeoPatchBySourcePayload,
+  NeoPatchBySourceResponse,
+  NeoFreeSlot,
+  NeoFreeSlotsResponse,
+} from './types';
 
 function getNeoConfig(): { baseUrl: string; secret: string } {
   const baseUrl = process.env.NEO_API_URL;
-  const secret  = process.env.NEO_API_SECRET;
+  const secret  = process.env.NEO_FORGE_API_SECRET;
   if (!baseUrl) throw new Error('NEO_API_URL is not set');
-  if (!secret)  throw new Error('NEO_API_SECRET is not set');
+  if (!secret)  throw new Error('NEO_FORGE_API_SECRET is not set');
   return { baseUrl: baseUrl.replace(/\/$/, ''), secret };
 }
 
@@ -16,10 +24,9 @@ async function neoFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${secret}`,
+      'x-api-secret': secret,
       ...init.headers,
     },
-    // Never cache Neo responses — calendar data is real-time
     cache: 'no-store',
   });
 
@@ -31,48 +38,81 @@ async function neoFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-/** GET /api/calendar/free-slots — returns slots where a workout fits */
-export async function getFreeSlotsFromNeo(userId: string, params: NeoFreeSlotsParams): Promise<NeoFreeSlot[]> {
+/** GET /api/calendar/free-slots — returns slots fitting the requested duration */
+export async function getFreeSlotsFromNeo(
+  userId:   string,
+  date:     string,
+  duration: number,
+  buffer:   number,
+): Promise<NeoFreeSlot[]> {
   const qs = new URLSearchParams({
-    user_id:          userId,
-    date:             params.date,
-    duration_minutes: String(params.duration_minutes),
-    earliest_time:    params.earliest_time,
-    latest_time:      params.latest_time,
-    buffer_minutes:   String(params.buffer_minutes),
+    user_id:  userId,
+    date,
+    duration: String(duration),
+    buffer:   String(buffer),
   });
-  return neoFetch<NeoFreeSlot[]>(`/api/calendar/free-slots?${qs}`);
+  const resp = await neoFetch<NeoFreeSlotsResponse>(`/api/calendar/free-slots?${qs}`);
+  return resp.free_slots ?? [];
 }
 
-/** GET /api/calendar/events — find existing Forge events for a day */
-export async function getNeoEvents(userId: string, query: NeoEventsQuery): Promise<NeoEvent[]> {
-  const qs = new URLSearchParams({ user_id: userId });
-  if (query.date)       qs.set('date',       query.date);
-  if (query.source_app) qs.set('source_app', query.source_app);
-  if (query.type)       qs.set('type',       query.type);
-  return neoFetch<NeoEvent[]>(`/api/calendar/events?${qs}`);
+export type PatchResult =
+  | { ok: true;  action: 'created' | 'updated'; event: NeoEventRecord }
+  | { ok: false; collision: NeoCollisionError['conflicting_event'] };
+
+/**
+ * PATCH /api/calendar/events/by-source
+ * Upserts the Forge event identified by source_id.
+ * Returns ok=false on 409 collision so the caller can try the next slot.
+ */
+export async function patchNeoEventBySource(payload: NeoPatchBySourcePayload): Promise<PatchResult> {
+  const { baseUrl, secret } = getNeoConfig();
+  const res = await fetch(`${baseUrl}/api/calendar/events/by-source`, {
+    method:  'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-secret': secret,
+    },
+    body:  JSON.stringify(payload),
+    cache: 'no-store',
+  });
+
+  if (res.status === 409) {
+    const body = await res.json() as NeoCollisionError;
+    return { ok: false, collision: body.conflicting_event };
+  }
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Neo PATCH /by-source → ${res.status}: ${body}`);
+  }
+
+  const data = await res.json() as NeoPatchBySourceResponse;
+  return { ok: true, action: data.action, event: data.event };
 }
 
-/** POST /api/calendar/events — create a new event */
-export async function createNeoEvent(userId: string, payload: NeoEventPayload): Promise<NeoEvent> {
-  return neoFetch<NeoEvent>('/api/calendar/events', {
-    method: 'POST',
-    body: JSON.stringify({ user_id: userId, ...payload }),
+/** POST /api/calendar/events — explicit create (returns 409 on collision) */
+export async function createNeoEvent(payload: NeoCreateEventPayload): Promise<PatchResult> {
+  const { baseUrl, secret } = getNeoConfig();
+  const res = await fetch(`${baseUrl}/api/calendar/events`, {
+    method:  'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-secret': secret,
+    },
+    body:  JSON.stringify(payload),
+    cache: 'no-store',
   });
-}
 
-/** PUT /api/calendar/events/:id — update an existing event */
-export async function updateNeoEvent(userId: string, eventId: string, payload: NeoEventPayload): Promise<NeoEvent> {
-  return neoFetch<NeoEvent>(`/api/calendar/events/${eventId}`, {
-    method: 'PUT',
-    body: JSON.stringify({ user_id: userId, ...payload }),
-  });
-}
+  if (res.status === 409) {
+    const body = await res.json() as NeoCollisionError;
+    return { ok: false, collision: body.conflicting_event };
+  }
 
-/** DELETE /api/calendar/events/:id — remove an event */
-export async function deleteNeoEvent(userId: string, eventId: string): Promise<void> {
-  await neoFetch<void>(`/api/calendar/events/${eventId}`, {
-    method: 'DELETE',
-    body: JSON.stringify({ user_id: userId }),
-  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Neo POST /events → ${res.status}: ${body}`);
+  }
+
+  const event = await res.json() as NeoEventRecord;
+  return { ok: true, action: 'created', event };
 }

@@ -90,6 +90,46 @@ export async function upsertPlannedSession(session: {
   return toPlannedSession(data as Row);
 }
 
+/**
+ * Get the stable source_id (= row id) for a user+date.
+ * Inserts a minimal stub row if one doesn't exist yet.
+ * This id is passed as source_id to NEO so it can always PATCH by-source.
+ */
+export async function getOrInitSourceId(
+  userId:  string,
+  date:    string,
+  dayInfo: { planDayId: string; planDayName: string; planName: string },
+): Promise<string> {
+  const supabase = getSupabaseServerClient();
+
+  // Check for existing row first
+  const { data: existing } = await supabase
+    .from('forge_planned_sessions')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('plan_date', date)
+    .maybeSingle();
+
+  if (existing) return existing.id as string;
+
+  // Insert stub — Supabase auto-generates the UUID
+  const { data: inserted, error } = await supabase
+    .from('forge_planned_sessions')
+    .insert({
+      user_id:       userId,
+      plan_date:     date,
+      plan_day_id:   dayInfo.planDayId,
+      plan_day_name: dayInfo.planDayName,
+      plan_name:     dayInfo.planName,
+      status:        'scheduled',
+    })
+    .select('id')
+    .single();
+
+  if (error) throw error;
+  return (inserted as { id: string }).id;
+}
+
 /** List all user IDs that have an active training plan (for the cron job) */
 export async function listUsersWithActivePlans(): Promise<string[]> {
   const supabase = getSupabaseServerClient();
