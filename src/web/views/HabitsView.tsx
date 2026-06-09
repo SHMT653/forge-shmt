@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircle2, Circle, Flame } from 'lucide-react';
 import { useHabits } from '@/web/hooks/useHabits';
 import { dateKeyAddDays, formatRelativeDay, todayKey } from '@/domain/dates';
@@ -23,6 +23,11 @@ function HabitCard({
   const todayLog = logsByDate.get(today);
   const [value, setValue] = useState(todayLog ? String(todayLog.value) : '');
   const isBinary = habit.unit === '';
+
+  // Sync local input with server-confirmed value after parent reload
+  useEffect(() => {
+    setValue(todayLog ? String(todayLog.value) : '');
+  }, [todayLog?.value, todayLog?.completed]);
 
   const days = Array.from({ length: HISTORY_LENGTH }, (_, i) => dateKeyAddDays(today, -(HISTORY_LENGTH - 1 - i)));
 
@@ -90,8 +95,6 @@ function HabitCard({
 export function HabitsView() {
   const { habits, logsByHabit, streaksByHabit, loading, error, setLog } = useHabits();
 
-  if (loading) return <p className="copy">Lädt …</p>;
-
   return (
     <>
       <section className="panel">
@@ -102,6 +105,11 @@ export function HabitsView() {
 
       {error && <p className="copy" style={{ color: 'var(--danger)' }}>{error}</p>}
 
+      {loading ? (
+        <div className="panel">
+          <p className="copy">Gewohnheiten werden geladen …</p>
+        </div>
+      ) : (
       <section className="list">
         {habits.map((habit) => {
           const logsByDate = new Map<string, { value: number; completed: boolean }>();
@@ -117,6 +125,7 @@ export function HabitsView() {
           );
         })}
       </section>
+      )}
     </>
   );
 }

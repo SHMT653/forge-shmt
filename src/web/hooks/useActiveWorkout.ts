@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
-import { abandonSession, finishSession, getLastPerformance, getSession, updateSet } from '@/data/workouts';
+import { abandonSession, finishSession, getBestPerformances, getSession, updateSet } from '@/data/workouts';
 import { errorMessage } from '@/domain/errors';
 import type { WorkoutSession } from '@/domain/types';
 
@@ -22,14 +22,8 @@ export function useActiveWorkout(sessionId: string) {
       setSession(data);
 
       if (data) {
-        const entries = await Promise.all(
-          data.exercises.map(async (exercise) => {
-            const perf = await getLastPerformance(user.id, exercise.exerciseName);
-            return [exercise.exerciseName, perf] as const;
-          }),
-        );
-        const map = new Map<string, { reps: number; weightKg: number }>();
-        for (const [name, perf] of entries) if (perf) map.set(name, perf);
+        const names = data.exercises.map((e) => e.exerciseName);
+        const map = await getBestPerformances(user.id, names);
         setLastPerformance(map);
       }
     } catch (err) {

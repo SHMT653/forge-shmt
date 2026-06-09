@@ -62,7 +62,7 @@ export function ProgressView() {
 
       <section className="panel soft">
         <CardHead icon={Ruler} tone="violet" title="Heutige Werte eintragen" />
-        <form onSubmit={handleSubmit} className="split" style={{ marginTop: 12, gridTemplateColumns: 'repeat(4, minmax(0,1fr))' }}>
+        <form onSubmit={handleSubmit} className="split-4" style={{ marginTop: 12 }}>
           {METRIC_FIELDS.map(({ key, label, unit }) => (
             <div className="field" key={key}>
               <label className="field-label" htmlFor={key}>{label} ({unit})</label>

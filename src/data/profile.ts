@@ -13,19 +13,6 @@ export async function ensureProfile(userId: string, displayName: string): Promis
   return { id: data.id, displayName: data.display_name };
 }
 
-export async function getProfile(userId: string): Promise<Profile | null> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from('forge_profiles')
-    .select('id, display_name')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (error) throw error;
-  if (!data) return null;
-  return { id: data.id, displayName: data.display_name };
-}
-
 export async function updateDisplayName(userId: string, displayName: string): Promise<void> {
   const supabase = getSupabaseClient();
   const { error } = await supabase.from('forge_profiles').update({ display_name: displayName }).eq('id', userId);

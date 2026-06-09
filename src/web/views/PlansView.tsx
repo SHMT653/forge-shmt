@@ -200,7 +200,16 @@ export function PlansView() {
                       Aktivieren
                     </button>
                   )}
-                  <button type="button" className="button ghost compact" disabled={busyId === plan.id} onClick={async () => { setBusyId(plan.id); try { await remove(plan.id); } finally { setBusyId(null); } }}>
+                  <button
+                    type="button"
+                    className="button ghost compact"
+                    disabled={busyId === plan.id}
+                    onClick={async () => {
+                      if (!window.confirm(`„${plan.name}" wirklich löschen?`)) return;
+                      setBusyId(plan.id);
+                      try { await remove(plan.id); } finally { setBusyId(null); }
+                    }}
+                  >
                     <Trash2 size={14} />
                   </button>
                 </div>

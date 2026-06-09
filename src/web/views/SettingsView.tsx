@@ -7,13 +7,7 @@ import { useAuth } from '@/web/hooks/useAuth';
 import { useSettings } from '@/web/hooks/useSettings';
 import { signOut } from '@/services/supabase/auth';
 import { CardHead } from '@/web/components/CardHead';
-
-function formatDuration(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.round((seconds % 3600) / 60);
-  if (hours > 0) return `${hours} Std ${minutes} Min`;
-  return `${minutes} Min`;
-}
+import { formatDuration } from '@/domain/dates';
 
 export function SettingsView() {
   const { user } = useAuth();
@@ -117,7 +111,7 @@ export function SettingsView() {
       <section className="panel">
         <CardHead icon={Target} tone="teal" title="Ziele" />
         <p className="copy">Diese Werte steuern die Fortschrittsanzeigen auf "Heute".</p>
-        <form className="split" style={{ marginTop: 12, gridTemplateColumns: 'repeat(3, minmax(0,1fr))' }} onSubmit={handleGoalsSubmit}>
+        <form className="split-3" style={{ marginTop: 12 }} onSubmit={handleGoalsSubmit}>
           <div className="field">
             <label className="field-label" htmlFor="calorieGoal">Kalorienziel (kcal)</label>
             <input id="calorieGoal" className="input compact" inputMode="numeric" value={calorieGoal} onChange={(e) => setCalorieGoal(e.target.value)} />

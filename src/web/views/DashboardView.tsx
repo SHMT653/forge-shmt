@@ -7,14 +7,8 @@ import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle, ListChecks, U
 import { useTodayData } from '@/web/hooks/useTodayData';
 import { ProgressRing } from '@/web/components/ProgressRing';
 import { CardHead } from '@/web/components/CardHead';
+import { formatDuration } from '@/domain/dates';
 import type { Habit } from '@/domain/types';
-
-function formatDuration(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.round((seconds % 3600) / 60);
-  if (hours > 0) return `${hours} Std ${minutes} Min`;
-  return `${minutes} Min`;
-}
 
 function HabitQuickRow({ habit, log, onToggle }: { habit: Habit; log: { value: number; completed: boolean } | undefined; onToggle: (next: boolean) => void }) {
   const completed = log?.completed ?? false;
@@ -85,7 +79,12 @@ export function DashboardView() {
     e.preventDefault();
     setSavingNutrition(true);
     try {
-      await logNutrition(Number(calorieInput) || data!.nutritionLog.calories, Number(proteinInput) || data!.nutritionLog.proteinG);
+      const currentCalories = data?.nutritionLog.calories ?? 0;
+      const currentProtein = data?.nutritionLog.proteinG ?? 0;
+      await logNutrition(
+        calorieInput.trim() ? Number(calorieInput) : currentCalories,
+        proteinInput.trim() ? Number(proteinInput) : currentProtein,
+      );
       setCalorieInput('');
       setProteinInput('');
     } finally {

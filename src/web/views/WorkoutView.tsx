@@ -62,6 +62,7 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
   const router = useRouter();
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [finishing, setFinishing] = useState(false);
+  const [confirmAbandon, setConfirmAbandon] = useState(false);
 
   if (loading) return <p className="copy">Training wird geladen …</p>;
   if (error) return <p className="copy" style={{ color: 'var(--danger)' }}>{error}</p>;
@@ -109,7 +110,6 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
   }
 
   async function handleAbandon() {
-    if (!window.confirm('Training wirklich abbrechen? Bisherige Eingaben gehen verloren.')) return;
     await abandon();
     router.push('/');
   }
@@ -124,7 +124,15 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
             Übung {exerciseIndex + 1} von {session.exercises.length} · Ziel: {exercise.targetSets} × {exercise.targetReps}
           </p>
         </div>
-        <button type="button" className="button ghost compact" onClick={handleAbandon}><X size={16} /> Abbrechen</button>
+        {confirmAbandon ? (
+          <div className="button-row">
+            <span className="copy" style={{ margin: 0, fontSize: 13 }}>Wirklich abbrechen?</span>
+            <button type="button" className="button danger compact" onClick={handleAbandon}>Ja, abbrechen</button>
+            <button type="button" className="button secondary compact" onClick={() => setConfirmAbandon(false)}>Weiter</button>
+          </div>
+        ) : (
+          <button type="button" className="button ghost compact" onClick={() => setConfirmAbandon(true)}><X size={16} /> Abbrechen</button>
+        )}
       </div>
 
       {suggestion && (

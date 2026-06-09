@@ -29,6 +29,13 @@ export function formatRelativeDay(key: string): string {
   });
 }
 
+export function formatDuration(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.round((seconds % 3600) / 60);
+  if (hours > 0) return `${hours} Std ${minutes} Min`;
+  return `${minutes} Min`;
+}
+
 export function formatFullDate(key: string): string {
   const [y, m, d] = key.split('-').map(Number);
   return new Date(y!, (m ?? 1) - 1, d ?? 1).toLocaleDateString('de-DE', {

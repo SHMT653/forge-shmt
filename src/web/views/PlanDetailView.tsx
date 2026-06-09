@@ -10,7 +10,7 @@ import type { PlanDay, TrainingPlan } from '@/domain/types';
 export function PlanDetailView({ planId }: { planId: string }) {
   const { plans, loading, activate, remove, startDay } = usePlans();
   const router = useRouter();
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null); // day.id | 'activate' | 'delete'
 
   const plan = plans.find((p) => p.id === planId);
 
@@ -51,16 +51,23 @@ export function PlanDetailView({ planId }: { planId: string }) {
         </div>
         <div className="card-actions">
           {!plan.isActive && (
-            <button type="button" className="button secondary compact" onClick={() => activate(plan.id)}>
-              <Star size={14} /> Als aktiv setzen
+            <button
+              type="button"
+              className="button secondary compact"
+              disabled={busy === 'activate'}
+              onClick={async () => { setBusy('activate'); try { await activate(plan.id); } finally { setBusy(null); } }}
+            >
+              <Star size={14} /> {busy === 'activate' ? 'Wird gesetzt …' : 'Als aktiv setzen'}
             </button>
           )}
           <button
             type="button"
             className="button ghost compact"
-            onClick={() => {
-              void remove(plan.id);
-              router.push('/plans');
+            disabled={busy === 'delete'}
+            onClick={async () => {
+              if (!window.confirm(`„${plan.name}" wirklich löschen?`)) return;
+              setBusy('delete');
+              try { await remove(plan.id); router.push('/plans'); } finally { setBusy(null); }
             }}
           >
             <Trash2 size={14} /> Plan löschen

@@ -187,11 +187,17 @@ export async function abandonSession(sessionId: string): Promise<void> {
   if (error) throw error;
 }
 
-/** Best completed set (highest weight) for an exercise from the most recent finished session. */
-export async function getLastPerformance(
+/**
+ * Best completed set (highest weight) per exercise name from the last 20 finished sessions.
+ * Returns a map exerciseName → {reps, weightKg}. One batch of 3 queries instead of N+1.
+ */
+export async function getBestPerformances(
   userId: string,
-  exerciseName: string,
-): Promise<{ reps: number; weightKg: number } | null> {
+  exerciseNames: string[],
+): Promise<Map<string, { reps: number; weightKg: number }>> {
+  const result = new Map<string, { reps: number; weightKg: number }>();
+  if (exerciseNames.length === 0) return result;
+
   const supabase = getSupabaseClient();
 
   const { data: sessions, error: sessionsError } = await supabase
@@ -202,35 +208,47 @@ export async function getLastPerformance(
     .order('completed_at', { ascending: false })
     .limit(20);
   if (sessionsError) throw sessionsError;
-  if (!sessions || sessions.length === 0) return null;
+  if (!sessions || sessions.length === 0) return result;
 
-  for (const session of sessions) {
-    const { data: exercise, error: exerciseError } = await supabase
-      .from('forge_session_exercises')
-      .select('id')
-      .eq('session_id', session.id)
-      .eq('exercise_name', exerciseName)
-      .maybeSingle();
-    if (exerciseError) throw exerciseError;
-    if (!exercise) continue;
+  const sessionIds = sessions.map((s) => s.id);
 
-    const { data: sets, error: setsError } = await supabase
-      .from('forge_session_sets')
-      .select('reps, weight_kg')
-      .eq('session_exercise_id', exercise.id)
-      .eq('completed', true)
-      .not('weight_kg', 'is', null)
-      .order('weight_kg', { ascending: false })
-      .limit(1);
-    if (setsError) throw setsError;
+  const { data: exercises, error: exercisesError } = await supabase
+    .from('forge_session_exercises')
+    .select('id, session_id, exercise_name')
+    .in('session_id', sessionIds)
+    .in('exercise_name', exerciseNames);
+  if (exercisesError) throw exercisesError;
+  if (!exercises || exercises.length === 0) return result;
 
-    const best = sets?.[0];
-    if (best && best.weight_kg !== null) {
-      return { reps: best.reps ?? 0, weightKg: Number(best.weight_kg) };
+  const exerciseIds = exercises.map((e) => e.id);
+
+  const { data: sets, error: setsError } = await supabase
+    .from('forge_session_sets')
+    .select('session_exercise_id, reps, weight_kg')
+    .in('session_exercise_id', exerciseIds)
+    .eq('completed', true)
+    .not('weight_kg', 'is', null);
+  if (setsError) throw setsError;
+
+  const exerciseById = new Map(exercises.map((e) => [e.id, e]));
+  // session order: earlier index = more recent
+  const sessionOrder = new Map(sessions.map((s, i) => [s.id, i]));
+
+  for (const set of sets ?? []) {
+    const exercise = exerciseById.get(set.session_exercise_id);
+    if (!exercise || set.weight_kg === null) continue;
+    const name = exercise.exercise_name;
+    const existing = result.get(name);
+    const weight = Number(set.weight_kg);
+    const sessionRank = sessionOrder.get(exercise.session_id) ?? 999;
+    const existingRank = existing ? (sessionOrder.get(exerciseById.get(set.session_exercise_id)?.session_id ?? '') ?? 999) : 999;
+    // prefer higher weight; on tie prefer more recent session
+    if (!existing || weight > existing.weightKg || (weight === existing.weightKg && sessionRank < existingRank)) {
+      result.set(name, { reps: set.reps ?? 0, weightKg: weight });
     }
   }
 
-  return null;
+  return result;
 }
 
 export async function listCompletedSessionDates(userId: string, limit = 400): Promise<string[]> {

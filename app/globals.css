@@ -722,6 +722,19 @@ button:disabled {
   gap: 18px;
 }
 
+/* Fluid multi-column grids that collapse on mobile */
+.split-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.split-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
 .section-head {
   display: flex;
   align-items: flex-end;
@@ -1007,6 +1020,8 @@ button:disabled {
 
   .hero-grid,
   .split,
+  .split-4,
+  .split-3,
   .plan-grid,
   .metric-thumb-grid {
     grid-template-columns: 1fr;
