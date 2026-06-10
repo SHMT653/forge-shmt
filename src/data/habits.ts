@@ -56,6 +56,8 @@ export async function ensureDefaultHabits(userId: string): Promise<Habit[]> {
   const existingKeys = new Set(existing.map((h) => h.key));
   const missing = pinnedDefaults.filter((d) => !existingKeys.has(d.key));
 
+  let updated = existing;
+
   if (missing.length > 0) {
     const supabase = getSupabaseClient();
     const maxOrder = Math.max(...existing.map((h) => h.orderIndex), existing.length - 1);
@@ -73,10 +75,25 @@ export async function ensureDefaultHabits(userId: string): Promise<Habit[]> {
       )
       .select('id, key, label, unit, target, order_index, active');
     if (error) throw error;
-    return [...existing, ...(data ?? []).map(toHabit)];
+    updated = [...existing, ...(data ?? []).map(toHabit)];
   }
 
-  return existing;
+  // Fix stale targets: if a default habit's stored target doesn't match the canonical
+  // value (e.g. water was stored as 2.5 instead of 2500), update it.
+  const supabase = getSupabaseClient();
+  const fixPromises: Promise<unknown>[] = [];
+  for (const habit of updated) {
+    const def = DEFAULT_HABITS.find((d) => d.key === habit.key);
+    if (def && habit.target !== def.target) {
+      fixPromises.push(
+        Promise.resolve(supabase.from('forge_habits').update({ target: def.target }).eq('id', habit.id)),
+      );
+      habit.target = def.target;
+    }
+  }
+  await Promise.all(fixPromises);
+
+  return updated;
 }
 
 export async function listHabitLogsForRange(userId: string, fromDate: string): Promise<HabitLog[]> {
