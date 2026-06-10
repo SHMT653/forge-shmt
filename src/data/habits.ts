@@ -79,14 +79,28 @@ export async function ensureDefaultHabits(userId: string): Promise<Habit[]> {
   }
 
   // Fix stale targets: if a default habit's stored target doesn't match the canonical
-  // value (e.g. water was stored as 2.5 instead of 2500), update it.
+  // value (e.g. water was stored as 2.5 instead of 2500), update it and reset any
+  // log that was set to the old (wrong) target by the legacy binary toggle.
   const supabase = getSupabaseClient();
+  const today = new Date().toISOString().slice(0, 10);
   const fixPromises: Promise<unknown>[] = [];
   for (const habit of updated) {
     const def = DEFAULT_HABITS.find((d) => d.key === habit.key);
     if (def && habit.target !== def.target) {
+      const oldTarget = habit.target;
       fixPromises.push(
         Promise.resolve(supabase.from('forge_habits').update({ target: def.target }).eq('id', habit.id)),
+      );
+      // Reset today's log if it was set to the stale target (binary toggle artifact)
+      fixPromises.push(
+        Promise.resolve(
+          supabase
+            .from('forge_habit_logs')
+            .update({ value: 0, completed: false })
+            .eq('habit_id', habit.id)
+            .eq('log_date', today)
+            .eq('value', oldTarget),
+        ),
       );
       habit.target = def.target;
     }
