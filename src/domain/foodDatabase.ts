@@ -23,11 +23,11 @@ export function estimateMacros(item: FoodItem): { carbsG: number; fatG: number }
 export const FOOD_DATABASE: FoodItem[] = [
   // ── Pasta & Nudeln ──────────────────────────────────────────────
   { name: 'Nudeln mit Bolognese',         kcal: 520, proteinG: 28, portionG: 400, portionLabel: '1 Portion' },
-  { name: 'Pasta Carbonara',              kcal: 620, proteinG: 24, portionG: 380, portionLabel: '1 Portion' },
+  { name: 'Pasta Carbonara',              kcal: 820, proteinG: 32, portionG: 380, portionLabel: '1 Teller' },
   { name: 'Spaghetti Aglio e Olio',       kcal: 480, proteinG: 12, portionG: 300, portionLabel: '1 Portion' },
   { name: 'Penne Arrabiata',              kcal: 420, proteinG: 14, portionG: 350, portionLabel: '1 Portion' },
   { name: 'Nudeln mit Tomatensauce',      kcal: 380, proteinG: 12, portionG: 350, portionLabel: '1 Portion' },
-  { name: 'Lasagne',                      kcal: 580, proteinG: 30, portionG: 400, portionLabel: '1 Stück' },
+  { name: 'Lasagne',                      kcal: 700, proteinG: 35, portionG: 400, portionLabel: '1 Portion' },
   { name: 'Mac and Cheese',               kcal: 550, proteinG: 20, portionG: 350, portionLabel: '1 Portion' },
   { name: 'Nudeln mit Pesto',             kcal: 560, proteinG: 16, portionG: 300, portionLabel: '1 Portion' },
   { name: 'Fusilli mit Gemüsesauce',      kcal: 360, proteinG: 13, portionG: 350, portionLabel: '1 Portion' },
@@ -42,7 +42,7 @@ export const FOOD_DATABASE: FoodItem[] = [
   { name: 'Schnitzel paniert',            kcal: 420, proteinG: 30, portionG: 200, portionLabel: '1 Stück' },
   { name: 'Putenbrust gebraten',          kcal: 175, proteinG: 33, portionG: 150, portionLabel: '150 g' },
   { name: 'Gyros mit Tzatziki',           kcal: 480, proteinG: 32, portionG: 350, portionLabel: '1 Portion' },
-  { name: 'Döner Kebab',                  kcal: 580, proteinG: 30, portionG: 350, portionLabel: '1 Stück' },
+  { name: 'Döner Kebab',                  kcal: 700, proteinG: 35, portionG: 400, portionLabel: '1 Stück' },
   { name: 'Cheeseburger',                 kcal: 490, proteinG: 25, portionG: 200, portionLabel: '1 Stück' },
   { name: 'Hamburger',                    kcal: 420, proteinG: 22, portionG: 180, portionLabel: '1 Stück' },
   { name: 'Chicken Nuggets (10 Stück)',   kcal: 460, proteinG: 25, portionG: 200, portionLabel: '10 Stück' },
@@ -175,8 +175,8 @@ export const FOOD_DATABASE: FoodItem[] = [
   { name: 'Pita mit Falafel',             kcal: 460, proteinG: 15, portionG: 300, portionLabel: '1 Stück' },
 
   // ── Deutsche Klassiker ───────────────────────────────────────────
-  { name: 'Currywurst mit Pommes',        kcal: 680, proteinG: 24, portionG: 400, portionLabel: '1 Portion' },
-  { name: 'Schnitzel mit Pommes',         kcal: 820, proteinG: 38, portionG: 500, portionLabel: '1 Portion' },
+  { name: 'Currywurst mit Pommes',        kcal: 900, proteinG: 25, portionG: 450, portionLabel: '1 Portion' },
+  { name: 'Schnitzel mit Pommes',         kcal: 1100, proteinG: 45, portionG: 600, portionLabel: '1 Portion' },
   { name: 'Sauerbraten mit Klößen',       kcal: 620, proteinG: 36, portionG: 450, portionLabel: '1 Portion' },
   { name: 'Maultaschen mit Brühe',        kcal: 420, proteinG: 20, portionG: 350, portionLabel: '1 Portion' },
   { name: 'Reibekuchen (3 Stück)',        kcal: 380, proteinG: 6,  portionG: 180, portionLabel: '3 Stück' },
@@ -193,7 +193,7 @@ export const FOOD_DATABASE: FoodItem[] = [
   { name: 'Panini (Käse & Tomate)',       kcal: 380, proteinG: 16, portionG: 200, portionLabel: '1 Stück' },
 
   // ── Bäckerei & Süßes ────────────────────────────────────────────
-  { name: 'Croissant',                    kcal: 280, proteinG: 6,  portionG: 80,  portionLabel: '1 Stück' },
+  { name: 'Croissant',                    kcal: 240, proteinG: 5,  portionG: 75,  portionLabel: '1 Stück' },
   { name: 'Muffin (Blueberry)',           kcal: 340, proteinG: 5,  portionG: 120, portionLabel: '1 Stück' },
   { name: 'Donut',                        kcal: 280, proteinG: 4,  portionG: 75,  portionLabel: '1 Stück' },
   { name: 'Brezel',                       kcal: 220, proteinG: 7,  portionG: 80,  portionLabel: '1 Stück' },
@@ -272,17 +272,20 @@ export const FOOD_DATABASE: FoodItem[] = [
   { name: 'Pils (500 ml)',               kcal: 215, proteinG: 2,  carbsG: 17, fatG: 0, portionG: 500, portionLabel: '500 ml' },
 
   // ── Fast Food ────────────────────────────────────────────────────
-  { name: 'Big Mac',                     kcal: 563, proteinG: 26, carbsG: 44, fatG: 33, portionG: 214, portionLabel: '1 Stück' },
-  { name: 'McChicken',                   kcal: 395, proteinG: 15, carbsG: 39, fatG: 20, portionG: 154, portionLabel: '1 Stück' },
-  { name: 'Whopper',                     kcal: 657, proteinG: 28, carbsG: 49, fatG: 40, portionG: 290, portionLabel: '1 Stück' },
-  { name: 'McFlurry (250 ml)',           kcal: 340, proteinG: 8,  carbsG: 52, fatG: 11, portionG: 250, portionLabel: '1 Becher' },
-  { name: 'Pommes groß (McDonald\'s)',   kcal: 444, proteinG: 6,  carbsG: 56, fatG: 22, portionG: 154, portionLabel: '1 Portion groß' },
-  { name: 'Pommes mittel (McDonald\'s)', kcal: 337, proteinG: 4,  carbsG: 43, fatG: 17, portionG: 117, portionLabel: '1 Portion mittel' },
-  { name: 'Chicken McNuggets (9 St.)',   kcal: 416, proteinG: 22, carbsG: 25, fatG: 25, portionG: 162, portionLabel: '9 Stück' },
-  { name: 'Döner im Fladenbrot',         kcal: 620, proteinG: 34, carbsG: 58, fatG: 24, portionG: 400, portionLabel: '1 Stück' },
-  { name: 'Döner im Dürüm',             kcal: 560, proteinG: 32, carbsG: 52, fatG: 20, portionG: 380, portionLabel: '1 Stück' },
-  { name: 'Lahmacun',                    kcal: 380, proteinG: 18, carbsG: 42, fatG: 14, portionG: 280, portionLabel: '1 Stück' },
-  { name: 'Pommes Currywurst',           kcal: 720, proteinG: 26, carbsG: 68, fatG: 36, portionG: 450, portionLabel: '1 Portion' },
+  { name: 'Big Mac',                     kcal: 500, proteinG: 26, carbsG: 44, fatG: 26, portionG: 214, portionLabel: '1 Stück' },
+  { name: 'McDonald\'s Cheeseburger',   kcal: 300, proteinG: 15, carbsG: 32, fatG: 12, portionG: 114, portionLabel: '1 Stück' },
+  { name: 'McDonald\'s Double Cheeseburger', kcal: 450, proteinG: 26, carbsG: 34, fatG: 22, portionG: 166, portionLabel: '1 Stück' },
+  { name: 'McDonald\'s Hamburger',      kcal: 250, proteinG: 13, carbsG: 30, fatG: 9,  portionG: 100, portionLabel: '1 Stück' },
+  { name: 'McChicken',                  kcal: 480, proteinG: 22, carbsG: 46, fatG: 22, portionG: 175, portionLabel: '1 Stück' },
+  { name: 'Whopper',                    kcal: 657, proteinG: 28, carbsG: 49, fatG: 40, portionG: 290, portionLabel: '1 Stück' },
+  { name: 'McFlurry Oreo',              kcal: 510, proteinG: 10, carbsG: 76, fatG: 17, portionG: 300, portionLabel: '1 Becher' },
+  { name: 'Pommes groß (McDonald\'s)',  kcal: 440, proteinG: 5,  carbsG: 56, fatG: 22, portionG: 154, portionLabel: '1 Portion groß' },
+  { name: 'Pommes mittel (McDonald\'s)',kcal: 337, proteinG: 4,  carbsG: 43, fatG: 17, portionG: 117, portionLabel: '1 Portion mittel' },
+  { name: 'Chicken McNuggets (9 St.)',  kcal: 390, proteinG: 23, carbsG: 24, fatG: 22, portionG: 162, portionLabel: '9 Stück' },
+  { name: 'Döner im Fladenbrot',        kcal: 700, proteinG: 35, carbsG: 58, fatG: 26, portionG: 420, portionLabel: '1 Stück' },
+  { name: 'Döner im Dürüm',            kcal: 640, proteinG: 32, carbsG: 52, fatG: 22, portionG: 390, portionLabel: '1 Stück' },
+  { name: 'Lahmacun',                   kcal: 380, proteinG: 18, carbsG: 42, fatG: 14, portionG: 280, portionLabel: '1 Stück' },
+  { name: 'Pommes Currywurst',          kcal: 720, proteinG: 26, carbsG: 68, fatG: 36, portionG: 450, portionLabel: '1 Portion' },
 
   // ── Koreanisch ───────────────────────────────────────────────────
   { name: 'Bibimbap',                    kcal: 490, proteinG: 26, carbsG: 62, fatG: 14, portionG: 450, portionLabel: '1 Bowl' },
@@ -423,6 +426,52 @@ export const FOOD_DATABASE: FoodItem[] = [
   { name: 'Spezi (330 ml)',              kcal: 145, proteinG: 0,  carbsG: 36, fatG: 0,  portionG: 330, portionLabel: '330 ml' },
   { name: 'Mate (330 ml)',               kcal: 30,  proteinG: 0,  carbsG: 7,  fatG: 0,  portionG: 330, portionLabel: '330 ml' },
   { name: 'Club Mate (330 ml)',          kcal: 63,  proteinG: 0,  carbsG: 15, fatG: 0,  portionG: 330, portionLabel: '330 ml' },
+
+  // ── Nudeln & Spätzle ─────────────────────────────────────────────
+  { name: 'Nudeln mit Parmesansahnesoße', kcal: 780, proteinG: 24, portionG: 400, portionLabel: '1 Teller' },
+  { name: 'Spaghetti Bolognese',         kcal: 700, proteinG: 35, portionG: 450, portionLabel: '1 Teller' },
+  { name: 'Käsespätzle',                 kcal: 850, proteinG: 28, portionG: 500, portionLabel: '1 Teller' },
+  { name: 'Spätzle mit Rahmsoße',        kcal: 700, proteinG: 18, portionG: 450, portionLabel: '1 Teller' },
+  { name: 'Spätzle mit Rahmsoße & Köttbullar', kcal: 1050, proteinG: 42, portionG: 600, portionLabel: '1 Teller' },
+
+  // ── Pfannkuchen (2 Stück) ────────────────────────────────────────
+  { name: 'Pfannkuchen pur (2 Stück)',           kcal: 380, proteinG: 12, portionG: 200, portionLabel: '2 Stück' },
+  { name: 'Pfannkuchen mit Nutella (2 Stück)',   kcal: 580, proteinG: 14, portionG: 240, portionLabel: '2 Stück' },
+  { name: 'Pfannkuchen mit Marmelade (2 Stück)', kcal: 500, proteinG: 12, portionG: 230, portionLabel: '2 Stück' },
+  { name: 'Pfannkuchen mit Honig (2 Stück)',     kcal: 500, proteinG: 12, portionG: 230, portionLabel: '2 Stück' },
+  { name: 'Pfannkuchen mit Erdnussbutter (2 Stück)', kcal: 650, proteinG: 22, portionG: 250, portionLabel: '2 Stück' },
+  { name: 'Pfannkuchen mit Banane (2 Stück)',    kcal: 480, proteinG: 13, portionG: 240, portionLabel: '2 Stück' },
+
+  // ── Müsli & Cerealien (mit Milch) ───────────────────────────────
+  { name: 'Haferflocken mit Milch (1 Schüssel)', kcal: 450, proteinG: 20, portionG: 350, portionLabel: '1 Schüssel' },
+  { name: 'Schokomüsli mit Milch',       kcal: 550, proteinG: 15, portionG: 350, portionLabel: '1 Schüssel' },
+  { name: 'Knuspermüsli mit Milch',      kcal: 600, proteinG: 14, portionG: 380, portionLabel: '1 Schüssel' },
+  { name: 'Früchtemüsli mit Milch',      kcal: 500, proteinG: 15, portionG: 360, portionLabel: '1 Schüssel' },
+  { name: 'Protein-Müsli mit Milch',     kcal: 550, proteinG: 35, portionG: 370, portionLabel: '1 Schüssel' },
+  { name: 'Cornflakes mit Milch',        kcal: 420, proteinG: 14, portionG: 320, portionLabel: '1 Schüssel' },
+  { name: 'Cini Minis mit Milch',        kcal: 520, proteinG: 12, portionG: 340, portionLabel: '1 Schüssel' },
+  { name: 'Lion Cereals mit Milch',      kcal: 550, proteinG: 13, portionG: 350, portionLabel: '1 Schüssel' },
+
+  // ── Frühstück ────────────────────────────────────────────────────
+  { name: '2 Toasts mit Nutella',        kcal: 340, proteinG: 8,  portionG: 140, portionLabel: '2 Scheiben' },
+  { name: '2 Toasts mit Erdnussbutter',  kcal: 390, proteinG: 15, portionG: 140, portionLabel: '2 Scheiben' },
+  { name: 'Schokocroissant',             kcal: 330, proteinG: 6,  portionG: 100, portionLabel: '1 Stück' },
+  { name: '2 Brötchen mit Käse',         kcal: 500, proteinG: 22, portionG: 220, portionLabel: '2 Brötchen' },
+  { name: '2 Brötchen mit Salami',       kcal: 550, proteinG: 20, portionG: 220, portionLabel: '2 Brötchen' },
+
+  // ── Red Bull Varianten ───────────────────────────────────────────
+  { name: 'Red Bull Sugarfree (250 ml)', kcal: 8,   proteinG: 0,  carbsG: 1,  fatG: 0, portionG: 250, portionLabel: '250 ml Dose' },
+  { name: 'Red Bull Zero (250 ml)',      kcal: 8,   proteinG: 0,  carbsG: 0,  fatG: 0, portionG: 250, portionLabel: '250 ml Dose' },
+  { name: 'Red Bull Edition (250 ml)',   kcal: 112, proteinG: 0,  carbsG: 28, fatG: 0, portionG: 250, portionLabel: '250 ml Dose' },
+
+  // ── Ganze Pizzen ─────────────────────────────────────────────────
+  { name: 'Pizza Margherita (ganze Pizza)',  kcal: 850, proteinG: 30, portionG: 500, portionLabel: '1 ganze Pizza' },
+  { name: 'Pizza Salami (ganze Pizza)',      kcal: 1000, proteinG: 40, portionG: 550, portionLabel: '1 ganze Pizza' },
+  { name: 'Pizza Tonno (ganze Pizza)',       kcal: 920, proteinG: 44, portionG: 530, portionLabel: '1 ganze Pizza' },
+  { name: 'Pizza Hawaii (ganze Pizza)',      kcal: 960, proteinG: 38, portionG: 540, portionLabel: '1 ganze Pizza' },
+
+  // ── Kombinationsgerichte ─────────────────────────────────────────
+  { name: 'Burger mit Pommes',           kcal: 1000, proteinG: 40, portionG: 550, portionLabel: '1 Portion' },
 ];
 
 export function searchFood(query: string): FoodItem[] {
