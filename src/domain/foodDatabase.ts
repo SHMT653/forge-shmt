@@ -150,17 +150,122 @@ export const FOOD_DATABASE: FoodItem[] = [
   { name: 'Erdnussbutter (2 EL)',         kcal: 190, proteinG: 7,  portionG: 32,  portionLabel: '2 EL' },
   { name: 'Hummus mit Gemüse',            kcal: 180, proteinG: 6,  portionG: 150, portionLabel: '1 Portion' },
 
-  // ── Getränke (kalorienhaltig) ────────────────────────────────────
-  { name: 'Orangensaft (250 ml)',         kcal: 110, proteinG: 1,  portionG: 250, portionLabel: '250 ml' },
-  { name: 'Milch (250 ml, 3,5%)',         kcal: 160, proteinG: 8,  portionG: 250, portionLabel: '250 ml' },
-  { name: 'Latte Macchiato',              kcal: 140, proteinG: 6,  portionG: 350, portionLabel: '1 Glas' },
-  { name: 'Cappuccino',                   kcal: 90,  proteinG: 5,  portionG: 150, portionLabel: '1 Tasse' },
-
   // ── Indisch ──────────────────────────────────────────────────────
   { name: 'Chicken Tikka Masala',         kcal: 480, proteinG: 34, portionG: 400, portionLabel: '1 Portion' },
   { name: 'Butter Chicken',               kcal: 520, proteinG: 32, portionG: 400, portionLabel: '1 Portion' },
   { name: 'Saag Paneer',                  kcal: 380, proteinG: 16, portionG: 350, portionLabel: '1 Portion' },
   { name: 'Naan Brot',                    kcal: 260, proteinG: 7,  portionG: 100, portionLabel: '1 Stück' },
+  { name: 'Dal Makhani',                  kcal: 340, proteinG: 14, portionG: 350, portionLabel: '1 Portion' },
+  { name: 'Samosa (2 Stück)',             kcal: 270, proteinG: 6,  portionG: 120, portionLabel: '2 Stück' },
+
+  // ── Mexikanisch ──────────────────────────────────────────────────
+  { name: 'Burrito (Hähnchen)',           kcal: 560, proteinG: 34, portionG: 350, portionLabel: '1 Stück' },
+  { name: 'Tacos (2 Stück)',              kcal: 380, proteinG: 22, portionG: 200, portionLabel: '2 Stück' },
+  { name: 'Quesadilla (Käse & Hähnchen)',kcal: 480, proteinG: 28, portionG: 280, portionLabel: '1 Stück' },
+  { name: 'Nachos mit Käse & Guacamole', kcal: 540, proteinG: 10, portionG: 200, portionLabel: '1 Portion' },
+  { name: 'Guacamole (100 g)',            kcal: 160, proteinG: 2,  portionG: 100, portionLabel: '100 g' },
+  { name: 'Enchiladas (2 Stück)',         kcal: 480, proteinG: 26, portionG: 300, portionLabel: '2 Stück' },
+
+  // ── Mediterran & Naher Osten ─────────────────────────────────────
+  { name: 'Falafel (4 Stück)',            kcal: 280, proteinG: 10, portionG: 160, portionLabel: '4 Stück' },
+  { name: 'Shakshuka',                    kcal: 280, proteinG: 16, portionG: 350, portionLabel: '1 Portion' },
+  { name: 'Kebab Teller (Gemüse & Reis)', kcal: 520, proteinG: 30, portionG: 450, portionLabel: '1 Teller' },
+  { name: 'Taboulé (200 g)',              kcal: 180, proteinG: 5,  portionG: 200, portionLabel: '200 g' },
+  { name: 'Dolma (6 Stück)',              kcal: 220, proteinG: 6,  portionG: 180, portionLabel: '6 Stück' },
+  { name: 'Pita mit Falafel',             kcal: 460, proteinG: 15, portionG: 300, portionLabel: '1 Stück' },
+
+  // ── Deutsche Klassiker ───────────────────────────────────────────
+  { name: 'Currywurst mit Pommes',        kcal: 680, proteinG: 24, portionG: 400, portionLabel: '1 Portion' },
+  { name: 'Schnitzel mit Pommes',         kcal: 820, proteinG: 38, portionG: 500, portionLabel: '1 Portion' },
+  { name: 'Sauerbraten mit Klößen',       kcal: 620, proteinG: 36, portionG: 450, portionLabel: '1 Portion' },
+  { name: 'Maultaschen mit Brühe',        kcal: 420, proteinG: 20, portionG: 350, portionLabel: '1 Portion' },
+  { name: 'Reibekuchen (3 Stück)',        kcal: 380, proteinG: 6,  portionG: 180, portionLabel: '3 Stück' },
+  { name: 'Sauerkraut (150 g)',           kcal: 35,  proteinG: 2,  portionG: 150, portionLabel: '150 g' },
+  { name: 'Kassler mit Sauerkraut',       kcal: 480, proteinG: 34, portionG: 350, portionLabel: '1 Portion' },
+  { name: 'Flammkuchen',                  kcal: 560, proteinG: 16, portionG: 320, portionLabel: '1 Stück' },
+
+  // ── Sandwiches & Wraps ───────────────────────────────────────────
+  { name: 'Club Sandwich',                kcal: 540, proteinG: 30, portionG: 300, portionLabel: '1 Stück' },
+  { name: 'BLT Sandwich',                 kcal: 420, proteinG: 22, portionG: 220, portionLabel: '1 Stück' },
+  { name: 'Wrap (Hähnchen & Gemüse)',     kcal: 440, proteinG: 28, portionG: 280, portionLabel: '1 Stück' },
+  { name: 'Wrap (Thunfisch)',             kcal: 380, proteinG: 26, portionG: 250, portionLabel: '1 Stück' },
+  { name: 'Bruschetta (2 Scheiben)',      kcal: 220, proteinG: 6,  portionG: 120, portionLabel: '2 Scheiben' },
+  { name: 'Panini (Käse & Tomate)',       kcal: 380, proteinG: 16, portionG: 200, portionLabel: '1 Stück' },
+
+  // ── Bäckerei & Süßes ────────────────────────────────────────────
+  { name: 'Croissant',                    kcal: 280, proteinG: 6,  portionG: 80,  portionLabel: '1 Stück' },
+  { name: 'Muffin (Blueberry)',           kcal: 340, proteinG: 5,  portionG: 120, portionLabel: '1 Stück' },
+  { name: 'Donut',                        kcal: 280, proteinG: 4,  portionG: 75,  portionLabel: '1 Stück' },
+  { name: 'Brezel',                       kcal: 220, proteinG: 7,  portionG: 80,  portionLabel: '1 Stück' },
+  { name: 'Zimtschnecke',                 kcal: 380, proteinG: 6,  portionG: 130, portionLabel: '1 Stück' },
+  { name: 'Waffel (2 Stück)',             kcal: 320, proteinG: 7,  portionG: 120, portionLabel: '2 Stück' },
+
+  // ── Desserts ─────────────────────────────────────────────────────
+  { name: 'Eis (1 Kugel)',                kcal: 110, proteinG: 2,  portionG: 80,  portionLabel: '1 Kugel' },
+  { name: 'Eis (2 Kugeln)',               kcal: 220, proteinG: 4,  portionG: 160, portionLabel: '2 Kugeln' },
+  { name: 'Cheesecake',                   kcal: 420, proteinG: 7,  portionG: 150, portionLabel: '1 Stück' },
+  { name: 'Tiramisu',                     kcal: 380, proteinG: 6,  portionG: 150, portionLabel: '1 Portion' },
+  { name: 'Apfelkuchen',                  kcal: 320, proteinG: 4,  portionG: 120, portionLabel: '1 Stück' },
+  { name: 'Mousse au Chocolat',           kcal: 280, proteinG: 5,  portionG: 100, portionLabel: '1 Portion' },
+  { name: 'Pudding (Vanille)',            kcal: 160, proteinG: 4,  portionG: 150, portionLabel: '1 Portion' },
+
+  // ── Weitere Salate & Bowl-Optionen ───────────────────────────────
+  { name: 'Buddha Bowl',                  kcal: 460, proteinG: 18, portionG: 400, portionLabel: '1 Bowl' },
+  { name: 'Quinoa Salat',                 kcal: 280, proteinG: 10, portionG: 300, portionLabel: '1 Portion' },
+  { name: 'Poke Bowl (Lachs)',            kcal: 480, proteinG: 30, portionG: 400, portionLabel: '1 Bowl' },
+  { name: 'Wrap Bowl (Hähnchen)',         kcal: 420, proteinG: 34, portionG: 380, portionLabel: '1 Bowl' },
+  { name: 'Avocado Salat',                kcal: 240, proteinG: 5,  portionG: 250, portionLabel: '1 Portion' },
+
+  // ── Getränke · Kaffee & Tee ─────────────────────────────────────
+  { name: 'Wasser (250 ml)',              kcal: 0,   proteinG: 0,  carbsG: 0, fatG: 0, portionG: 250, portionLabel: '250 ml' },
+  { name: 'Mineralwasser (500 ml)',       kcal: 0,   proteinG: 0,  carbsG: 0, fatG: 0, portionG: 500, portionLabel: '500 ml' },
+  { name: 'Kaffee schwarz',              kcal: 2,   proteinG: 0,  carbsG: 0, fatG: 0, portionG: 200, portionLabel: '1 Tasse' },
+  { name: 'Kaffee mit Milch',            kcal: 35,  proteinG: 2,  carbsG: 3, fatG: 1, portionG: 250, portionLabel: '1 Tasse' },
+  { name: 'Espresso',                    kcal: 5,   proteinG: 0,  carbsG: 1, fatG: 0, portionG: 30,  portionLabel: '1 Tasse' },
+  { name: 'Americano',                   kcal: 10,  proteinG: 0,  carbsG: 1, fatG: 0, portionG: 200, portionLabel: '1 Tasse' },
+  { name: 'Latte Macchiato',             kcal: 140, proteinG: 6,  carbsG: 14, fatG: 5, portionG: 350, portionLabel: '1 Glas' },
+  { name: 'Cappuccino',                  kcal: 90,  proteinG: 5,  carbsG: 8,  fatG: 3, portionG: 150, portionLabel: '1 Tasse' },
+  { name: 'Flat White',                  kcal: 120, proteinG: 6,  carbsG: 10, fatG: 5, portionG: 200, portionLabel: '1 Tasse' },
+  { name: 'Oat Milk Latte',              kcal: 170, proteinG: 4,  carbsG: 22, fatG: 5, portionG: 350, portionLabel: '1 Glas' },
+  { name: 'Tee schwarz / grün',          kcal: 0,   proteinG: 0,  carbsG: 0, fatG: 0, portionG: 250, portionLabel: '1 Tasse' },
+  { name: 'Pfefferminztee',              kcal: 0,   proteinG: 0,  carbsG: 0, fatG: 0, portionG: 250, portionLabel: '1 Tasse' },
+  { name: 'Eistee (500 ml)',             kcal: 150, proteinG: 0,  carbsG: 36, fatG: 0, portionG: 500, portionLabel: '500 ml' },
+
+  // ── Getränke · Softdrinks & Säfte ───────────────────────────────
+  { name: 'Cola (330 ml)',               kcal: 139, proteinG: 0,  carbsG: 35, fatG: 0, portionG: 330, portionLabel: '330 ml Dose' },
+  { name: 'Cola (500 ml)',               kcal: 210, proteinG: 0,  carbsG: 53, fatG: 0, portionG: 500, portionLabel: '500 ml Flasche' },
+  { name: 'Cola Zero (330 ml)',          kcal: 1,   proteinG: 0,  carbsG: 0,  fatG: 0, portionG: 330, portionLabel: '330 ml Dose' },
+  { name: 'Fanta Orange (330 ml)',       kcal: 148, proteinG: 0,  carbsG: 37, fatG: 0, portionG: 330, portionLabel: '330 ml Dose' },
+  { name: 'Sprite (330 ml)',             kcal: 139, proteinG: 0,  carbsG: 35, fatG: 0, portionG: 330, portionLabel: '330 ml Dose' },
+  { name: 'Red Bull (250 ml)',           kcal: 113, proteinG: 1,  carbsG: 28, fatG: 0, portionG: 250, portionLabel: '250 ml Dose' },
+  { name: 'Monster Energy (500 ml)',     kcal: 226, proteinG: 0,  carbsG: 55, fatG: 0, portionG: 500, portionLabel: '500 ml Dose' },
+  { name: 'Orangensaft (250 ml)',        kcal: 110, proteinG: 1,  carbsG: 26, fatG: 0, portionG: 250, portionLabel: '250 ml' },
+  { name: 'Apfelsaft (250 ml)',          kcal: 115, proteinG: 0,  carbsG: 28, fatG: 0, portionG: 250, portionLabel: '250 ml' },
+  { name: 'Traubensaft (250 ml)',        kcal: 170, proteinG: 1,  carbsG: 41, fatG: 0, portionG: 250, portionLabel: '250 ml' },
+  { name: 'Smoothie Mango-Banane',       kcal: 180, proteinG: 2,  carbsG: 42, fatG: 1, portionG: 300, portionLabel: '300 ml' },
+  { name: 'Grüner Smoothie',             kcal: 100, proteinG: 3,  carbsG: 20, fatG: 1, portionG: 300, portionLabel: '300 ml' },
+  { name: 'Iso-Drink (500 ml)',          kcal: 135, proteinG: 0,  carbsG: 34, fatG: 0, portionG: 500, portionLabel: '500 ml' },
+  { name: 'Coconut Water (330 ml)',      kcal: 62,  proteinG: 1,  carbsG: 15, fatG: 0, portionG: 330, portionLabel: '330 ml' },
+  { name: 'Kombucha (330 ml)',           kcal: 40,  proteinG: 0,  carbsG: 9,  fatG: 0, portionG: 330, portionLabel: '330 ml' },
+
+  // ── Getränke · Milch & Alternativen ─────────────────────────────
+  { name: 'Milch 3,5% (250 ml)',         kcal: 160, proteinG: 8,  carbsG: 12, fatG: 8, portionG: 250, portionLabel: '250 ml' },
+  { name: 'Milch 1,5% (250 ml)',         kcal: 105, proteinG: 8,  carbsG: 12, fatG: 4, portionG: 250, portionLabel: '250 ml' },
+  { name: 'Hafermilch (250 ml)',         kcal: 125, proteinG: 3,  carbsG: 20, fatG: 4, portionG: 250, portionLabel: '250 ml' },
+  { name: 'Sojamilch (250 ml)',          kcal: 100, proteinG: 7,  carbsG: 7,  fatG: 4, portionG: 250, portionLabel: '250 ml' },
+  { name: 'Mandelmilch (250 ml)',        kcal: 40,  proteinG: 1,  carbsG: 3,  fatG: 3, portionG: 250, portionLabel: '250 ml' },
+
+  // ── Getränke · Alkohol ───────────────────────────────────────────
+  { name: 'Bier (330 ml)',               kcal: 154, proteinG: 1,  carbsG: 13, fatG: 0, portionG: 330, portionLabel: '330 ml' },
+  { name: 'Bier (500 ml)',               kcal: 234, proteinG: 2,  carbsG: 20, fatG: 0, portionG: 500, portionLabel: '500 ml' },
+  { name: 'Weißbier (500 ml)',           kcal: 250, proteinG: 3,  carbsG: 24, fatG: 0, portionG: 500, portionLabel: '500 ml' },
+  { name: 'Alkoholfreies Bier (330 ml)', kcal: 80,  proteinG: 1,  carbsG: 16, fatG: 0, portionG: 330, portionLabel: '330 ml' },
+  { name: 'Weißwein (150 ml)',           kcal: 105, proteinG: 0,  carbsG: 3,  fatG: 0, portionG: 150, portionLabel: '150 ml' },
+  { name: 'Rotwein (150 ml)',            kcal: 128, proteinG: 0,  carbsG: 4,  fatG: 0, portionG: 150, portionLabel: '150 ml' },
+  { name: 'Sekt / Prosecco (150 ml)',    kcal: 110, proteinG: 0,  carbsG: 5,  fatG: 0, portionG: 150, portionLabel: '150 ml' },
+  { name: 'Wodka (40 ml)',               kcal: 96,  proteinG: 0,  carbsG: 0,  fatG: 0, portionG: 40,  portionLabel: '40 ml' },
+  { name: 'Whisky (40 ml)',              kcal: 96,  proteinG: 0,  carbsG: 0,  fatG: 0, portionG: 40,  portionLabel: '40 ml' },
+  { name: 'Rum & Cola (200 ml)',         kcal: 165, proteinG: 0,  carbsG: 18, fatG: 0, portionG: 200, portionLabel: '200 ml' },
 ];
 
 export function searchFood(query: string): FoodItem[] {

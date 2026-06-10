@@ -8,6 +8,14 @@ import type { FoodItem } from '@/domain/foodDatabase';
 
 const GLASS_ML = 250;
 
+function fmtWater(ml: number): string {
+  if (ml >= 1000) {
+    const l = ml / 1000;
+    return `${l.toLocaleString('de-DE', { minimumFractionDigits: l % 1 === 0 ? 0 : 1, maximumFractionDigits: 1 })} L`;
+  }
+  return `${ml} ml`;
+}
+
 // ─── Donut Chart ───────────────────────────────────────────────────────────────
 
 function MacroDonut({
@@ -423,7 +431,7 @@ export function NutritionView() {
             <Droplets size={18} color="var(--teal)" />
             <p className="h3" style={{ margin: 0 }}>Wasser</p>
             <span className="copy" style={{ margin: 0, marginLeft: 'auto' }}>
-              {water.todayMl} / {waterTarget} ml ({waterPct}%)
+              {fmtWater(water.todayMl)} / {fmtWater(waterTarget)} ({waterPct}%)
             </span>
           </div>
           <div style={{ height: 8, background: 'rgba(255,255,255,0.07)', borderRadius: 4, overflow: 'hidden', marginBottom: 10 }}>

@@ -11,6 +11,37 @@ import { formatDuration } from '@/domain/dates';
 import { searchFood, estimateMacros, type FoodItem } from '@/domain/foodDatabase';
 import type { Habit } from '@/domain/types';
 
+function fmtWater(ml: number): string {
+  if (ml >= 1000) {
+    const l = ml / 1000;
+    return `${l.toLocaleString('de-DE', { minimumFractionDigits: l % 1 === 0 ? 0 : 1, maximumFractionDigits: 1 })} L`;
+  }
+  return `${ml} ml`;
+}
+
+function WaterDashRow({ habit, currentMl, onAddGlass }: { habit: Habit; currentMl: number; onAddGlass: () => void }) {
+  const pct    = Math.min(100, Math.round((currentMl / habit.target) * 100));
+  const glasses = Math.floor(currentMl / 250);
+  return (
+    <div className="habit-row">
+      <div className={`habit-icon${pct >= 100 ? ' done' : ''}`}>
+        <Droplets size={18} />
+      </div>
+      <div className="habit-body" style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <p className="h3">{habit.label}</p>
+          <span style={{ fontSize: 11, color: 'var(--subtle)', flexShrink: 0 }}>{fmtWater(currentMl)} / {fmtWater(habit.target)}</span>
+        </div>
+        <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden', marginTop: 4 }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: 'var(--teal)', borderRadius: 2, transition: 'width 0.3s ease' }} />
+        </div>
+        <p className="copy" style={{ marginTop: 4, marginBottom: 0, fontSize: 11 }}>{glasses} {glasses === 1 ? 'Glas' : 'Gläser'}</p>
+      </div>
+      <button type="button" className="button secondary compact" onClick={onAddGlass} style={{ flexShrink: 0, marginLeft: 8 }}>+1</button>
+    </div>
+  );
+}
+
 function HabitQuickRow({ habit, log, onToggle }: { habit: Habit; log: { value: number; completed: boolean } | undefined; onToggle: (next: boolean) => void }) {
   const completed = log?.completed ?? false;
   return (
@@ -201,17 +232,33 @@ export function DashboardView() {
             <Link href="/habits" className="card-link">Alle ansehen <ArrowRight size={14} /></Link>
           </div>
           <div className="list">
-            {data.habits.slice(0, 4).map((habit) => (
-              <HabitQuickRow
-                key={habit.id}
-                habit={habit}
-                log={data.todayLogs.get(habit.id)}
-                onToggle={(next) => {
-                  const log = data.todayLogs.get(habit.id);
-                  void toggleHabit(habit, next ? habit.target : log?.value ?? 0, next);
-                }}
-              />
-            ))}
+            {data.habits.slice(0, 4).map((habit) => {
+              if (habit.key === 'water') {
+                const currentMl = data.todayLogs.get(habit.id)?.value ?? 0;
+                return (
+                  <WaterDashRow
+                    key={habit.id}
+                    habit={habit}
+                    currentMl={currentMl}
+                    onAddGlass={() => {
+                      const next = currentMl + 250;
+                      void toggleHabit(habit, next, next >= habit.target);
+                    }}
+                  />
+                );
+              }
+              return (
+                <HabitQuickRow
+                  key={habit.id}
+                  habit={habit}
+                  log={data.todayLogs.get(habit.id)}
+                  onToggle={(next) => {
+                    const log = data.todayLogs.get(habit.id);
+                    void toggleHabit(habit, next ? habit.target : log?.value ?? 0, next);
+                  }}
+                />
+              );
+            })}
           </div>
         </div>
 

@@ -9,6 +9,14 @@ import type { Habit } from '@/domain/types';
 const HISTORY_LENGTH = 7;
 const GLASS_ML = 250;
 
+function fmtWater(ml: number): string {
+  if (ml >= 1000) {
+    const l = ml / 1000;
+    return `${l.toLocaleString('de-DE', { minimumFractionDigits: l % 1 === 0 ? 0 : 1, maximumFractionDigits: 1 })} L`;
+  }
+  return `${ml} ml`;
+}
+
 function WaterCard({
   habit,
   logsByDate,
@@ -58,7 +66,7 @@ function WaterCard({
               <div style={{ height: '100%', width: `${pct}%`, background: 'var(--violet)', borderRadius: 4, transition: 'width 0.3s ease' }} />
             </div>
             <span className="copy" style={{ margin: 0, minWidth: 80, textAlign: 'right', color: 'var(--text)' }}>
-              {currentMl} / {totalMl} ml
+              {fmtWater(currentMl)} / {fmtWater(totalMl)}
             </span>
           </div>
           <p className="copy" style={{ marginTop: 4, marginBottom: 0 }}>
