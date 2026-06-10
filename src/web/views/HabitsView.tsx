@@ -1,12 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Circle, Flame, Droplets, Plus, Minus } from 'lucide-react';
+import { CheckCircle2, Circle, Flame, Droplets, Plus, Minus, Beef } from 'lucide-react';
 import { useHabits } from '@/web/hooks/useHabits';
-import { dateKeyAddDays, formatRelativeDay, todayKey } from '@/domain/dates';
+import { todayKey } from '@/domain/dates';
 import type { Habit } from '@/domain/types';
 
-const HISTORY_LENGTH = 7;
 const GLASS_ML = 250;
 
 function fmtWater(ml: number): string {
@@ -15,23 +14,6 @@ function fmtWater(ml: number): string {
     return `${l.toLocaleString('de-DE', { minimumFractionDigits: l % 1 === 0 ? 0 : 1, maximumFractionDigits: 1 })} L`;
   }
   return `${ml} ml`;
-}
-
-function HistoryDots({ logsByDate }: { logsByDate: Map<string, { value: number; completed: boolean }> }) {
-  const today = todayKey();
-  const days = Array.from({ length: HISTORY_LENGTH }, (_, i) => dateKeyAddDays(today, -(HISTORY_LENGTH - 1 - i)));
-  return (
-    <div className="pill-row" style={{ marginTop: 10 }}>
-      {days.map((day) => {
-        const log = logsByDate.get(day);
-        return (
-          <span key={day} className={`pill${log?.completed ? ' streak' : ''}`} title={formatRelativeDay(day)}>
-            {formatRelativeDay(day).slice(0, 2)}
-          </span>
-        );
-      })}
-    </div>
-  );
 }
 
 function WaterCard({
@@ -95,8 +77,35 @@ function WaterCard({
           </button>
         )}
       </div>
+    </div>
+  );
+}
 
-      <HistoryDots logsByDate={logsByDate} />
+function ProteinCard({ proteinG, goalG }: { proteinG: number; goalG: number }) {
+  const pct = Math.min(100, Math.round((proteinG / Math.max(goalG, 1)) * 100));
+  const done = proteinG >= goalG;
+  return (
+    <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className={`habit-icon${done ? ' done' : ''}`} style={{ margin: 0 }}>
+            <Beef size={18} />
+          </div>
+          <p className="h3" style={{ margin: 0 }}>Protein</p>
+        </div>
+        <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
+          {Math.round(proteinG)} g / {goalG} g
+        </span>
+      </div>
+
+      <div>
+        <div style={{ height: 8, background: 'rgba(255,255,255,0.08)', borderRadius: 4, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: done ? 'var(--teal)' : 'var(--violet)', borderRadius: 4, transition: 'width 0.3s ease' }} />
+        </div>
+        <p className="copy" style={{ marginTop: 6, marginBottom: 0 }}>
+          Aus Ernährung · {pct}%
+        </p>
+      </div>
     </div>
   );
 }
@@ -170,8 +179,6 @@ function NumericCard({
           Speichern
         </button>
       </div>
-
-      <HistoryDots logsByDate={logsByDate} />
     </div>
   );
 }
@@ -196,7 +203,7 @@ function BinaryCard({
   }
 
   return (
-    <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div className={`habit-icon${completed ? ' done' : ''}`} style={{ margin: 0 }}>
@@ -221,14 +228,12 @@ function BinaryCard({
           </button>
         </div>
       </div>
-
-      <HistoryDots logsByDate={logsByDate} />
     </div>
   );
 }
 
 export function HabitsView() {
-  const { habits, logsByHabit, streaksByHabit, loading, error, setLog } = useHabits();
+  const { habits, logsByHabit, streaksByHabit, loading, error, setLog, nutritionProteinG, proteinGoal } = useHabits();
 
   return (
     <>
@@ -241,13 +246,14 @@ export function HabitsView() {
       {error && <p className="copy" style={{ color: 'var(--danger)', padding: '0 4px' }}>{error}</p>}
 
       {loading ? (
-        <div className="panel">
-          <p className="copy">Gewohnheiten werden geladen …</p>
-        </div>
+        <div className="panel"><p className="copy">Gewohnheiten werden geladen …</p></div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {habits.map((habit) => {
-            const inner = logsByHabit.get(habit.id) ?? new Map<string, { value: number; completed: boolean }>();
+            // Protein is auto-filled from nutrition — skip the habit card for it
+            if (habit.key === 'protein') return null;
+
+            const inner = logsByHabit.get(habit.id) ?? new Map();
             const logsByDate = new Map<string, { value: number; completed: boolean }>(
               [...inner.entries()].map(([date, log]) => [date, { value: log.value, completed: log.completed }])
             );
@@ -263,6 +269,9 @@ export function HabitsView() {
             }
             return <NumericCard key={habit.id} habit={habit} logsByDate={logsByDate} streak={streak} onLog={onLog} />;
           })}
+
+          {/* Protein always shown, pulled from today's nutrition */}
+          <ProteinCard proteinG={nutritionProteinG} goalG={proteinGoal} />
         </div>
       )}
     </>

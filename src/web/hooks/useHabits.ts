@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './useAuth';
 import { ensureDefaultHabits, listHabitLogsForRange, setHabitLog } from '@/data/habits';
+import { getNutritionLog } from '@/data/nutrition';
+import { getUserGoals } from '@/data/profile';
 import { errorMessage } from '@/domain/errors';
 import { consecutiveDayStreak } from '@/domain/streaks';
 import { dateKeyAddDays, todayKey } from '@/domain/dates';
@@ -14,6 +16,8 @@ export function useHabits() {
   const { user } = useAuth();
   const [habits, setHabits] = useState<Habit[]>([]);
   const [logs, setLogs] = useState<HabitLog[]>([]);
+  const [nutritionProteinG, setNutritionProteinG] = useState(0);
+  const [proteinGoal, setProteinGoal] = useState(150);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,10 +26,18 @@ export function useHabits() {
     setLoading(true);
     setError(null);
     try {
-      const since = dateKeyAddDays(todayKey(), -HISTORY_DAYS);
-      const [habitList, logList] = await Promise.all([ensureDefaultHabits(user.id), listHabitLogsForRange(user.id, since)]);
+      const today = todayKey();
+      const since = dateKeyAddDays(today, -HISTORY_DAYS);
+      const [habitList, logList, nutritionLog, goals] = await Promise.all([
+        ensureDefaultHabits(user.id),
+        listHabitLogsForRange(user.id, since),
+        getNutritionLog(user.id, today),
+        getUserGoals(user.id),
+      ]);
       setHabits(habitList);
       setLogs(logList);
+      setNutritionProteinG(nutritionLog.proteinG);
+      setProteinGoal(goals.proteinGoal);
     } catch (err) {
       setError(errorMessage(err, 'Gewohnheiten konnten nicht geladen werden.'));
     } finally {
@@ -77,5 +89,5 @@ export function useHabits() {
     [user, load],
   );
 
-  return { habits, logsByHabit, streaksByHabit, loading, error, setLog };
+  return { habits, logsByHabit, streaksByHabit, loading, error, setLog, nutritionProteinG, proteinGoal };
 }
