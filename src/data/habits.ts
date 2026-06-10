@@ -107,6 +107,25 @@ export async function ensureDefaultHabits(userId: string): Promise<Habit[]> {
   }
   await Promise.all(fixPromises);
 
+  // Water-specific: reset today's log if value < 250 (legacy liter value, not ml)
+  const waterHabit = updated.find((h) => h.key === 'water');
+  if (waterHabit) {
+    const { data: wlog } = await supabase
+      .from('forge_habit_logs')
+      .select('value')
+      .eq('habit_id', waterHabit.id)
+      .eq('user_id', userId)
+      .eq('log_date', today)
+      .maybeSingle();
+    if (wlog && Number(wlog.value) > 0 && Number(wlog.value) < 250) {
+      await supabase
+        .from('forge_habit_logs')
+        .update({ value: 0, completed: false })
+        .eq('habit_id', waterHabit.id)
+        .eq('log_date', today);
+    }
+  }
+
   return updated;
 }
 

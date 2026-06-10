@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Circle, Flame, Droplets, Plus } from 'lucide-react';
+import { CheckCircle2, Circle, Flame, Droplets, Plus, Minus } from 'lucide-react';
 import { useHabits } from '@/web/hooks/useHabits';
 import { dateKeyAddDays, formatRelativeDay, todayKey } from '@/domain/dates';
 import type { Habit } from '@/domain/types';
@@ -15,6 +15,23 @@ function fmtWater(ml: number): string {
     return `${l.toLocaleString('de-DE', { minimumFractionDigits: l % 1 === 0 ? 0 : 1, maximumFractionDigits: 1 })} L`;
   }
   return `${ml} ml`;
+}
+
+function HistoryDots({ logsByDate }: { logsByDate: Map<string, { value: number; completed: boolean }> }) {
+  const today = todayKey();
+  const days = Array.from({ length: HISTORY_LENGTH }, (_, i) => dateKeyAddDays(today, -(HISTORY_LENGTH - 1 - i)));
+  return (
+    <div className="pill-row" style={{ marginTop: 10 }}>
+      {days.map((day) => {
+        const log = logsByDate.get(day);
+        return (
+          <span key={day} className={`pill${log?.completed ? ' streak' : ''}`} title={formatRelativeDay(day)}>
+            {formatRelativeDay(day).slice(0, 2)}
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 function WaterCard({
@@ -33,79 +50,58 @@ function WaterCard({
   const currentMl = todayLog?.value ?? 0;
   const glasses = Math.floor(currentMl / GLASS_ML);
   const totalMl = habit.target;
-  const pct = Math.min(100, Math.round((currentMl / totalMl) * 100));
-
-  const days = Array.from({ length: HISTORY_LENGTH }, (_, i) => dateKeyAddDays(today, -(HISTORY_LENGTH - 1 - i)));
+  const pct = Math.min(100, Math.round((currentMl / Math.max(totalMl, 1)) * 100));
 
   function addGlass() {
     const next = currentMl + GLASS_ML;
     onLog(today, next, next >= totalMl);
   }
-
   function removeGlass() {
     const next = Math.max(0, currentMl - GLASS_ML);
     onLog(today, next, next >= totalMl);
   }
 
   return (
-    <div className="habit-row" style={{ alignItems: 'flex-start' }}>
-      <div className={`habit-icon${todayLog?.completed ? ' done' : ''}`}>
-        <Droplets size={18} />
-      </div>
-      <div className="habit-body" style={{ flex: 1 }}>
-        <div className="button-row" style={{ justifyContent: 'space-between' }}>
-          <p className="h3">{habit.label}</p>
-          {streak > 0 && (
-            <span className="pill streak"><Flame size={12} /> {streak} {streak === 1 ? 'Tag' : 'Tage'}</span>
-          )}
-        </div>
-
-        <div style={{ marginTop: 6, marginBottom: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ flex: 1, height: 8, background: 'rgba(255,255,255,0.08)', borderRadius: 4, overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${pct}%`, background: 'var(--violet)', borderRadius: 4, transition: 'width 0.3s ease' }} />
-            </div>
-            <span className="copy" style={{ margin: 0, minWidth: 80, textAlign: 'right', color: 'var(--text)' }}>
-              {fmtWater(currentMl)} / {fmtWater(totalMl)}
-            </span>
+    <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className={`habit-icon${todayLog?.completed ? ' done' : ''}`} style={{ margin: 0 }}>
+            <Droplets size={18} />
           </div>
-          <p className="copy" style={{ marginTop: 4, marginBottom: 0 }}>
-            {glasses} {glasses === 1 ? 'Glas' : 'Gläser'} getrunken ({pct}%)
-          </p>
+          <p className="h3" style={{ margin: 0 }}>{habit.label}</p>
         </div>
-
-        <div className="button-row" style={{ gap: 8 }}>
-          <button
-            type="button"
-            className="button compact"
-            onClick={addGlass}
-            style={{ flex: 1 }}
-          >
-            <Plus size={16} /> +1 Glas (250 ml)
-          </button>
-          {currentMl > 0 && (
-            <button type="button" className="button ghost compact" onClick={removeGlass} aria-label="Glas entfernen">
-              −
-            </button>
-          )}
-        </div>
-
-        <div className="pill-row" style={{ marginTop: 8 }}>
-          {days.map((day) => {
-            const log = logsByDate.get(day);
-            return (
-              <span key={day} className={`pill${log?.completed ? ' streak' : ''}`} title={formatRelativeDay(day)}>
-                {formatRelativeDay(day).slice(0, 2)}
-              </span>
-            );
-          })}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {streak > 0 && <span className="pill streak"><Flame size={12} /> {streak} {streak === 1 ? 'Tag' : 'Tage'}</span>}
+          <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>{fmtWater(currentMl)} / {fmtWater(totalMl)}</span>
         </div>
       </div>
+
+      <div>
+        <div style={{ height: 8, background: 'rgba(255,255,255,0.08)', borderRadius: 4, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: pct >= 100 ? 'var(--teal)' : 'var(--violet)', borderRadius: 4, transition: 'width 0.3s ease' }} />
+        </div>
+        <p className="copy" style={{ marginTop: 6, marginBottom: 0 }}>
+          {glasses} {glasses === 1 ? 'Glas' : 'Gläser'} · {pct}%
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" className="button compact" style={{ flex: 1 }} onClick={addGlass}>
+          <Plus size={15} /> +1 Glas (250 ml)
+        </button>
+        {currentMl > 0 && (
+          <button type="button" className="button ghost compact" onClick={removeGlass} aria-label="Glas entfernen">
+            <Minus size={15} />
+          </button>
+        )}
+      </div>
+
+      <HistoryDots logsByDate={logsByDate} />
     </div>
   );
 }
 
-function HabitCard({
+function NumericCard({
   habit,
   logsByDate,
   streak,
@@ -118,81 +114,115 @@ function HabitCard({
 }) {
   const today = todayKey();
   const todayLog = logsByDate.get(today);
-  const [value, setValue] = useState(todayLog ? String(todayLog.value) : '');
-  const isBinary = habit.unit === '';
+  const loggedValue = todayLog?.value ?? 0;
+  const completed = todayLog?.completed ?? false;
+  const pct = Math.min(100, Math.round((loggedValue / Math.max(habit.target, 1)) * 100));
+  const [input, setInput] = useState(loggedValue > 0 ? String(loggedValue) : '');
 
   useEffect(() => {
-    setValue(todayLog ? String(todayLog.value) : '');
-  }, [todayLog?.value, todayLog?.completed]);
+    setInput(loggedValue > 0 ? String(loggedValue) : '');
+  }, [loggedValue]);
 
-  const days = Array.from({ length: HISTORY_LENGTH }, (_, i) => dateKeyAddDays(today, -(HISTORY_LENGTH - 1 - i)));
-
-  function toggle() {
-    const next = !(todayLog?.completed ?? false);
-    onLog(today, next ? habit.target : 0, next);
-  }
-
-  function commitValue() {
-    const numeric = Number(value);
-    if (Number.isNaN(numeric)) return;
-    onLog(today, numeric, numeric >= habit.target);
+  function commit() {
+    const numeric = parseFloat(input.replace(',', '.'));
+    if (!Number.isNaN(numeric) && numeric >= 0) {
+      onLog(today, numeric, numeric >= habit.target);
+    }
   }
 
   return (
-    <div className="habit-row" style={{ alignItems: 'flex-start' }}>
-      <div className={`habit-icon${todayLog?.completed ? ' done' : ''}`}>
-        {todayLog?.completed ? <CheckCircle2 size={18} /> : <Circle size={18} />}
-      </div>
-      <div className="habit-body">
-        <div className="button-row" style={{ justifyContent: 'space-between' }}>
-          <p className="h3">{habit.label}</p>
-          {streak > 0 && (
-            <span className="pill streak"><Flame size={12} /> {streak} {streak === 1 ? 'Tag' : 'Tage'}</span>
-          )}
-        </div>
-
-        {isBinary ? (
-          <p className="copy" style={{ marginTop: 0 }}>Heute {todayLog?.completed ? 'erledigt ✓' : 'noch offen'}</p>
-        ) : (
-          <div className="button-row" style={{ marginTop: 4, gap: 8 }}>
-            <input
-              className="input compact"
-              style={{ maxWidth: 100 }}
-              inputMode="decimal"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              onBlur={commitValue}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); commitValue(); } }}
-              placeholder={String(habit.target)}
-            />
-            <span className="copy" style={{ margin: 0, flex: 1 }}>/ {habit.target} {habit.unit}</span>
-            <button
-              type="button"
-              className="button secondary compact"
-              onClick={commitValue}
-              style={{ padding: '6px 12px' }}
-            >
-              OK
-            </button>
+    <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className={`habit-icon${completed ? ' done' : ''}`} style={{ margin: 0 }}>
+            {completed ? <CheckCircle2 size={18} /> : <Circle size={18} />}
           </div>
-        )}
+          <p className="h3" style={{ margin: 0 }}>{habit.label}</p>
+        </div>
+        {streak > 0 && <span className="pill streak"><Flame size={12} /> {streak} {streak === 1 ? 'Tag' : 'Tage'}</span>}
+      </div>
 
-        <div className="pill-row" style={{ marginTop: 8 }}>
-          {days.map((day) => {
-            const log = logsByDate.get(day);
-            return (
-              <span key={day} className={`pill${log?.completed ? ' streak' : ''}`} title={formatRelativeDay(day)}>
-                {formatRelativeDay(day).slice(0, 2)}
-              </span>
-            );
-          })}
+      <div>
+        <div style={{ height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: completed ? 'var(--teal)' : 'var(--violet)', borderRadius: 3, transition: 'width 0.3s ease' }} />
+        </div>
+        <p className="copy" style={{ marginTop: 5, marginBottom: 0 }}>
+          {loggedValue > 0
+            ? <>{loggedValue} / {habit.target} {habit.unit} · {pct}%</>
+            : <>Ziel: {habit.target} {habit.unit}</>
+          }
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          className="input compact"
+          style={{ width: 90, flexShrink: 0 }}
+          inputMode="decimal"
+          value={input}
+          placeholder="0"
+          onChange={(e) => setInput(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); commit(); } }}
+        />
+        <span className="copy" style={{ margin: 0, flex: 1 }}>/ {habit.target} {habit.unit}</span>
+        <button type="button" className="button secondary compact" onClick={commit}>
+          Speichern
+        </button>
+      </div>
+
+      <HistoryDots logsByDate={logsByDate} />
+    </div>
+  );
+}
+
+function BinaryCard({
+  habit,
+  logsByDate,
+  streak,
+  onLog,
+}: {
+  habit: Habit;
+  logsByDate: Map<string, { value: number; completed: boolean }>;
+  streak: number;
+  onLog: (logDate: string, value: number, completed: boolean) => void;
+}) {
+  const today = todayKey();
+  const todayLog = logsByDate.get(today);
+  const completed = todayLog?.completed ?? false;
+
+  function toggle() {
+    onLog(today, completed ? 0 : 1, !completed);
+  }
+
+  return (
+    <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className={`habit-icon${completed ? ' done' : ''}`} style={{ margin: 0 }}>
+            {completed ? <CheckCircle2 size={18} /> : <Circle size={18} />}
+          </div>
+          <div>
+            <p className="h3" style={{ margin: 0 }}>{habit.label}</p>
+            <p className="copy" style={{ margin: 0, fontSize: 12 }}>
+              Heute {completed ? 'erledigt ✓' : 'noch offen'}
+            </p>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {streak > 0 && <span className="pill streak"><Flame size={12} /> {streak} {streak === 1 ? 'Tag' : 'Tage'}</span>}
+          <button
+            type="button"
+            className={`habit-toggle${completed ? ' done' : ''}`}
+            onClick={toggle}
+            aria-label={completed ? 'Als offen markieren' : 'Als erledigt markieren'}
+          >
+            {completed ? <CheckCircle2 size={22} /> : <Circle size={22} />}
+          </button>
         </div>
       </div>
-      {isBinary && (
-        <button type="button" className={`habit-toggle${todayLog?.completed ? ' done' : ''}`} onClick={toggle} aria-label="Umschalten">
-          {todayLog?.completed ? <CheckCircle2 size={20} /> : <Circle size={20} />}
-        </button>
-      )}
+
+      <HistoryDots logsByDate={logsByDate} />
     </div>
   );
 }
@@ -208,43 +238,32 @@ export function HabitsView() {
         <p className="copy">Hake ab, was du heute geschafft hast — der Streak zeigt dir, wie konsequent du bleibst.</p>
       </section>
 
-      {error && <p className="copy" style={{ color: 'var(--danger)' }}>{error}</p>}
+      {error && <p className="copy" style={{ color: 'var(--danger)', padding: '0 4px' }}>{error}</p>}
 
       {loading ? (
         <div className="panel">
           <p className="copy">Gewohnheiten werden geladen …</p>
         </div>
       ) : (
-        <section className="list">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {habits.map((habit) => {
-            const logsByDate = new Map<string, { value: number; completed: boolean }>();
-            for (const [date, log] of logsByHabit.get(habit.id) ?? []) logsByDate.set(date, log);
-            const logFn = (logDate: string, value: number, completed: boolean) =>
+            const inner = logsByHabit.get(habit.id) ?? new Map<string, { value: number; completed: boolean }>();
+            const logsByDate = new Map<string, { value: number; completed: boolean }>(
+              [...inner.entries()].map(([date, log]) => [date, { value: log.value, completed: log.completed }])
+            );
+            const streak = streaksByHabit.get(habit.id) ?? 0;
+            const onLog = (logDate: string, value: number, completed: boolean) =>
               void setLog(habit, logDate, value, completed);
 
             if (habit.key === 'water') {
-              return (
-                <WaterCard
-                  key={habit.id}
-                  habit={habit}
-                  logsByDate={logsByDate}
-                  streak={streaksByHabit.get(habit.id) ?? 0}
-                  onLog={logFn}
-                />
-              );
+              return <WaterCard key={habit.id} habit={habit} logsByDate={logsByDate} streak={streak} onLog={onLog} />;
             }
-
-            return (
-              <HabitCard
-                key={habit.id}
-                habit={habit}
-                logsByDate={logsByDate}
-                streak={streaksByHabit.get(habit.id) ?? 0}
-                onLog={logFn}
-              />
-            );
+            if (habit.unit === '') {
+              return <BinaryCard key={habit.id} habit={habit} logsByDate={logsByDate} streak={streak} onLog={onLog} />;
+            }
+            return <NumericCard key={habit.id} habit={habit} logsByDate={logsByDate} streak={streak} onLog={onLog} />;
           })}
-        </section>
+        </div>
       )}
     </>
   );
