@@ -10,7 +10,7 @@ import {
   startWorkoutSession,
 } from '@/data/workouts';
 import { ensureDefaultHabits, listHabitLogsForRange, setHabitLog } from '@/data/habits';
-import { getNutritionLog, saveNutritionLog } from '@/data/nutrition';
+import { addMealEntry, getNutritionLog, syncNutritionTotals } from '@/data/nutrition';
 import { getUserGoals } from '@/data/profile';
 import { listBodyMetrics } from '@/data/progress';
 import { errorMessage } from '@/domain/errors';
@@ -111,9 +111,27 @@ export function useTodayData() {
   );
 
   const logNutrition = useCallback(
-    async (calories: number, proteinG: number) => {
-      if (!user) return;
-      await saveNutritionLog(user.id, todayKey(), calories, proteinG);
+    async (
+      kcal:     number,
+      proteinG: number,
+      name?:    string,
+      carbsG?:  number,
+      fatG?:    number,
+    ) => {
+      if (!user || (!kcal && !proteinG)) return;
+      const today = todayKey();
+      // Estimate carbs/fat from remaining kcal if not provided
+      const remaining   = Math.max(0, kcal - proteinG * 4);
+      const resolvedCarbs = carbsG  ?? Math.round((remaining * 0.62) / 4);
+      const resolvedFat   = fatG    ?? Math.round((remaining * 0.38) / 9);
+      await addMealEntry(user.id, today, {
+        name:     name ?? (kcal ? `${kcal} kcal` : 'Eintrag'),
+        kcal,
+        proteinG,
+        carbsG:   resolvedCarbs,
+        fatG:     resolvedFat,
+      });
+      await syncNutritionTotals(user.id, today);
       await load();
     },
     [user, load],

@@ -1,14 +1,14 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle, ListChecks, Utensils, ArrowRight, Search } from 'lucide-react';
+import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle, ListChecks, Utensils, ArrowRight, Search, X } from 'lucide-react';
 import { useTodayData } from '@/web/hooks/useTodayData';
 import { ProgressRing } from '@/web/components/ProgressRing';
 import { CardHead } from '@/web/components/CardHead';
 import { formatDuration } from '@/domain/dates';
-import { searchFood, type FoodItem } from '@/domain/foodDatabase';
+import { searchFood, estimateMacros, type FoodItem } from '@/domain/foodDatabase';
 import type { Habit } from '@/domain/types';
 
 function HabitQuickRow({ habit, log, onToggle }: { habit: Habit; log: { value: number; completed: boolean } | undefined; onToggle: (next: boolean) => void }) {
@@ -45,7 +45,21 @@ export function DashboardView() {
   const [savingNutrition, setSavingNutrition] = useState(false);
   const [foodQuery, setFoodQuery] = useState('');
   const [foodResults, setFoodResults] = useState<FoodItem[]>([]);
+  const [showDrop, setShowDrop] = useState(false);
+  const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 280 });
+  const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const foodSearchRef = useRef<HTMLInputElement>(null);
+  const foodSearchWrap = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!showDrop) return;
+    function onDown(e: MouseEvent) {
+      if (foodSearchWrap.current && !foodSearchWrap.current.contains(e.target as Node)) setShowDrop(false);
+    }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [showDrop]);
 
   if (error && !data) {
     return (
@@ -84,15 +98,14 @@ export function DashboardView() {
     if (!calorieInput.trim() && !proteinInput.trim()) return;
     setSavingNutrition(true);
     try {
-      // Additive: add to the day's existing total
-      const savedCal = data?.nutritionLog.calories ?? 0;
-      const savedProt = data?.nutritionLog.proteinG ?? 0;
-      await logNutrition(
-        savedCal + (calorieInput.trim() ? Number(calorieInput) : 0),
-        savedProt + (proteinInput.trim() ? Number(proteinInput) : 0),
-      );
+      const kcal     = Number(calorieInput) || 0;
+      const proteinG = Number(proteinInput) || 0;
+      const { carbsG, fatG } = selectedFood ? estimateMacros(selectedFood) : { carbsG: undefined, fatG: undefined };
+      await logNutrition(kcal, proteinG, selectedFood?.name, carbsG, fatG);
       setCalorieInput('');
       setProteinInput('');
+      setSelectedFood(null);
+      setFoodQuery('');
     } finally {
       setSavingNutrition(false);
     }
@@ -100,15 +113,24 @@ export function DashboardView() {
 
   function handleFoodSearch(q: string) {
     setFoodQuery(q);
-    setFoodResults(q.trim().length >= 2 ? searchFood(q) : []);
+    const results = q.trim().length >= 2 ? searchFood(q) : [];
+    setFoodResults(results);
+    if (results.length > 0 && foodSearchWrap.current) {
+      const rect = foodSearchWrap.current.getBoundingClientRect();
+      setDropPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+      setShowDrop(true);
+    } else {
+      setShowDrop(false);
+    }
   }
 
   function selectFood(item: FoodItem) {
-    setCalorieInput((prev) => String((Number(prev) || 0) + item.kcal));
-    setProteinInput((prev) => String((Number(prev) || 0) + item.proteinG));
+    setSelectedFood(item);
+    setCalorieInput(String(item.kcal));
+    setProteinInput(String(item.proteinG));
     setFoodQuery('');
     setFoodResults([]);
-    foodSearchRef.current?.focus();
+    setShowDrop(false);
   }
 
   return (
@@ -211,60 +233,67 @@ export function DashboardView() {
             />
           </div>
 
-          {/* Food search */}
-          <div style={{ position: 'relative', marginTop: 14 }}>
+          {/* Food search — fixed dropdown, same pattern as NutritionView */}
+          <div ref={foodSearchWrap} style={{ marginTop: 14 }}>
             <div className="search-field" style={{ width: '100%' }}>
               <Search size={14} />
               <input
                 ref={foodSearchRef}
                 type="text"
-                placeholder="Mahlzeit suchen (z. B. Nudeln, Hähnchen …)"
+                placeholder="Mahlzeit suchen …"
                 value={foodQuery}
                 onChange={(e) => handleFoodSearch(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Escape') { setShowDrop(false); setFoodQuery(''); setFoodResults([]); } }}
                 aria-label="Mahlzeit suchen"
                 autoComplete="off"
               />
+              {foodQuery && (
+                <button type="button" onClick={() => { setFoodQuery(''); setFoodResults([]); setShowDrop(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--subtle)', padding: 2 }} aria-label="Suche löschen">
+                  <X size={14} />
+                </button>
+              )}
             </div>
-            {foodResults.length > 0 && (
-              <div style={{
-                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
-                background: 'var(--panel)', border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 'var(--radius)', marginTop: 4, boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-                maxHeight: 280, overflowY: 'auto',
-              }}>
-                {foodResults.map((item) => (
-                  <button
-                    key={item.name}
-                    type="button"
-                    onClick={() => selectFood(item)}
-                    style={{
-                      width: '100%', textAlign: 'left', background: 'none', border: 'none',
-                      padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)',
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
-                    }}
-                    className="nav-button"
-                  >
-                    <span style={{ color: 'var(--text)', fontSize: 14 }}>{item.name}</span>
-                    <span style={{ color: 'var(--subtle)', fontSize: 12, whiteSpace: 'nowrap' }}>
-                      {item.kcal} kcal · {item.proteinG} g P · {item.portionLabel}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
+          {/* Dropdown portal via position:fixed */}
+          {showDrop && foodResults.length > 0 && (
+            <div style={{
+              position: 'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 300,
+              background: 'var(--panel, #16161b)', border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 10, boxShadow: '0 12px 40px rgba(0,0,0,0.7)', maxHeight: 240, overflowY: 'auto',
+            }}>
+              {foodResults.map((item) => (
+                <button
+                  key={item.name}
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); selectFood(item); }}
+                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ color: 'var(--text)', fontSize: 14 }}>{item.name}</span>
+                    <span style={{ color: 'var(--subtle)', fontSize: 11, whiteSpace: 'nowrap' }}>{item.portionLabel}</span>
+                  </div>
+                  <span style={{ fontSize: 12, color: 'var(--subtle)' }}>{item.kcal} kcal · {item.proteinG}g P</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {selectedFood && (
+            <p className="copy" style={{ marginTop: 6, marginBottom: 0, fontSize: 12, color: 'var(--teal)' }}>
+              ✓ {selectedFood.name} ausgewählt
+            </p>
+          )}
 
           <form className="button-row" style={{ marginTop: 10, alignItems: 'flex-end' }} onSubmit={handleNutritionSave}>
             <div className="field" style={{ flex: 1 }}>
               <label className="field-label" htmlFor="calories">Kalorien (kcal)</label>
-              <input id="calories" className="input compact" inputMode="numeric" value={calorieInput} onChange={(e) => setCalorieInput(e.target.value)} placeholder={String(data.nutritionLog.calories)} />
+              <input id="calories" className="input compact" inputMode="numeric" value={calorieInput} onChange={(e) => { setSelectedFood(null); setCalorieInput(e.target.value); }} placeholder="0" />
             </div>
             <div className="field" style={{ flex: 1 }}>
               <label className="field-label" htmlFor="protein">Protein (g)</label>
-              <input id="protein" className="input compact" inputMode="numeric" value={proteinInput} onChange={(e) => setProteinInput(e.target.value)} placeholder={String(data.nutritionLog.proteinG)} />
+              <input id="protein" className="input compact" inputMode="numeric" value={proteinInput} onChange={(e) => { setSelectedFood(null); setProteinInput(e.target.value); }} placeholder="0" />
             </div>
             <button type="submit" className="button secondary compact" disabled={savingNutrition || (!calorieInput.trim() && !proteinInput.trim())}>
-              {savingNutrition ? 'Speichert …' : 'Hinzufügen'}
+              {savingNutrition ? '…' : 'Hinzufügen'}
             </button>
           </form>
         </div>
