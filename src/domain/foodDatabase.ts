@@ -266,6 +266,163 @@ export const FOOD_DATABASE: FoodItem[] = [
   { name: 'Wodka (40 ml)',               kcal: 96,  proteinG: 0,  carbsG: 0,  fatG: 0, portionG: 40,  portionLabel: '40 ml' },
   { name: 'Whisky (40 ml)',              kcal: 96,  proteinG: 0,  carbsG: 0,  fatG: 0, portionG: 40,  portionLabel: '40 ml' },
   { name: 'Rum & Cola (200 ml)',         kcal: 165, proteinG: 0,  carbsG: 18, fatG: 0, portionG: 200, portionLabel: '200 ml' },
+  { name: 'Gin Tonic (200 ml)',          kcal: 143, proteinG: 0,  carbsG: 14, fatG: 0, portionG: 200, portionLabel: '200 ml' },
+  { name: 'Aperol Spritz (200 ml)',      kcal: 120, proteinG: 0,  carbsG: 13, fatG: 0, portionG: 200, portionLabel: '200 ml' },
+  { name: 'Hugo (200 ml)',               kcal: 110, proteinG: 0,  carbsG: 14, fatG: 0, portionG: 200, portionLabel: '200 ml' },
+  { name: 'Pils (500 ml)',               kcal: 215, proteinG: 2,  carbsG: 17, fatG: 0, portionG: 500, portionLabel: '500 ml' },
+
+  // ── Fast Food ────────────────────────────────────────────────────
+  { name: 'Big Mac',                     kcal: 563, proteinG: 26, carbsG: 44, fatG: 33, portionG: 214, portionLabel: '1 Stück' },
+  { name: 'McChicken',                   kcal: 395, proteinG: 15, carbsG: 39, fatG: 20, portionG: 154, portionLabel: '1 Stück' },
+  { name: 'Whopper',                     kcal: 657, proteinG: 28, carbsG: 49, fatG: 40, portionG: 290, portionLabel: '1 Stück' },
+  { name: 'McFlurry (250 ml)',           kcal: 340, proteinG: 8,  carbsG: 52, fatG: 11, portionG: 250, portionLabel: '1 Becher' },
+  { name: 'Pommes groß (McDonald\'s)',   kcal: 444, proteinG: 6,  carbsG: 56, fatG: 22, portionG: 154, portionLabel: '1 Portion groß' },
+  { name: 'Pommes mittel (McDonald\'s)', kcal: 337, proteinG: 4,  carbsG: 43, fatG: 17, portionG: 117, portionLabel: '1 Portion mittel' },
+  { name: 'Chicken McNuggets (9 St.)',   kcal: 416, proteinG: 22, carbsG: 25, fatG: 25, portionG: 162, portionLabel: '9 Stück' },
+  { name: 'Döner im Fladenbrot',         kcal: 620, proteinG: 34, carbsG: 58, fatG: 24, portionG: 400, portionLabel: '1 Stück' },
+  { name: 'Döner im Dürüm',             kcal: 560, proteinG: 32, carbsG: 52, fatG: 20, portionG: 380, portionLabel: '1 Stück' },
+  { name: 'Lahmacun',                    kcal: 380, proteinG: 18, carbsG: 42, fatG: 14, portionG: 280, portionLabel: '1 Stück' },
+  { name: 'Pommes Currywurst',           kcal: 720, proteinG: 26, carbsG: 68, fatG: 36, portionG: 450, portionLabel: '1 Portion' },
+
+  // ── Koreanisch ───────────────────────────────────────────────────
+  { name: 'Bibimbap',                    kcal: 490, proteinG: 26, carbsG: 62, fatG: 14, portionG: 450, portionLabel: '1 Bowl' },
+  { name: 'Korean BBQ (Bulgogi)',        kcal: 420, proteinG: 34, carbsG: 18, fatG: 22, portionG: 300, portionLabel: '1 Portion' },
+  { name: 'Kimchi (100 g)',              kcal: 30,  proteinG: 2,  carbsG: 5,  fatG: 0,  portionG: 100, portionLabel: '100 g' },
+  { name: 'Tteokbokki',                  kcal: 380, proteinG: 10, carbsG: 70, fatG: 7,  portionG: 300, portionLabel: '1 Portion' },
+  { name: 'Korean Fried Chicken (200 g)',kcal: 540, proteinG: 34, carbsG: 32, fatG: 30, portionG: 200, portionLabel: '200 g' },
+
+  // ── Vietnamesisch ────────────────────────────────────────────────
+  { name: 'Pho Bo (Rindfleisch)',        kcal: 420, proteinG: 30, carbsG: 48, fatG: 10, portionG: 600, portionLabel: '1 Schüssel' },
+  { name: 'Pho Ga (Hähnchen)',           kcal: 380, proteinG: 28, carbsG: 44, fatG: 8,  portionG: 600, portionLabel: '1 Schüssel' },
+  { name: 'Bánh Mì (Hähnchen)',         kcal: 440, proteinG: 24, carbsG: 54, fatG: 14, portionG: 280, portionLabel: '1 Sandwich' },
+  { name: 'Frühlingsrollen (3 Stück)',   kcal: 280, proteinG: 10, carbsG: 30, fatG: 14, portionG: 180, portionLabel: '3 Stück' },
+  { name: 'Bun Bo (Reisnudeln)',         kcal: 460, proteinG: 26, carbsG: 58, fatG: 12, portionG: 500, portionLabel: '1 Schüssel' },
+
+  // ── Türkisch ─────────────────────────────────────────────────────
+  { name: 'Iskender Kebab',              kcal: 580, proteinG: 36, carbsG: 40, fatG: 28, portionG: 380, portionLabel: '1 Portion' },
+  { name: 'Adana Kebab',                 kcal: 480, proteinG: 40, carbsG: 12, fatG: 30, portionG: 300, portionLabel: '1 Portion' },
+  { name: 'Türkische Pizza (Lahmacun)', kcal: 420, proteinG: 20, carbsG: 46, fatG: 16, portionG: 300, portionLabel: '1 Stück' },
+  { name: 'Köfte (4 Stück)',             kcal: 360, proteinG: 28, carbsG: 8,  fatG: 24, portionG: 200, portionLabel: '4 Stück' },
+  { name: 'Börek (Käse)',                kcal: 320, proteinG: 12, carbsG: 30, fatG: 18, portionG: 150, portionLabel: '1 Stück' },
+  { name: 'Mercimek Çorbası (Linsensuppe)', kcal: 220, proteinG: 12, carbsG: 30, fatG: 6, portionG: 350, portionLabel: '1 Teller' },
+
+  // ── Libanesisch / Arabisch ───────────────────────────────────────
+  { name: 'Shawarma (Hähnchen)',         kcal: 510, proteinG: 36, carbsG: 44, fatG: 18, portionG: 350, portionLabel: '1 Wrap' },
+  { name: 'Hummus (150 g)',              kcal: 250, proteinG: 10, carbsG: 22, fatG: 14, portionG: 150, portionLabel: '150 g' },
+  { name: 'Baba Ganoush (100 g)',        kcal: 140, proteinG: 3,  carbsG: 10, fatG: 10, portionG: 100, portionLabel: '100 g' },
+  { name: 'Fattoush Salat',             kcal: 180, proteinG: 4,  carbsG: 22, fatG: 8,  portionG: 250, portionLabel: '1 Portion' },
+  { name: 'Mezze Teller',               kcal: 420, proteinG: 14, carbsG: 36, fatG: 24, portionG: 300, portionLabel: '1 Teller' },
+
+  // ── Japanisch ────────────────────────────────────────────────────
+  { name: 'Sushi (12 Stück gemischt)',   kcal: 420, proteinG: 22, carbsG: 60, fatG: 8,  portionG: 300, portionLabel: '12 Stück' },
+  { name: 'Nigiri Lachs (6 Stück)',      kcal: 280, proteinG: 18, carbsG: 34, fatG: 6,  portionG: 200, portionLabel: '6 Stück' },
+  { name: 'Maki (8 Stück)',              kcal: 200, proteinG: 8,  carbsG: 36, fatG: 2,  portionG: 160, portionLabel: '8 Stück' },
+  { name: 'Tonkatsu',                    kcal: 520, proteinG: 34, carbsG: 36, fatG: 24, portionG: 300, portionLabel: '1 Portion' },
+  { name: 'Gyoza (6 Stück)',             kcal: 280, proteinG: 14, carbsG: 28, fatG: 12, portionG: 180, portionLabel: '6 Stück' },
+  { name: 'Udon Nudelsuppe',             kcal: 400, proteinG: 16, carbsG: 60, fatG: 10, portionG: 500, portionLabel: '1 Schüssel' },
+  { name: 'Chirashi Bowl',               kcal: 520, proteinG: 32, carbsG: 58, fatG: 14, portionG: 400, portionLabel: '1 Bowl' },
+  { name: 'Okonomiyaki',                 kcal: 380, proteinG: 16, carbsG: 44, fatG: 16, portionG: 250, portionLabel: '1 Stück' },
+
+  // ── Mehr Fleisch / High Protein ──────────────────────────────────
+  { name: 'Rinderfilet (200 g)',         kcal: 340, proteinG: 46, carbsG: 0,  fatG: 16, portionG: 200, portionLabel: '200 g' },
+  { name: 'Hähnchenstreifen gegrillt',   kcal: 185, proteinG: 36, carbsG: 1,  fatG: 4,  portionG: 170, portionLabel: '170 g' },
+  { name: 'Lammkeule gebacken (200 g)',  kcal: 320, proteinG: 38, carbsG: 0,  fatG: 18, portionG: 200, portionLabel: '200 g' },
+  { name: 'Thunfisch frisch (180 g)',    kcal: 200, proteinG: 42, carbsG: 0,  fatG: 3,  portionG: 180, portionLabel: '180 g' },
+  { name: 'Garnelen gegrillt (150 g)',   kcal: 130, proteinG: 28, carbsG: 0,  fatG: 2,  portionG: 150, portionLabel: '150 g' },
+  { name: 'Beef Jerky (30 g)',           kcal: 80,  proteinG: 14, carbsG: 3,  fatG: 1,  portionG: 30,  portionLabel: '30 g' },
+  { name: 'Rührei mit Schinken (3 Eier)',kcal: 360, proteinG: 28, carbsG: 2,  fatG: 26, portionG: 200, portionLabel: '1 Portion' },
+  { name: 'Lachs Bowl (Hähnchen & Avocado)', kcal: 560, proteinG: 42, carbsG: 32, fatG: 28, portionG: 450, portionLabel: '1 Bowl' },
+  { name: 'Griechischer Joghurt (500 g)',kcal: 340, proteinG: 44, carbsG: 20, fatG: 8,  portionG: 500, portionLabel: '500 g' },
+  { name: 'Hüttenkäse (250 g)',          kcal: 165, proteinG: 20, carbsG: 6,  fatG: 7,  portionG: 250, portionLabel: '250 g' },
+  { name: 'Magerquark (500 g)',          kcal: 200, proteinG: 44, carbsG: 10, fatG: 1,  portionG: 500, portionLabel: '500 g' },
+
+  // ── Käse & Milchprodukte ─────────────────────────────────────────
+  { name: 'Mozarella (125 g)',           kcal: 310, proteinG: 22, carbsG: 2,  fatG: 24, portionG: 125, portionLabel: '125 g' },
+  { name: 'Feta (100 g)',                kcal: 260, proteinG: 14, carbsG: 2,  fatG: 22, portionG: 100, portionLabel: '100 g' },
+  { name: 'Gouda Scheibe (30 g)',        kcal: 120, proteinG: 8,  carbsG: 0,  fatG: 10, portionG: 30,  portionLabel: '1 Scheibe' },
+  { name: 'Parmesan (20 g)',             kcal: 83,  proteinG: 7,  carbsG: 0,  fatG: 6,  portionG: 20,  portionLabel: '20 g' },
+  { name: 'Frischkäse (50 g)',           kcal: 130, proteinG: 3,  carbsG: 2,  fatG: 13, portionG: 50,  portionLabel: '50 g' },
+  { name: 'Skyr (500 g)',                kcal: 320, proteinG: 50, carbsG: 26, fatG: 2,  portionG: 500, portionLabel: '500 g' },
+
+  // ── Gemüse & Beilagen ────────────────────────────────────────────
+  { name: 'Avocado (½ Stück)',           kcal: 160, proteinG: 2,  carbsG: 2,  fatG: 15, portionG: 100, portionLabel: '½ Stück' },
+  { name: 'Süßkartoffel gebacken',       kcal: 130, proteinG: 2,  carbsG: 30, fatG: 0,  portionG: 180, portionLabel: '180 g' },
+  { name: 'Mais (100 g)',                kcal: 90,  proteinG: 3,  carbsG: 19, fatG: 1,  portionG: 100, portionLabel: '100 g' },
+  { name: 'Edamame (150 g)',             kcal: 180, proteinG: 17, carbsG: 10, fatG: 8,  portionG: 150, portionLabel: '150 g' },
+  { name: 'Linsen gekocht (200 g)',      kcal: 230, proteinG: 18, carbsG: 38, fatG: 1,  portionG: 200, portionLabel: '200 g' },
+  { name: 'Kichererbsen (150 g)',        kcal: 230, proteinG: 12, carbsG: 36, fatG: 4,  portionG: 150, portionLabel: '150 g' },
+  { name: 'Bohnen schwarz (150 g)',      kcal: 180, proteinG: 11, carbsG: 30, fatG: 1,  portionG: 150, portionLabel: '150 g' },
+  { name: 'Tofu natur (150 g)',          kcal: 115, proteinG: 13, carbsG: 2,  fatG: 6,  portionG: 150, portionLabel: '150 g' },
+  { name: 'Tofu gebraten (150 g)',       kcal: 220, proteinG: 16, carbsG: 4,  fatG: 16, portionG: 150, portionLabel: '150 g' },
+  { name: 'Tempeh (100 g)',              kcal: 195, proteinG: 20, carbsG: 8,  fatG: 11, portionG: 100, portionLabel: '100 g' },
+
+  // ── Obst & Süßes (einzeln) ───────────────────────────────────────
+  { name: 'Orange',                      kcal: 60,  proteinG: 1,  carbsG: 14, fatG: 0,  portionG: 130, portionLabel: '1 Stück' },
+  { name: 'Erdbeeren (150 g)',           kcal: 50,  proteinG: 1,  carbsG: 11, fatG: 0,  portionG: 150, portionLabel: '150 g' },
+  { name: 'Blaubeeren (100 g)',          kcal: 57,  proteinG: 1,  carbsG: 14, fatG: 0,  portionG: 100, portionLabel: '100 g' },
+  { name: 'Weintrauben (150 g)',         kcal: 100, proteinG: 1,  carbsG: 26, fatG: 0,  portionG: 150, portionLabel: '150 g' },
+  { name: 'Mango (150 g)',               kcal: 95,  proteinG: 1,  carbsG: 24, fatG: 0,  portionG: 150, portionLabel: '150 g' },
+  { name: 'Ananas (150 g)',              kcal: 78,  proteinG: 1,  carbsG: 20, fatG: 0,  portionG: 150, portionLabel: '150 g' },
+  { name: 'Kiwi (2 Stück)',             kcal: 80,  proteinG: 1,  carbsG: 18, fatG: 0,  portionG: 150, portionLabel: '2 Stück' },
+  { name: 'Dunkle Schokolade 85% (30g)',kcal: 170, proteinG: 3,  carbsG: 10, fatG: 14, portionG: 30,  portionLabel: '30 g' },
+  { name: 'Milchschokolade (50 g)',      kcal: 265, proteinG: 4,  carbsG: 29, fatG: 15, portionG: 50,  portionLabel: '50 g' },
+  { name: 'Haribo (75 g)',               kcal: 255, proteinG: 4,  carbsG: 58, fatG: 1,  portionG: 75,  portionLabel: '75 g' },
+  { name: 'Chips (40 g)',                kcal: 210, proteinG: 2,  carbsG: 24, fatG: 12, portionG: 40,  portionLabel: '40 g' },
+  { name: 'Popcorn gesalzen (50 g)',     kcal: 200, proteinG: 3,  carbsG: 38, fatG: 5,  portionG: 50,  portionLabel: '50 g' },
+
+  // ── Fitness & Supplements ────────────────────────────────────────
+  { name: 'Whey Protein (1 Scoop, 30g)',  kcal: 120, proteinG: 24, carbsG: 3,  fatG: 2,  portionG: 300, portionLabel: '1 Shake' },
+  { name: 'Casein Shake (1 Scoop)',       kcal: 120, proteinG: 24, carbsG: 4,  fatG: 1,  portionG: 300, portionLabel: '1 Shake' },
+  { name: 'Protein Shake Fertig (500ml)',  kcal: 170, proteinG: 30, carbsG: 8,  fatG: 3,  portionG: 500, portionLabel: '500 ml Flasche' },
+  { name: 'Oats & Whey (100 g)',          kcal: 370, proteinG: 28, carbsG: 50, fatG: 6,  portionG: 100, portionLabel: '100 g' },
+  { name: 'BCAA Drink (500 ml)',          kcal: 20,  proteinG: 5,  carbsG: 1,  fatG: 0,  portionG: 500, portionLabel: '500 ml' },
+  { name: 'Pre-Workout (300 ml)',         kcal: 15,  proteinG: 0,  carbsG: 3,  fatG: 0,  portionG: 300, portionLabel: '300 ml' },
+  { name: 'Erdnussbutter (100 g)',        kcal: 600, proteinG: 26, carbsG: 20, fatG: 50, portionG: 100, portionLabel: '100 g' },
+  { name: 'Mandelmus (30 g)',             kcal: 185, proteinG: 6,  carbsG: 6,  fatG: 17, portionG: 30,  portionLabel: '30 g' },
+
+  // ── Brot, Getreide & Müsli ───────────────────────────────────────
+  { name: 'Haferflocken roh (80 g)',      kcal: 290, proteinG: 10, carbsG: 52, fatG: 5,  portionG: 80,  portionLabel: '80 g' },
+  { name: 'Overnight Oats (Fertig)',      kcal: 380, proteinG: 14, carbsG: 56, fatG: 10, portionG: 350, portionLabel: '1 Glas' },
+  { name: 'Vollkornbrot (2 Scheiben)',    kcal: 170, proteinG: 7,  carbsG: 32, fatG: 2,  portionG: 90,  portionLabel: '2 Scheiben' },
+  { name: 'Laugenbrezel groß',           kcal: 300, proteinG: 9,  carbsG: 58, fatG: 2,  portionG: 120, portionLabel: '1 Stück' },
+  { name: 'Knäckebrot (3 Scheiben)',     kcal: 120, proteinG: 4,  carbsG: 24, fatG: 1,  portionG: 45,  portionLabel: '3 Scheiben' },
+  { name: 'Protein-Müsli (80 g)',        kcal: 300, proteinG: 20, carbsG: 38, fatG: 8,  portionG: 80,  portionLabel: '80 g trocken' },
+  { name: 'Cornflakes (60 g)',           kcal: 220, proteinG: 4,  carbsG: 50, fatG: 1,  portionG: 60,  portionLabel: '60 g' },
+
+  // ── Convenience & Fertiggerichte ─────────────────────────────────
+  { name: 'Dosenravioli (400 g)',        kcal: 360, proteinG: 14, carbsG: 56, fatG: 10, portionG: 400, portionLabel: '1 Dose' },
+  { name: 'Instant Nudeln (1 Pack)',     kcal: 350, proteinG: 8,  carbsG: 52, fatG: 14, portionG: 85,  portionLabel: '1 Pack' },
+  { name: 'Gefrorene Pizza (300 g)',     kcal: 750, proteinG: 28, carbsG: 84, fatG: 32, portionG: 300, portionLabel: '300 g' },
+  { name: 'Tiefkühl-Lasagne (350 g)',   kcal: 560, proteinG: 24, carbsG: 62, fatG: 24, portionG: 350, portionLabel: '1 Pack' },
+  { name: 'Fertigsalat (200 g)',         kcal: 180, proteinG: 6,  carbsG: 12, fatG: 12, portionG: 200, portionLabel: '200 g' },
+
+  // ── Mehr heiße Getränke ──────────────────────────────────────────
+  { name: 'Doppio Espresso',             kcal: 10,  proteinG: 0,  carbsG: 1,  fatG: 0,  portionG: 60,  portionLabel: '2 Shots' },
+  { name: 'Cortado',                     kcal: 50,  proteinG: 3,  carbsG: 4,  fatG: 2,  portionG: 100, portionLabel: '1 Tasse' },
+  { name: 'Macchiato',                   kcal: 35,  proteinG: 2,  carbsG: 3,  fatG: 1,  portionG: 80,  portionLabel: '1 Tasse' },
+  { name: 'Chai Latte (350 ml)',         kcal: 190, proteinG: 6,  carbsG: 30, fatG: 5,  portionG: 350, portionLabel: '1 Glas' },
+  { name: 'Heiße Schokolade (250 ml)',  kcal: 220, proteinG: 7,  carbsG: 32, fatG: 8,  portionG: 250, portionLabel: '250 ml' },
+  { name: 'Matcha Latte (250 ml)',       kcal: 130, proteinG: 5,  carbsG: 18, fatG: 4,  portionG: 250, portionLabel: '250 ml' },
+  { name: 'Iced Coffee (350 ml)',        kcal: 80,  proteinG: 2,  carbsG: 14, fatG: 2,  portionG: 350, portionLabel: '350 ml' },
+  { name: 'Cold Brew (300 ml)',          kcal: 15,  proteinG: 0,  carbsG: 2,  fatG: 0,  portionG: 300, portionLabel: '300 ml' },
+  { name: 'Frappuccino (350 ml)',        kcal: 280, proteinG: 5,  carbsG: 44, fatG: 9,  portionG: 350, portionLabel: '350 ml' },
+
+  // ── Mehr Säfte & Smoothies ───────────────────────────────────────
+  { name: 'Multivitaminsaft (200 ml)',   kcal: 100, proteinG: 0,  carbsG: 24, fatG: 0,  portionG: 200, portionLabel: '200 ml' },
+  { name: 'Kirschsaft (200 ml)',         kcal: 110, proteinG: 1,  carbsG: 26, fatG: 0,  portionG: 200, portionLabel: '200 ml' },
+  { name: 'Tomatensaft (200 ml)',        kcal: 38,  proteinG: 2,  carbsG: 7,  fatG: 0,  portionG: 200, portionLabel: '200 ml' },
+  { name: 'Protein Smoothie Banane',     kcal: 310, proteinG: 28, carbsG: 40, fatG: 5,  portionG: 400, portionLabel: '400 ml' },
+  { name: 'Grüner Detox Smoothie',       kcal: 120, proteinG: 4,  carbsG: 22, fatG: 2,  portionG: 400, portionLabel: '400 ml' },
+  { name: 'Rote-Bete-Saft (200 ml)',    kcal: 80,  proteinG: 2,  carbsG: 18, fatG: 0,  portionG: 200, portionLabel: '200 ml' },
+
+  // ── Mehr Softdrinks ──────────────────────────────────────────────
+  { name: 'Fanta Zero (330 ml)',         kcal: 3,   proteinG: 0,  carbsG: 1,  fatG: 0,  portionG: 330, portionLabel: '330 ml Dose' },
+  { name: 'Sprite Zero (330 ml)',        kcal: 2,   proteinG: 0,  carbsG: 0,  fatG: 0,  portionG: 330, portionLabel: '330 ml Dose' },
+  { name: 'Lipton Ice Tea (500 ml)',     kcal: 160, proteinG: 0,  carbsG: 40, fatG: 0,  portionG: 500, portionLabel: '500 ml Flasche' },
+  { name: 'Bionade Holunder (330 ml)',   kcal: 62,  proteinG: 0,  carbsG: 15, fatG: 0,  portionG: 330, portionLabel: '330 ml' },
+  { name: 'Spezi (330 ml)',              kcal: 145, proteinG: 0,  carbsG: 36, fatG: 0,  portionG: 330, portionLabel: '330 ml' },
+  { name: 'Mate (330 ml)',               kcal: 30,  proteinG: 0,  carbsG: 7,  fatG: 0,  portionG: 330, portionLabel: '330 ml' },
+  { name: 'Club Mate (330 ml)',          kcal: 63,  proteinG: 0,  carbsG: 15, fatG: 0,  portionG: 330, portionLabel: '330 ml' },
 ];
 
 export function searchFood(query: string): FoodItem[] {
