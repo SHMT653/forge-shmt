@@ -94,6 +94,28 @@ export async function deleteMealEntry(userId: string, entryId: string): Promise<
   if (error) throw error;
 }
 
+/** Returns the most recent unique meals (by name) across all dates — for quick re-log chips */
+export async function listRecentUniqueMeals(userId: string, limit = 6): Promise<MealEntry[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('forge_meal_entries')
+    .select('id, log_date, name, kcal, protein_g, carbs_g, fat_g, logged_at')
+    .eq('user_id', userId)
+    .order('logged_at', { ascending: false })
+    .limit(60); // fetch more, then dedupe client-side
+  if (error) throw error;
+  const seen = new Set<string>();
+  const unique: MealEntry[] = [];
+  for (const row of data ?? []) {
+    if (!seen.has(row.name)) {
+      seen.add(row.name);
+      unique.push(toMealEntry(row));
+      if (unique.length >= limit) break;
+    }
+  }
+  return unique;
+}
+
 /** Re-computes and syncs the daily nutrition_log total from all meal entries */
 export async function syncNutritionTotals(userId: string, logDate: string): Promise<void> {
   const entries = await listMealEntries(userId, logDate);

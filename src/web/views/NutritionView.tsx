@@ -473,6 +473,38 @@ export function NutritionView() {
         </section>
       )}
 
+      {/* ── Kürzlich gegessen ─────────────────────────────────── */}
+      {state.recentMeals.length > 0 && (
+        <section className="panel">
+          <p className="h3" style={{ marginBottom: 10 }}>Kürzlich gegessen</p>
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' }}>
+            {state.recentMeals.map((meal) => (
+              <button
+                key={meal.id}
+                type="button"
+                onClick={() => void addMeal({ name: meal.name, kcal: meal.kcal, proteinG: meal.proteinG, carbsG: meal.carbsG, fatG: meal.fatG })}
+                style={{
+                  flexShrink: 0, textAlign: 'left', background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10,
+                  padding: '8px 12px', cursor: 'pointer', color: 'var(--text)',
+                  minWidth: 120, maxWidth: 160,
+                }}
+              >
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {meal.name}
+                </p>
+                <p style={{ margin: '3px 0 0', fontSize: 11, color: 'var(--subtle)' }}>
+                  {meal.kcal} kcal · {meal.proteinG}g P
+                </p>
+              </button>
+            ))}
+          </div>
+          <p className="copy" style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--subtle)' }}>
+            Tippen zum sofort Hinzufügen
+          </p>
+        </section>
+      )}
+
       {/* ── Mahlzeit hinzufügen ───────────────────────────────── */}
       <section className="panel">
         <p className="h3" style={{ marginBottom: 14 }}>Mahlzeit hinzufügen</p>

@@ -6,6 +6,7 @@ import {
   addMealEntry,
   deleteMealEntry,
   listMealEntries,
+  listRecentUniqueMeals,
   syncNutritionTotals,
   type MealEntry,
 } from '@/data/nutrition';
@@ -18,34 +19,37 @@ import type { Habit, UserGoals } from '@/domain/types';
 const GLASS_ML = 250;
 
 export type NutritionState = {
-  meals:    MealEntry[];
-  totals:   { kcal: number; proteinG: number; carbsG: number; fatG: number };
-  goals:    UserGoals;
-  water:    { habit: Habit | null; todayMl: number };
-  loading:  boolean;
-  error:    string | null;
+  meals:        MealEntry[];
+  recentMeals:  MealEntry[];
+  totals:       { kcal: number; proteinG: number; carbsG: number; fatG: number };
+  goals:        UserGoals;
+  water:        { habit: Habit | null; todayMl: number };
+  loading:      boolean;
+  error:        string | null;
 };
 
 export function useNutrition() {
   const { user } = useAuth();
   const [state, setState] = useState<NutritionState>({
-    meals:   [],
-    totals:  { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 },
-    goals:   { calorieGoal: 2000, proteinGoal: 150, weightGoal: null, currentWeight: null, heightCm: null, birthYear: null, gender: 'male' as const, activityLevel: 'moderate' as const, goalType: 'maintain' as const },
-    water:   { habit: null, todayMl: 0 },
-    loading: true,
-    error:   null,
+    meals:        [],
+    recentMeals:  [],
+    totals:       { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 },
+    goals:        { calorieGoal: 2000, proteinGoal: 150, weightGoal: null, currentWeight: null, heightCm: null, birthYear: null, gender: 'male' as const, activityLevel: 'moderate' as const, goalType: 'maintain' as const },
+    water:        { habit: null, todayMl: 0 },
+    loading:      true,
+    error:        null,
   });
 
   const load = useCallback(async () => {
     if (!user) return;
     const today = todayKey();
     try {
-      const [meals, habitList, logs, goals] = await Promise.all([
+      const [meals, habitList, logs, goals, recentMeals] = await Promise.all([
         listMealEntries(user.id, today),
         listHabits(user.id),
         listHabitLogsForRange(user.id, today),
         getUserGoals(user.id),
+        listRecentUniqueMeals(user.id),
       ]);
 
       const totals = meals.reduce(
@@ -63,6 +67,7 @@ export function useNutrition() {
 
       setState({
         meals,
+        recentMeals,
         totals,
         goals: goals ?? { calorieGoal: 2000, proteinGoal: 150, weightGoal: null, currentWeight: null, heightCm: null, birthYear: null, gender: 'male', activityLevel: 'moderate', goalType: 'maintain' },
         water: { habit: waterHabit, todayMl: waterLog?.value ?? 0 },

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle, ListChecks, Utensils, ArrowRight, Search, X, Check, Dumbbell } from 'lucide-react';
+import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle, ListChecks, Utensils, ArrowRight, Search, X, Check, Dumbbell, Zap } from 'lucide-react';
 import { useTodayData } from '@/web/hooks/useTodayData';
 import { ProgressRing } from '@/web/components/ProgressRing';
 import { CardHead } from '@/web/components/CardHead';
@@ -65,6 +65,16 @@ function HabitQuickRow({ habit, log, onToggle }: { habit: Habit; log: { value: n
       </button>
     </div>
   );
+}
+
+function timeGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 5)  return 'Hey, Nachteulen-Modus';
+  if (h < 12) return 'Guten Morgen';
+  if (h < 14) return 'Guten Mittag';
+  if (h < 18) return 'Guten Nachmittag';
+  if (h < 22) return 'Guten Abend';
+  return 'Noch spät wach?';
 }
 
 function WeeklyTrainingDots({ trainingDates }: { trainingDates: Set<string> }) {
@@ -153,6 +163,32 @@ export function DashboardView() {
 
   const stepsHabit = data.habits.find((h) => h.key === 'steps');
   const stepsToday = stepsHabit ? data.todayLogs.get(stepsHabit.id)?.value ?? 0 : 0;
+  const waterHabit = data.habits.find((h) => h.key === 'water');
+  const waterMl    = waterHabit ? data.todayLogs.get(waterHabit.id)?.value ?? 0 : 0;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  // Items still open today — for the "Noch heute" card
+  const openItems: { key: string; label: string; icon: React.ReactNode }[] = [];
+  if (waterHabit) {
+    const remMl = Math.max(0, waterHabit.target - waterMl);
+    const remGlasses = Math.ceil(remMl / 250);
+    if (remGlasses > 0) {
+      openItems.push({ key: 'water', label: `${remGlasses} ${remGlasses === 1 ? 'Glas' : 'Gläser'} Wasser (${fmtWater(remMl)})`, icon: <Droplets size={13} /> });
+    }
+  }
+  for (const h of data.habits) {
+    if (h.key === 'water' || h.key === 'protein') continue;
+    if (!(data.todayLogs.get(h.id)?.completed ?? false)) {
+      openItems.push({ key: h.id, label: h.label, icon: <Circle size={13} /> });
+    }
+  }
+  if (data.nutritionLog.calories === 0) {
+    openItems.push({ key: 'kcal', label: 'Noch keine Mahlzeit eingetragen', icon: <Utensils size={13} /> });
+  }
+  if (!data.recentTrainingDates.has(todayStr) && !data.activeSession) {
+    openItems.push({ key: 'training', label: 'Noch kein Training heute', icon: <Dumbbell size={13} /> });
+  }
 
   async function handleStart() {
     setStarting(true);
@@ -208,7 +244,7 @@ export function DashboardView() {
     <>
       <section className="hero-grid">
         <div className="panel accent">
-          <p className="eyebrow">Heute</p>
+          <p className="eyebrow">{timeGreeting()}</p>
           {data.activeSession ? (
             <>
               <h1 className="h1">Dein Training läuft.</h1>
@@ -275,6 +311,78 @@ export function DashboardView() {
           <span className="metric-label">Gewicht (kg){data.goals.weightGoal ? ` · Ziel ${data.goals.weightGoal}` : ''}</span>
         </div>
       </section>
+
+      {/* ── Schnellaktionen ────────────────────────────────────────────── */}
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        {/* +Wasser */}
+        {waterHabit ? (
+          <button
+            type="button"
+            onClick={() => {
+              const next = waterMl + 250;
+              void toggleHabit(waterHabit, next, next >= waterHabit.target);
+            }}
+            style={{ height: 72, borderRadius: 14, background: 'rgba(107,217,173,0.1)', border: '1px solid rgba(107,217,173,0.2)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, cursor: 'pointer', color: 'var(--teal)', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+          >
+            <Droplets size={22} />
+            <span style={{ fontSize: 11, fontWeight: 600 }}>+1 Glas</span>
+          </button>
+        ) : (
+          <div style={{ height: 72 }} />
+        )}
+        {/* +Mahlzeit */}
+        <Link
+          href="/nutrition"
+          style={{ height: 72, borderRadius: 14, background: 'rgba(201,162,39,0.1)', border: '1px solid rgba(201,162,39,0.2)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, color: '#c9a227', textDecoration: 'none', touchAction: 'manipulation' }}
+        >
+          <Utensils size={22} />
+          <span style={{ fontSize: 11, fontWeight: 600 }}>+Mahlzeit</span>
+        </Link>
+        {/* Training */}
+        {data.activeSession ? (
+          <Link
+            href={`/workout/${data.activeSession.id}`}
+            style={{ height: 72, borderRadius: 14, background: 'rgba(107,83,217,0.15)', border: '1px solid rgba(107,83,217,0.3)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, color: 'var(--violet)', textDecoration: 'none', touchAction: 'manipulation' }}
+          >
+            <Zap size={22} />
+            <span style={{ fontSize: 11, fontWeight: 600 }}>Weiter</span>
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={handleStart}
+            disabled={starting || !data.suggestedDay}
+            style={{ height: 72, borderRadius: 14, background: 'rgba(107,83,217,0.1)', border: '1px solid rgba(107,83,217,0.2)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, cursor: 'pointer', color: 'var(--violet)', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', opacity: data.suggestedDay ? 1 : 0.4 }}
+          >
+            <Dumbbell size={22} />
+            <span style={{ fontSize: 11, fontWeight: 600 }}>{starting ? '…' : 'Training'}</span>
+          </button>
+        )}
+      </section>
+
+      {/* ── Noch heute ─────────────────────────────────────────────────── */}
+      {openItems.length > 0 ? (
+        <section className="panel soft">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <Flame size={14} color="var(--violet)" />
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Noch heute</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {openItems.map((item) => (
+              <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--subtle)', fontSize: 13 }}>
+                {item.icon}
+                <span>{item.label}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <section className="panel soft" style={{ textAlign: 'center' }}>
+          <p style={{ margin: 0, fontSize: 18 }}>🎉</p>
+          <p className="h3" style={{ margin: '4px 0 2px' }}>Alles erledigt heute!</p>
+          <p className="copy" style={{ margin: 0, fontSize: 12 }}>Stark — Streak läuft weiter.</p>
+        </section>
+      )}
 
       {/* ── Wochentraining ─────────────────────────────────────────────── */}
       <section className="panel soft">

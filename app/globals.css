@@ -598,6 +598,9 @@ button:disabled {
   font-size: 14px;
   font-weight: 850;
   text-decoration: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
 }
 
 .button.secondary {
@@ -620,6 +623,11 @@ button:disabled {
 
 .button:hover {
   filter: brightness(1.08);
+}
+
+.button:active {
+  transform: scale(0.97);
+  filter: brightness(0.95);
 }
 
 .button:disabled {
@@ -920,6 +928,7 @@ button:disabled {
   color: var(--text);
   outline: none;
   padding: 0 13px;
+  font-size: 16px; /* prevents iOS auto-zoom on focus */
 }
 
 .textarea {
