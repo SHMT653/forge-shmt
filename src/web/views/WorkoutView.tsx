@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, ChevronLeft, ChevronRight, Flag, Flame, Timer, X, Dumbbell, Zap, Activity, PersonStanding } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Flag, Flame, Info, Timer, X, Dumbbell, Zap, Activity, PersonStanding } from 'lucide-react';
 import { useActiveWorkout } from '@/web/hooks/useActiveWorkout';
 import { useAuth } from '@/web/hooks/useAuth';
 import { addCardioLog } from '@/data/cardio';
@@ -10,6 +10,7 @@ import { findExercise } from '@/domain/exerciseDatabase';
 import { calcKcalBurned } from '@/domain/cardioActivities';
 import { getUserGoals } from '@/data/profile';
 import { todayKey } from '@/domain/dates';
+import { ExerciseInfoModal } from '@/web/components/ExerciseInfoModal';
 import type { SetEntry } from '@/domain/types';
 
 type IconComponent = React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>;
@@ -191,6 +192,7 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [finishing, setFinishing] = useState(false);
   const [confirmAbandon, setConfirmAbandon] = useState(false);
+  const [infoExercise, setInfoExercise] = useState<string | null>(null);
 
   if (loading) return <p className="copy">Training wird geladen …</p>;
   if (error) return <p className="copy" style={{ color: 'var(--danger)' }}>{error}</p>;
@@ -250,7 +252,15 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
           <p className="eyebrow">{session.dayName} · {session.planName}</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 2 }}>
             {(() => { const { icon: Icon, color } = getExerciseIcon(exercise.exerciseName); return <Icon size={24} style={{ color }} />; })()}
-            <h1 className="h1" style={{ fontSize: 26, margin: 0 }}>{exercise.exerciseName}</h1>
+            <h1 className="h1" style={{ fontSize: 26, margin: 0, flex: 1 }}>{exercise.exerciseName}</h1>
+            <button
+              type="button"
+              onClick={() => setInfoExercise(exercise.exerciseName)}
+              style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '5px 8px', cursor: 'pointer', color: 'var(--subtle)', flexShrink: 0, touchAction: 'manipulation' }}
+              aria-label="Übungsinfos"
+            >
+              <Info size={16} />
+            </button>
           </div>
           <p className="copy">
             Übung {exerciseIndex + 1} von {session.exercises.length} · Ziel: {exercise.targetSets} × {exercise.targetReps}
@@ -313,6 +323,10 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
           </button>
         )}
       </div>
+
+      {infoExercise && (
+        <ExerciseInfoModal name={infoExercise} onClose={() => setInfoExercise(null)} />
+      )}
     </>
   );
 }
