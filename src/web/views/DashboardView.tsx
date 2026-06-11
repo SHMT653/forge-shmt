@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle, ListChecks, Utensils, ArrowRight, Search, X, Check, Dumbbell, Zap } from 'lucide-react';
+import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle, ListChecks, Utensils, ArrowRight, Search, X, Check, Dumbbell, Zap, Activity } from 'lucide-react';
 import { useTodayData } from '@/web/hooks/useTodayData';
 import { ProgressRing } from '@/web/components/ProgressRing';
 import { CardHead } from '@/web/components/CardHead';
@@ -321,7 +321,7 @@ export function DashboardView() {
       </section>
 
       {/* ── Schnellaktionen ────────────────────────────────────────────── */}
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
         {/* +Wasser */}
         {waterHabit ? (
           <button
@@ -366,6 +366,14 @@ export function DashboardView() {
             <span style={{ fontSize: 11, fontWeight: 600 }}>{starting ? '…' : 'Training'}</span>
           </button>
         )}
+        {/* Cardio */}
+        <Link
+          href="/cardio"
+          style={{ height: 72, borderRadius: 14, background: 'rgba(217,96,96,0.1)', border: '1px solid rgba(217,96,96,0.2)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, color: '#d96060', textDecoration: 'none', touchAction: 'manipulation' }}
+        >
+          <Activity size={22} />
+          <span style={{ fontSize: 11, fontWeight: 600 }}>Cardio</span>
+        </Link>
       </section>
 
       {/* ── Noch heute ─────────────────────────────────────────────────── */}

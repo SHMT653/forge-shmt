@@ -11,6 +11,7 @@ import {
 } from '@/data/workouts';
 import { ensureDefaultHabits, listHabitLogsForRange, setHabitLog } from '@/data/habits';
 import { addMealEntry, getNutritionLog, syncNutritionTotals } from '@/data/nutrition';
+import { getTodayCardioKcal } from '@/data/cardio';
 import { getUserGoals } from '@/data/profile';
 import { listBodyMetrics } from '@/data/progress';
 import { errorMessage } from '@/domain/errors';
@@ -31,7 +32,7 @@ export type TodayData = {
   trainingStreak: number;
   weeklyTrainingStreak: number;
   recentTrainingDates: Set<string>;
-  caloriesBurned: { steps: number; workout: number; total: number };
+  caloriesBurned: { steps: number; workout: number; cardio: number; total: number };
 };
 
 export function useTodayData() {
@@ -48,7 +49,7 @@ export function useTodayData() {
       const today = todayKey();
       const since = dateKeyAddDays(today, -120);
 
-      const [plans, activeSession, habits, habitLogs, nutritionLog, goals, metrics, completedDates, recentSessions] =
+      const [plans, activeSession, habits, habitLogs, nutritionLog, goals, metrics, completedDates, recentSessions, cardioKcal] =
         await Promise.all([
           listPlans(user.id),
           getActiveSession(user.id),
@@ -59,6 +60,7 @@ export function useTodayData() {
           listBodyMetrics(user.id, 1),
           listCompletedSessionDates(user.id),
           listRecentSessions(user.id, 100),
+          getTodayCardioKcal(user.id, today),
         ]);
 
       const activePlan = plans.find((p) => p.isActive) ?? plans[0] ?? null;
@@ -90,7 +92,12 @@ export function useTodayData() {
       );
       const workoutSeconds = completedToday.reduce((sum, s) => sum + (s.durationSeconds ?? 0), 0);
       const burnedWorkout = Math.round(5.5 * weightKg * (workoutSeconds / 3600));
-      const caloriesBurned = { steps: burnedSteps, workout: burnedWorkout, total: burnedSteps + burnedWorkout };
+      const caloriesBurned = {
+        steps: burnedSteps,
+        workout: burnedWorkout,
+        cardio: cardioKcal,
+        total: burnedSteps + burnedWorkout + cardioKcal,
+      };
 
       setData({
         activePlan,
