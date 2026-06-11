@@ -30,6 +30,7 @@ export type TodayData = {
   dailyStreak: number;
   trainingStreak: number;
   weeklyTrainingStreak: number;
+  recentTrainingDates: Set<string>;
 };
 
 export function useTodayData() {
@@ -89,6 +90,7 @@ export function useTodayData() {
         dailyStreak: consecutiveDayStreak(habitDayKeys),
         trainingStreak: consecutiveDayStreak(completedDates),
         weeklyTrainingStreak: weeklyStreak(completedDates, 3),
+        recentTrainingDates: new Set(completedDates),
       });
     } catch (err) {
       setError(errorMessage(err, 'Daten konnten nicht geladen werden.'));

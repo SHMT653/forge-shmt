@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle, ListChecks, Utensils, ArrowRight, Search, X } from 'lucide-react';
+import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle, ListChecks, Utensils, ArrowRight, Search, X, Check, Dumbbell } from 'lucide-react';
 import { useTodayData } from '@/web/hooks/useTodayData';
 import { ProgressRing } from '@/web/components/ProgressRing';
 import { CardHead } from '@/web/components/CardHead';
@@ -63,6 +63,46 @@ function HabitQuickRow({ habit, log, onToggle }: { habit: Habit; log: { value: n
       >
         {completed ? <CheckCircle2 size={20} /> : <Circle size={20} />}
       </button>
+    </div>
+  );
+}
+
+function WeeklyTrainingDots({ trainingDates }: { trainingDates: Set<string> }) {
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  const dayOfWeek = today.getDay(); // 0=Sun
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const dayLabels = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + mondayOffset + i);
+    return d.toISOString().slice(0, 10);
+  });
+
+  return (
+    <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'flex-end', padding: '4px 0' }}>
+      {days.map((date, i) => {
+        const trained = trainingDates.has(date);
+        const isToday = date === todayStr;
+        const isPast = date < todayStr;
+        return (
+          <div key={date} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: '50%',
+              background: trained ? 'var(--violet)' : isPast ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.08)',
+              border: isToday ? '2px solid var(--violet)' : '2px solid transparent',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background 0.2s',
+            }}>
+              {trained ? <Check size={14} color="white" /> : (isToday ? <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--violet)' }} /> : null)}
+            </div>
+            <span style={{ fontSize: 9, color: isToday ? 'var(--text)' : 'var(--subtle)', fontWeight: isToday ? 700 : 400 }}>
+              {dayLabels[i]}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -211,10 +251,21 @@ export function DashboardView() {
       </section>
 
       <section className="metric-grid">
-        <div className="metric-card">
-          <span className="metric-value">{data.nutritionLog.calories || '–'}</span>
-          <span className="metric-label">Kalorien · Ziel {data.goals.calorieGoal} kcal</span>
-        </div>
+        {(() => {
+          const eaten = data.nutritionLog.calories;
+          const goal = data.goals.calorieGoal;
+          const balance = goal - eaten;
+          const isOver = balance < 0;
+          return (
+            <div className="metric-card">
+              <span className="metric-value" style={{ color: isOver ? 'var(--danger)' : 'var(--teal)', fontSize: 26 }}>
+                {Math.abs(balance).toLocaleString('de-DE')}
+              </span>
+              <span className="metric-label">{isOver ? 'kcal über Ziel' : 'kcal noch frei'}</span>
+              <span className="metric-label" style={{ fontSize: 10, marginTop: 2 }}>{eaten} / {goal} kcal</span>
+            </div>
+          );
+        })()}
         <div className="metric-card">
           <span className="metric-value">{stepsToday ? Math.round(stepsToday).toLocaleString('de-DE') : '–'}</span>
           <span className="metric-label">Schritte · Ziel {stepsHabit ? Math.round(stepsHabit.target).toLocaleString('de-DE') : '–'}</span>
@@ -223,6 +274,27 @@ export function DashboardView() {
           <span className="metric-value">{data.latestMetric?.weightKg ?? '–'}</span>
           <span className="metric-label">Gewicht (kg){data.goals.weightGoal ? ` · Ziel ${data.goals.weightGoal}` : ''}</span>
         </div>
+      </section>
+
+      {/* ── Wochentraining ─────────────────────────────────────────────── */}
+      <section className="panel soft">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Dumbbell size={15} color="var(--violet)" />
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Diese Woche</span>
+          </div>
+          <span style={{ fontSize: 11, color: 'var(--subtle)' }}>
+            {Array.from({ length: 7 }, (_, i) => {
+              const d = new Date();
+              const dow = d.getDay();
+              const off = dow === 0 ? -6 : 1 - dow;
+              const day = new Date(d);
+              day.setDate(d.getDate() + off + i);
+              return day.toISOString().slice(0, 10);
+            }).filter((date) => data.recentTrainingDates.has(date)).length} Trainings
+          </span>
+        </div>
+        <WeeklyTrainingDots trainingDates={data.recentTrainingDates} />
       </section>
 
       <section className="split">

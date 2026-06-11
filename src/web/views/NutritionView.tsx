@@ -406,6 +406,31 @@ export function NutritionView() {
         <h1 className="h1" style={{ fontSize: 28 }}>Was du heute getankt hast.</h1>
       </section>
 
+      {/* ── Kalorien-Balance ──────────────────────────────────── */}
+      <section className="panel" style={{ textAlign: 'center' }}>
+        {(() => {
+          const remaining = goals.calorieGoal - totals.kcal;
+          const isOver = remaining < 0;
+          const pct = Math.min(100, Math.round((totals.kcal / Math.max(1, goals.calorieGoal)) * 100));
+          return (
+            <>
+              <p style={{ fontSize: 48, fontWeight: 700, margin: '0 0 2px', color: isOver ? 'var(--danger)' : 'var(--teal)', lineHeight: 1 }}>
+                {Math.abs(remaining).toLocaleString('de-DE')}
+              </p>
+              <p className="copy" style={{ margin: '0 0 14px', fontSize: 13 }}>
+                kcal {isOver ? 'über deinem Tagesziel' : 'noch verfügbar heute'}
+              </p>
+              <div style={{ height: 6, background: 'rgba(255,255,255,0.07)', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pct}%`, background: isOver ? 'var(--danger)' : 'var(--teal)', borderRadius: 3, transition: 'width 0.4s ease' }} />
+              </div>
+              <p className="copy" style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--subtle)' }}>
+                {totals.kcal.toLocaleString('de-DE')} von {goals.calorieGoal.toLocaleString('de-DE')} kcal gegessen ({pct}%)
+              </p>
+            </>
+          );
+        })()}
+      </section>
+
       {/* ── Donut + Macros ────────────────────────────────────── */}
       <section className="panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
         <MacroDonut

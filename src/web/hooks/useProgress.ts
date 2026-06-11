@@ -10,14 +10,16 @@ import {
   saveBodyMetric,
   uploadProgressPhoto,
 } from '@/data/progress';
+import { getUserGoals } from '@/data/profile';
 import { errorMessage } from '@/domain/errors';
-import type { BodyMetric, ProgressPhoto } from '@/domain/types';
+import type { BodyMetric, ProgressPhoto, UserGoals } from '@/domain/types';
 
 export function useProgress() {
   const { user } = useAuth();
   const [metrics, setMetrics] = useState<BodyMetric[]>([]);
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
   const [strengthBests, setStrengthBests] = useState<{ exerciseName: string; weightKg: number; reps: number; date: string }[]>([]);
+  const [goals, setGoals] = useState<UserGoals | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,14 +28,16 @@ export function useProgress() {
     setLoading(true);
     setError(null);
     try {
-      const [m, p, s] = await Promise.all([
+      const [m, p, s, g] = await Promise.all([
         listBodyMetrics(user.id),
         listProgressPhotos(user.id),
         listStrengthBests(user.id),
+        getUserGoals(user.id),
       ]);
       setMetrics(m);
       setPhotos(p);
       setStrengthBests(s);
+      setGoals(g);
     } catch (err) {
       setError(errorMessage(err, 'Fortschritt konnte nicht geladen werden.'));
     } finally {
@@ -72,5 +76,5 @@ export function useProgress() {
     [user, load],
   );
 
-  return { metrics, photos, strengthBests, loading, error, addMetric, addPhoto, removePhoto };
+  return { metrics, photos, strengthBests, goals, loading, error, addMetric, addPhoto, removePhoto };
 }

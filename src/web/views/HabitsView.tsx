@@ -249,6 +249,45 @@ export function HabitsView() {
         <div className="panel"><p className="copy">Gewohnheiten werden geladen …</p></div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* ── Completion summary ───────────────────────────────────── */}
+          {(() => {
+            const today = todayKey();
+            const visibleHabits = habits.filter((h) => h.key !== 'protein');
+            const done = visibleHabits.filter((h) => {
+              const log = logsByHabit.get(h.id)?.get(today);
+              return log?.completed ?? false;
+            }).length;
+            const total = visibleHabits.length;
+            const allDone = done === total && total > 0;
+            const pct = total > 0 ? (done / total) * 100 : 0;
+            const circumference = 2 * Math.PI * 22;
+            return (
+              <div className="panel soft" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <svg width={56} height={56} viewBox="0 0 56 56" style={{ flexShrink: 0 }}>
+                  <circle cx={28} cy={28} r={22} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={5} />
+                  <circle
+                    cx={28} cy={28} r={22} fill="none"
+                    stroke={allDone ? 'var(--teal)' : 'var(--violet)'}
+                    strokeWidth={5}
+                    strokeDasharray={`${(pct / 100) * circumference} ${circumference}`}
+                    strokeDashoffset={circumference / 4}
+                    style={{ transition: 'stroke-dasharray 0.4s ease' }}
+                  />
+                  <text x={28} y={32} textAnchor="middle" fill="var(--text)" fontSize={13} fontWeight={700}>
+                    {done}/{total}
+                  </text>
+                </svg>
+                <div>
+                  <p className="h3" style={{ margin: 0 }}>
+                    {allDone ? 'Heute alles geschafft!' : `${done} von ${total} erledigt`}
+                  </p>
+                  <p className="copy" style={{ margin: 0, fontSize: 12 }}>
+                    {allDone ? 'Fantastisch — Streak läuft weiter 🔥' : `Noch ${total - done} ${total - done === 1 ? 'offen' : 'offen'}`}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
           {habits.map((habit) => {
             // Protein is auto-filled from nutrition — skip the habit card for it
             if (habit.key === 'protein') return null;

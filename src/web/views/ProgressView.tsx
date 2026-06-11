@@ -10,8 +10,15 @@ import { formatFullDate, todayKey } from '@/domain/dates';
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
+function bmiCategory(bmi: number): { label: string; color: string } {
+  if (bmi < 18.5) return { label: 'Untergewicht', color: 'var(--violet)' };
+  if (bmi < 25)   return { label: 'Normalgewicht', color: 'var(--teal)' };
+  if (bmi < 30)   return { label: 'Übergewicht',   color: '#c9a227' };
+  return               { label: 'Adipositas',      color: 'var(--danger)' };
+}
+
 export function ProgressView() {
-  const { metrics, photos, strengthBests, loading, error, addMetric, addPhoto, removePhoto } = useProgress();
+  const { metrics, photos, strengthBests, goals, loading, error, addMetric, addPhoto, removePhoto } = useProgress();
   const [weightInput, setWeightInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -95,6 +102,33 @@ export function ProgressView() {
           </p>
         )}
       </section>
+
+      {/* BMI card — only shown when height + weight are both known */}
+      {goals?.heightCm && latestWeight !== undefined && (() => {
+        const bmi = latestWeight / ((goals.heightCm / 100) ** 2);
+        const { label, color } = bmiCategory(bmi);
+        const markerPct = Math.max(0, Math.min(100, ((bmi - 15) / (40 - 15)) * 100));
+        return (
+          <section className="panel soft" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ textAlign: 'center', minWidth: 64 }}>
+              <p style={{ margin: 0, fontSize: 30, fontWeight: 700, color, lineHeight: 1 }}>{bmi.toFixed(1)}</p>
+              <p className="copy" style={{ margin: '4px 0 0', fontSize: 11 }}>BMI</p>
+            </div>
+            <div style={{ flex: 1 }}>
+              <p className="h3" style={{ margin: '0 0 6px', color }}>{label}</p>
+              <div style={{ position: 'relative', height: 6, borderRadius: 3, overflow: 'hidden', background: 'linear-gradient(to right, var(--violet) 0%, var(--teal) 30%, #c9a227 60%, var(--danger) 100%)' }}>
+                <div style={{ position: 'absolute', top: -3, left: `${markerPct}%`, width: 12, height: 12, borderRadius: '50%', background: 'var(--text)', border: '2px solid var(--bg)', transform: 'translateX(-50%)' }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                <span className="copy" style={{ fontSize: 10, margin: 0 }}>15</span>
+                <span className="copy" style={{ fontSize: 10, margin: 0 }}>25</span>
+                <span className="copy" style={{ fontSize: 10, margin: 0 }}>40</span>
+              </div>
+              <p className="copy" style={{ margin: '6px 0 0', fontSize: 11 }}>{latestWeight} kg · {goals.heightCm} cm</p>
+            </div>
+          </section>
+        );
+      })()}
 
       {/* 2-week graph */}
       <section className="panel">
