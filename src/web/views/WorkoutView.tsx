@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, ChevronLeft, ChevronRight, Flag, Flame, Info, Timer, X, Dumbbell, Zap, Activity, PersonStanding } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Flag, Flame, Info, Timer, Trophy, X, Dumbbell, Zap, Activity, PersonStanding } from 'lucide-react';
 import { useActiveWorkout } from '@/web/hooks/useActiveWorkout';
 import { useAuth } from '@/web/hooks/useAuth';
 import { addCardioLog } from '@/data/cardio';
@@ -193,6 +193,10 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
   const [finishing, setFinishing] = useState(false);
   const [confirmAbandon, setConfirmAbandon] = useState(false);
   const [infoExercise, setInfoExercise] = useState<string | null>(null);
+  const [prExercise, setPrExercise] = useState<string | null>(null);
+  const prTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => { if (prTimer.current) clearTimeout(prTimer.current); }, []);
 
   if (loading) return <p className="copy">Training wird geladen …</p>;
   if (error) return <p className="copy" style={{ color: 'var(--danger)' }}>{error}</p>;
@@ -234,10 +238,16 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
     setFinishing(true);
     try {
       await finish();
-      router.push('/');
+      router.push(`/?done=1&exercises=${session?.exercises.length ?? 0}`);
     } finally {
       setFinishing(false);
     }
+  }
+
+  function triggerPR(exerciseName: string) {
+    setPrExercise(exerciseName);
+    if (prTimer.current) clearTimeout(prTimer.current);
+    prTimer.current = setTimeout(() => setPrExercise(null), 4000);
   }
 
   async function handleAbandon() {
@@ -302,7 +312,12 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
                 set={set}
                 index={index}
                 suggestion={suggestion}
-                onSave={(reps, weightKg, completed) => void saveSet(set.id, reps, weightKg, completed)}
+                onSave={(reps, weightKg, completed) => {
+                  if (completed && weightKg !== null && suggestion && weightKg > suggestion.weightKg) {
+                    triggerPR(exercise.exerciseName);
+                  }
+                  void saveSet(set.id, reps, weightKg, completed);
+                }}
               />
             ))}
           </div>
@@ -326,6 +341,27 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
 
       {infoExercise && (
         <ExerciseInfoModal name={infoExercise} onClose={() => setInfoExercise(null)} />
+      )}
+
+      {/* PR Toast */}
+      {prExercise && (
+        <div
+          role="status"
+          style={{
+            position: 'fixed', bottom: 100, left: '50%', transform: 'translateX(-50%)',
+            background: 'linear-gradient(135deg, #7b5cf0, #c9a227)',
+            borderRadius: 20, padding: '12px 24px', zIndex: 999,
+            display: 'flex', alignItems: 'center', gap: 10,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            animation: 'fadeInUp 0.3s ease',
+          }}
+        >
+          <Trophy size={20} color="#fff" />
+          <div>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#fff' }}>Neuer Rekord! 🏆</p>
+            <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>{prExercise}</p>
+          </div>
+        </div>
       )}
     </>
   );

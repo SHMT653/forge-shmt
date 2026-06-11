@@ -3,12 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle, ListChecks, Utensils, ArrowRight, Search, X, Check, Dumbbell, Zap } from 'lucide-react';
+import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle, ListChecks, Utensils, ArrowRight, Search, X, Check, Dumbbell, Zap, Moon, Trophy, Star } from 'lucide-react';
 import { useTodayData } from '@/web/hooks/useTodayData';
 import { ProgressRing } from '@/web/components/ProgressRing';
 import { CardHead } from '@/web/components/CardHead';
 import { FastingCard } from '@/web/components/FastingCard';
 import { formatDuration } from '@/domain/dates';
+import { getFastingStatus, getFasting, getProgram } from '@/domain/programs';
 import { searchFood, estimateMacros, type FoodItem } from '@/domain/foodDatabase';
 import type { Habit } from '@/domain/types';
 
@@ -132,6 +133,23 @@ export function DashboardView() {
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const foodSearchRef = useRef<HTMLInputElement>(null);
   const foodSearchWrap = useRef<HTMLDivElement>(null);
+  const [doneBanner, setDoneBanner] = useState<{ exercises: number } | null>(null);
+
+  // Detect post-workout done redirect
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('done') === '1') {
+      setDoneBanner({ exercises: Number(params.get('exercises') ?? '0') });
+      const url = new URL(window.location.href);
+      url.searchParams.delete('done');
+      url.searchParams.delete('exercises');
+      window.history.replaceState({}, '', url.pathname);
+      const t = setTimeout(() => setDoneBanner(null), 7000);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, []);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -168,6 +186,11 @@ export function DashboardView() {
   const waterMl    = waterHabit ? data.todayLogs.get(waterHabit.id)?.value ?? 0 : 0;
 
   const todayStr = new Date().toISOString().slice(0, 10);
+
+  const program = data ? getProgram(data.goals.programId) : null;
+  const fastingEntry = data?.goals.fastingProtocol ? getFasting(data.goals.fastingProtocol) : null;
+  const fastingStatus = fastingEntry && !fastingEntry.is52 ? getFastingStatus(fastingEntry, data?.goals.fastingStartHour ?? 12) : null;
+  const currentlyFasting = fastingStatus ? !fastingStatus.isEating : false;
 
   // Items still open today — for the "Noch heute" card
   const openItems: { key: string; label: string; icon: React.ReactNode }[] = [];
@@ -243,9 +266,31 @@ export function DashboardView() {
 
   return (
     <>
+      {/* Post-workout done banner */}
+      {doneBanner && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(123,92,240,0.9), rgba(91,164,232,0.9))',
+            borderRadius: 14, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12,
+            backdropFilter: 'blur(12px)',
+          }}
+        >
+          <Trophy size={22} color="#fff" />
+          <div style={{ flex: 1 }}>
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#fff' }}>Training abgeschlossen! 💪</p>
+            <p style={{ margin: '2px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>
+              {doneBanner.exercises} Übungen · Vergiss nicht dein Post-Workout Protein!
+            </p>
+          </div>
+          <button type="button" onClick={() => setDoneBanner(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', padding: 4 }}>
+            ✕
+          </button>
+        </div>
+      )}
+
       <section className="hero-grid">
         <div className="panel accent">
-          <p className="eyebrow">{timeGreeting()}</p>
+          <p className="eyebrow">{timeGreeting()}{program ? ` · ${program.icon} ${program.title}` : ''}</p>
           {data.activeSession ? (
             <>
               <h1 className="h1">Dein Training läuft.</h1>
@@ -265,6 +310,15 @@ export function DashboardView() {
                   {starting ? 'Wird gestartet …' : 'Training starten'}
                 </button>
                 <Link href="/plans" className="button secondary">Plan ansehen</Link>
+              </div>
+            </>
+          ) : program ? (
+            <>
+              <h1 className="h1">{program.icon} {program.title}</h1>
+              <p className="copy">{program.tagline}</p>
+              <div className="hero-actions">
+                <Link href="/plans" className="button">Plan starten</Link>
+                <Link href="/settings" className="button secondary">Ziel ändern</Link>
               </div>
             </>
           ) : (
@@ -301,30 +355,54 @@ export function DashboardView() {
           const burned = data.caloriesBurned.total;
           const balance = goal - eaten + burned;
           const isOver = balance < 0;
+          const isAbnehmen = data.goals.programId === 'abnehmen';
+          // For Abnehmen: positive deficit is green (goal), over is red
+          const kcalColor = isAbnehmen
+            ? (isOver ? 'var(--danger)' : '#6bd9ad')
+            : (isOver ? 'var(--danger)' : 'var(--teal)');
           return (
-            <div className="metric-card">
-              <span className="metric-value" style={{ color: isOver ? 'var(--danger)' : 'var(--teal)', fontSize: 26 }}>
+            <div className="metric-card" style={isAbnehmen ? { border: `1px solid ${isOver ? 'rgba(217,96,96,0.3)' : 'rgba(107,217,173,0.25)'}` } : {}}>
+              <span className="metric-value" style={{ color: kcalColor, fontSize: 26 }}>
                 {Math.abs(balance).toLocaleString('de-DE')}
               </span>
-              <span className="metric-label">{isOver ? 'kcal über Ziel' : 'kcal noch frei'}</span>
+              <span className="metric-label">{isOver ? 'kcal über Ziel' : isAbnehmen ? 'kcal Defizit 🔥' : 'kcal noch frei'}</span>
               {burned > 0 && (
                 <span className="metric-label" style={{ fontSize: 10, marginTop: 2, color: 'var(--teal)' }}>
-                  🔥 {burned.toLocaleString('de-DE')} verbrannt
+                  +{burned.toLocaleString('de-DE')} verbrannt
                 </span>
               )}
               <span className="metric-label" style={{ fontSize: 10, marginTop: burned > 0 ? 0 : 2 }}>
-                {eaten} gegessen · Ziel {goal} kcal
+                {eaten} kcal gegessen
               </span>
             </div>
           );
         })()}
-        <div className="metric-card">
-          <span className="metric-value">{stepsToday ? Math.round(stepsToday).toLocaleString('de-DE') : '–'}</span>
-          <span className="metric-label">Schritte · Ziel {stepsHabit ? Math.round(stepsHabit.target).toLocaleString('de-DE') : '–'}</span>
-        </div>
+
+        {/* Protein card for Aufbau / Komposition */}
+        {(data.goals.programId === 'aufbau' || data.goals.programId === 'komposition') ? (
+          <div className="metric-card" style={{ border: '1px solid rgba(107,217,173,0.25)' }}>
+            <span className="metric-value" style={{ color: data.nutritionLog.proteinG >= data.goals.proteinGoal ? 'var(--teal)' : 'var(--text)', fontSize: 26 }}>
+              {data.nutritionLog.proteinG}<span style={{ fontSize: 14, color: 'var(--subtle)' }}>g</span>
+            </span>
+            <span className="metric-label">Protein · Ziel {data.goals.proteinGoal} g</span>
+            <span className="metric-label" style={{ fontSize: 10, marginTop: 2 }}>
+              {Math.round((data.nutritionLog.proteinG / Math.max(1, data.goals.proteinGoal)) * 100)}% erreicht
+            </span>
+          </div>
+        ) : (
+          <div className="metric-card">
+            <span className="metric-value">{stepsToday ? Math.round(stepsToday).toLocaleString('de-DE') : '–'}</span>
+            <span className="metric-label">Schritte · Ziel {stepsHabit ? Math.round(stepsHabit.target).toLocaleString('de-DE') : '–'}</span>
+          </div>
+        )}
+
         <div className="metric-card">
           <span className="metric-value">{data.latestMetric?.weightKg ?? '–'}</span>
-          <span className="metric-label">Gewicht (kg){data.goals.weightGoal ? ` · Ziel ${data.goals.weightGoal}` : ''}</span>
+          <span className="metric-label">
+            {data.goals.weightGoal
+              ? `${data.latestMetric?.weightKg ? Math.abs(data.latestMetric.weightKg - data.goals.weightGoal).toFixed(1) + ' kg bis Ziel' : `Ziel ${data.goals.weightGoal} kg`}`
+              : 'Gewicht (kg)'}
+          </span>
         </div>
       </section>
 
@@ -460,6 +538,20 @@ export function DashboardView() {
 
         <div className="panel">
           <CardHead icon={Utensils} tone="gold" title="Ernährung" />
+
+          {/* Fasting warning */}
+          {currentlyFasting && fastingStatus && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, background: 'rgba(123,92,240,0.1)', border: '1px solid rgba(123,92,240,0.2)', marginBottom: 10 }}>
+              <Moon size={13} color="#a990ff" />
+              <div>
+                <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#a990ff' }}>Du fastest gerade</p>
+                <p style={{ margin: 0, fontSize: 10, color: 'var(--subtle)' }}>
+                  Essensfenster ab {String(fastingStatus.eatStartHour).padStart(2, '0')}:00 Uhr
+                </p>
+              </div>
+            </div>
+          )}
+
           <p className="copy">
             Heute: <strong>{data.nutritionLog.calories} kcal</strong> · <strong>{data.nutritionLog.proteinG} g Protein</strong>
           </p>
@@ -542,19 +634,36 @@ export function DashboardView() {
         </div>
       </section>
 
-      {data.trainingStreak > 0 && (
+      {(data.trainingStreak > 0 || program) && (
         <section className="panel soft">
           <div className="section-head">
-            <CardHead icon={Flame} tone="gold" title="Dein Fortschritt spricht für sich" />
+            <CardHead icon={Star} tone="gold" title={program ? `${program.icon} ${program.title} · Heute` : 'Dein Fortschritt'} />
           </div>
           <div className="list">
-            <p className="check-line"><Flame size={16} /> {data.trainingStreak} {data.trainingStreak === 1 ? 'Tag' : 'Tage'} am Stück trainiert</p>
-            <p className="check-line"><Droplets size={16} /> {data.weeklyTrainingStreak} {data.weeklyTrainingStreak === 1 ? 'Woche' : 'Wochen'} mit mind. 3 Trainings</p>
-            {data.activeSession?.durationSeconds && (
-              <p className="check-line"><Footprints size={16} /> Letztes Training: {formatDuration(data.activeSession.durationSeconds)}</p>
+            {data.trainingStreak > 0 && (
+              <p className="check-line"><Flame size={16} /> {data.trainingStreak} {data.trainingStreak === 1 ? 'Tag' : 'Tage'} am Stück trainiert</p>
             )}
-            {data.latestMetric?.weightKg && (
-              <p className="check-line"><Scale size={16} /> Aktuelles Gewicht: {data.latestMetric.weightKg} kg</p>
+            {data.weeklyTrainingStreak > 0 && (
+              <p className="check-line"><Trophy size={16} /> {data.weeklyTrainingStreak} {data.weeklyTrainingStreak === 1 ? 'Woche' : 'Wochen'} mit mind. 3 Trainings</p>
+            )}
+            {data.latestMetric?.weightKg && data.goals.weightGoal && (
+              <p className="check-line">
+                <Scale size={16} />
+                {Math.abs(data.latestMetric.weightKg - data.goals.weightGoal).toFixed(1)} kg bis Zielgewicht ({data.goals.weightGoal} kg)
+              </p>
+            )}
+            {program?.id === 'abnehmen' && data.caloriesBurned.total > 0 && (
+              <p className="check-line"><Flame size={16} /> {data.caloriesBurned.total} kcal heute verbrannt</p>
+            )}
+            {program?.id === 'aufbau' && data.nutritionLog.proteinG > 0 && (
+              <p className="check-line">
+                <CheckCircle2 size={16} />
+                {data.nutritionLog.proteinG} / {data.goals.proteinGoal} g Protein heute
+                {data.nutritionLog.proteinG >= data.goals.proteinGoal ? ' ✓' : ''}
+              </p>
+            )}
+            {currentlyFasting && fastingStatus && (
+              <p className="check-line"><Moon size={16} /> Fastenzeit aktiv · Essensfenster ab {String(fastingStatus.eatStartHour).padStart(2, '0')}:00</p>
             )}
           </div>
         </section>
