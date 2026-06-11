@@ -97,6 +97,9 @@ export type UserGoals = {
   gender: Gender;
   activityLevel: ActivityLevel;
   goalType: GoalType;
+  programId: import('@/domain/programs').ProgramId | null;
+  fastingProtocol: import('@/domain/programs').FastingProtocol | null;
+  fastingStartHour: number | null;
 };
 
 export type NutritionLog = {

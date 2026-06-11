@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, User, Target, ShieldCheck, Calculator } from 'lucide-react';
+import { LogOut, Moon, User, Target, ShieldCheck, Calculator } from 'lucide-react';
 import { useAuth } from '@/web/hooks/useAuth';
 import { useSettings } from '@/web/hooks/useSettings';
 import { signOut } from '@/services/supabase/auth';
 import { CardHead } from '@/web/components/CardHead';
 import { formatDuration } from '@/domain/dates';
 import { calculateMacros, GOAL_TYPE_LABELS, ACTIVITY_LABELS } from '@/domain/macroCalculator';
+import { PROGRAMS, FASTING_PROTOCOLS } from '@/domain/programs';
 import type { ActivityLevel, Gender, GoalType, UserGoals } from '@/domain/types';
+import type { ProgramId, FastingProtocol } from '@/domain/programs';
 
 const GENDER_OPTIONS: { value: Gender; label: string }[] = [
   { value: 'male',   label: 'Männlich' },
@@ -32,6 +34,9 @@ export function SettingsView() {
   const [gender, setGender] = useState<Gender>('other');
   const [activityLevel, setActivityLevel] = useState<ActivityLevel>('moderate');
   const [goalType, setGoalType] = useState<GoalType>('maintain');
+  const [programId, setProgramId] = useState<ProgramId | null>(null);
+  const [fastingProtocol, setFastingProtocol] = useState<FastingProtocol | null>(null);
+  const [fastingStartHour, setFastingStartHour] = useState(12);
   const [autoCalc, setAutoCalc] = useState<{ calories: number; protein: number } | null>(null);
 
   const [savingProfile, setSavingProfile] = useState(false);
@@ -53,6 +58,9 @@ export function SettingsView() {
     setGender(goals.gender);
     setActivityLevel(goals.activityLevel);
     setGoalType(goals.goalType);
+    setProgramId(goals.programId);
+    setFastingProtocol(goals.fastingProtocol);
+    setFastingStartHour(goals.fastingStartHour ?? 12);
   }, [goals]);
 
   async function handleProfileSubmit(e: React.FormEvent) {
@@ -63,15 +71,18 @@ export function SettingsView() {
 
   function buildGoalsPayload(): UserGoals {
     return {
-      calorieGoal:   Number(calorieGoal) || 2200,
-      proteinGoal:   Number(proteinGoal) || 150,
-      weightGoal:    weightGoal.trim() ? Number(weightGoal) : null,
-      currentWeight: currentWeight.trim() ? Number(currentWeight) : null,
-      heightCm:      heightCm.trim() ? Number(heightCm) : null,
-      birthYear:     birthYear.trim() ? Number(birthYear) : null,
+      calorieGoal:     Number(calorieGoal) || 2200,
+      proteinGoal:     Number(proteinGoal) || 150,
+      weightGoal:      weightGoal.trim() ? Number(weightGoal) : null,
+      currentWeight:   currentWeight.trim() ? Number(currentWeight) : null,
+      heightCm:        heightCm.trim() ? Number(heightCm) : null,
+      birthYear:       birthYear.trim() ? Number(birthYear) : null,
       gender,
       activityLevel,
       goalType,
+      programId,
+      fastingProtocol,
+      fastingStartHour: fastingProtocol ? fastingStartHour : null,
     };
   }
 
@@ -236,6 +247,127 @@ export function SettingsView() {
             </div>
           </div>
         </form>
+      </section>
+
+      {/* Program selection */}
+      <section className="panel">
+        <CardHead icon={Target} tone="violet" title="Mein Programm" />
+        <p className="copy" style={{ marginTop: 6 }}>Wähle dein Hauptziel. Die App passt Anzeigen und Empfehlungen daran an.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginTop: 14 }}>
+          {PROGRAMS.map((p) => {
+            const active = programId === p.id;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => { setProgramId(p.id); }}
+                style={{
+                  textAlign: 'left', padding: '14px 14px', borderRadius: 14, cursor: 'pointer',
+                  border: `2px solid ${active ? p.accentColor : 'rgba(255,255,255,0.08)'}`,
+                  background: active ? `${p.accentColor}18` : 'rgba(255,255,255,0.03)',
+                  touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+                  transition: 'border-color 0.15s, background 0.15s',
+                }}
+              >
+                <div style={{ fontSize: 26, marginBottom: 6 }}>{p.icon}</div>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: active ? p.accentColor : 'var(--text)' }}>{p.title}</p>
+                <p style={{ margin: '3px 0 0', fontSize: 11, color: 'var(--subtle)', lineHeight: 1.4 }}>{p.tagline}</p>
+              </button>
+            );
+          })}
+        </div>
+
+        {programId && (
+          <div style={{ marginTop: 14, padding: '12px 14px', background: 'rgba(255,255,255,0.04)', borderRadius: 10 }}>
+            <p style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--text)' }}>
+              {PROGRAMS.find((p) => p.id === programId)?.description}
+            </p>
+            <ul style={{ margin: 0, padding: '0 0 0 16px', listStyle: 'disc' }}>
+              {PROGRAMS.find((p) => p.id === programId)?.highlights.map((h) => (
+                <li key={h} style={{ fontSize: 12, color: 'var(--subtle)', marginBottom: 2 }}>{h}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div style={{ marginTop: 12 }}>
+          <button type="button" className="button compact" onClick={() => void saveGoals(buildGoalsPayload())} disabled={savingGoals}>
+            {savingGoals ? 'Speichert …' : 'Programm speichern'}
+          </button>
+        </div>
+      </section>
+
+      {/* Intervallfasten */}
+      <section className="panel">
+        <CardHead icon={Moon} tone="violet" title="Intervallfasten" />
+        <p className="copy" style={{ marginTop: 6 }}>Wähle ein Fastenprogramm oder deaktiviere es. Der Timer läuft dann auf deiner Startseite.</p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginTop: 14 }}>
+          {/* "Kein Fasten" option */}
+          <button
+            type="button"
+            onClick={() => setFastingProtocol(null)}
+            style={{
+              textAlign: 'left', padding: '12px 14px', borderRadius: 12, cursor: 'pointer', gridColumn: '1 / -1',
+              border: `1.5px solid ${fastingProtocol === null ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.08)'}`,
+              background: fastingProtocol === null ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
+              touchAction: 'manipulation',
+            }}
+          >
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Kein Intervallfasten</p>
+            <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--subtle)' }}>Fasten deaktiviert</p>
+          </button>
+
+          {FASTING_PROTOCOLS.map((fp) => {
+            const active = fastingProtocol === fp.id;
+            return (
+              <button
+                key={fp.id}
+                type="button"
+                onClick={() => setFastingProtocol(fp.id)}
+                style={{
+                  textAlign: 'left', padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
+                  border: `1.5px solid ${active ? '#a990ff' : 'rgba(255,255,255,0.08)'}`,
+                  background: active ? 'rgba(123,92,240,0.15)' : 'rgba(255,255,255,0.02)',
+                  touchAction: 'manipulation',
+                }}
+              >
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: active ? '#a990ff' : 'var(--text)' }}>{fp.shortTitle}</p>
+                <p style={{ margin: '3px 0 0', fontSize: 11, color: 'var(--subtle)', lineHeight: 1.35 }}>{fp.description}</p>
+              </button>
+            );
+          })}
+        </div>
+
+        {fastingProtocol && fastingProtocol !== '5:2' && (
+          <div style={{ marginTop: 14 }}>
+            <label className="field-label">Essensfenster beginnt um</label>
+            <select
+              className="select"
+              value={String(fastingStartHour)}
+              onChange={(e) => setFastingStartHour(Number(e.target.value))}
+              style={{ marginTop: 6 }}
+            >
+              {Array.from({ length: 17 }, (_, i) => i + 6).map((h) => (
+                <option key={h} value={h}>{String(h).padStart(2, '0')}:00 Uhr</option>
+              ))}
+            </select>
+            <p className="copy" style={{ marginTop: 6, fontSize: 12 }}>
+              {(() => {
+                const fp = FASTING_PROTOCOLS.find((p) => p.id === fastingProtocol);
+                if (!fp) return '';
+                const endHour = (fastingStartHour + fp.eatHours) % 24;
+                return `Essensfenster: ${String(fastingStartHour).padStart(2,'0')}:00 – ${String(endHour).padStart(2,'0')}:00 · Fasten: ${String(endHour).padStart(2,'0')}:00 – ${String(fastingStartHour).padStart(2,'0')}:00`;
+              })()}
+            </p>
+          </div>
+        )}
+
+        <div style={{ marginTop: 12 }}>
+          <button type="button" className="button compact" onClick={() => void saveGoals(buildGoalsPayload())} disabled={savingGoals}>
+            {savingGoals ? 'Speichert …' : 'Fasten speichern'}
+          </button>
+        </div>
       </section>
 
       {/* Sign out */}

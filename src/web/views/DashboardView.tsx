@@ -7,6 +7,7 @@ import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle, ListChecks, U
 import { useTodayData } from '@/web/hooks/useTodayData';
 import { ProgressRing } from '@/web/components/ProgressRing';
 import { CardHead } from '@/web/components/CardHead';
+import { FastingCard } from '@/web/components/FastingCard';
 import { formatDuration } from '@/domain/dates';
 import { searchFood, estimateMacros, type FoodItem } from '@/domain/foodDatabase';
 import type { Habit } from '@/domain/types';
@@ -285,6 +286,13 @@ export function DashboardView() {
           </div>
         </div>
       </section>
+
+      {data.goals.fastingProtocol && (
+        <FastingCard
+          protocol={data.goals.fastingProtocol}
+          startHour={data.goals.fastingStartHour ?? 12}
+        />
+      )}
 
       <section className="metric-grid">
         {(() => {

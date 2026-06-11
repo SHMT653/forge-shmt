@@ -40,13 +40,16 @@ const GOALS_DEFAULTS: UserGoals = {
   gender: 'other',
   activityLevel: 'moderate',
   goalType: 'maintain',
+  programId: null,
+  fastingProtocol: null,
+  fastingStartHour: null,
 };
 
 export async function getUserGoals(userId: string): Promise<UserGoals> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('forge_user_goals')
-    .select('calorie_goal, protein_goal, weight_goal, current_weight, height_cm, birth_year, gender, activity_level, goal_type')
+    .select('calorie_goal, protein_goal, weight_goal, current_weight, height_cm, birth_year, gender, activity_level, goal_type, program_id, fasting_protocol, fasting_start_hour')
     .eq('user_id', userId)
     .maybeSingle();
 
@@ -62,6 +65,9 @@ export async function getUserGoals(userId: string): Promise<UserGoals> {
     gender: (data.gender ?? 'other') as Gender,
     activityLevel: (data.activity_level ?? 'moderate') as ActivityLevel,
     goalType: (data.goal_type ?? 'maintain') as GoalType,
+    programId: (data.program_id ?? null) as UserGoals['programId'],
+    fastingProtocol: (data.fasting_protocol ?? null) as UserGoals['fastingProtocol'],
+    fastingStartHour: data.fasting_start_hour ?? null,
   };
 }
 
@@ -79,6 +85,9 @@ export async function saveUserGoals(userId: string, goals: UserGoals): Promise<v
       gender: goals.gender,
       activity_level: goals.activityLevel,
       goal_type: goals.goalType,
+      program_id: goals.programId,
+      fasting_protocol: goals.fastingProtocol,
+      fasting_start_hour: goals.fastingStartHour,
     },
     { onConflict: 'user_id' },
   );

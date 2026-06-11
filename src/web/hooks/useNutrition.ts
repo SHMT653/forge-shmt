@@ -34,7 +34,7 @@ export function useNutrition() {
     meals:        [],
     recentMeals:  [],
     totals:       { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 },
-    goals:        { calorieGoal: 2000, proteinGoal: 150, weightGoal: null, currentWeight: null, heightCm: null, birthYear: null, gender: 'male' as const, activityLevel: 'moderate' as const, goalType: 'maintain' as const },
+    goals:        { calorieGoal: 2000, proteinGoal: 150, weightGoal: null, currentWeight: null, heightCm: null, birthYear: null, gender: 'male' as const, activityLevel: 'moderate' as const, goalType: 'maintain' as const, programId: null, fastingProtocol: null, fastingStartHour: null },
     water:        { habit: null, todayMl: 0 },
     loading:      true,
     error:        null,
