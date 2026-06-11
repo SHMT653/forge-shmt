@@ -19,7 +19,7 @@ export function ProgressView() {
 
   async function handleWeightSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const kg = Number(weightInput);
+    const kg = parseFloat(weightInput.replace(',', '.'));
     if (!weightInput.trim() || Number.isNaN(kg) || kg <= 0) return;
     setSaving(true);
     try {
@@ -77,7 +77,7 @@ export function ProgressView() {
             inputMode="decimal"
             value={weightInput}
             onChange={(e) => setWeightInput(e.target.value)}
-            placeholder="z. B. 80.5 kg"
+            placeholder="z. B. 80,5 kg"
             style={{ flex: 1 }}
           />
           <button type="submit" className="button compact" disabled={saving || !weightInput.trim()}>
