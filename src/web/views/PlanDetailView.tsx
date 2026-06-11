@@ -5,8 +5,11 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check, Info, Pencil, Play, Plus, Search, Star, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePlans } from '@/web/hooks/usePlans';
-import { searchExercises, type ExerciseEntry } from '@/domain/exerciseDatabase';
+import { searchExercises } from '@/domain/exerciseDatabase';
+import { listCustomExercises, type DbExercise } from '@/data/exercises';
 import { ExerciseInfoModal } from '@/web/components/ExerciseInfoModal';
+import { CreateExerciseModal } from '@/web/components/CreateExerciseModal';
+import { useAuth } from '@/web/hooks/useAuth';
 import type { Exercise, PlanDay, TrainingPlan } from '@/domain/types';
 
 /* ── tiny inline sub-components ─────────────────────────── */
@@ -103,18 +106,32 @@ function ExerciseRow({
   );
 }
 
-function AddExerciseRow({ onAdd }: { onAdd: (name: string, sets: number, reps: string) => void }) {
-  const [open, setOpen]           = useState(false);
-  const [query, setQuery]         = useState('');
-  const [results, setResults]     = useState<ExerciseEntry[]>([]);
-  const [selected, setSelected]   = useState<ExerciseEntry | null>(null);
-  const [name, setName]           = useState('');
-  const [sets, setSets]           = useState('3');
-  const [reps, setReps]           = useState('8-12');
-  const [showDrop, setShowDrop]   = useState(false);
-  const [dropPos, setDropPos]     = useState({ top: 0, left: 0, width: 280 });
-  const wrapRef                   = useRef<HTMLDivElement>(null);
-  const searchRef                 = useRef<HTMLInputElement>(null);
+type SearchResult = { name: string; muscle: string; equipment: string; defaultSets: number; defaultReps: string; isCustom?: boolean };
+
+function dbToResult(ex: DbExercise): SearchResult {
+  return { name: ex.name, muscle: ex.muscleGroup, equipment: ex.equipment, defaultSets: ex.defaultSets, defaultReps: ex.defaultReps, isCustom: true };
+}
+
+function AddExerciseRow({ userId, onAdd }: { userId: string; onAdd: (name: string, sets: number, reps: string) => void }) {
+  const [open, setOpen]             = useState(false);
+  const [query, setQuery]           = useState('');
+  const [results, setResults]       = useState<SearchResult[]>([]);
+  const [selected, setSelected]     = useState<SearchResult | null>(null);
+  const [dbCache, setDbCache]       = useState<DbExercise[]>([]);
+  const [name, setName]             = useState('');
+  const [sets, setSets]             = useState('3');
+  const [reps, setReps]             = useState('8-12');
+  const [showDrop, setShowDrop]     = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [dropPos, setDropPos]       = useState({ top: 0, left: 0, width: 280 });
+  const wrapRef                     = useRef<HTMLDivElement>(null);
+  const searchRef                   = useRef<HTMLInputElement>(null);
+
+  // Fetch custom exercises once when row opens
+  useEffect(() => {
+    if (!open) return;
+    void listCustomExercises().then(setDbCache);
+  }, [open]);
 
   useEffect(() => {
     if (!showDrop) return;
@@ -128,18 +145,23 @@ function AddExerciseRow({ onAdd }: { onAdd: (name: string, sets: number, reps: s
   function handleSearch(q: string) {
     setQuery(q);
     setSelected(null);
-    const hits = searchExercises(q);
-    setResults(hits);
-    if (hits.length > 0 && wrapRef.current) {
+    if (!q.trim()) { setShowDrop(false); return; }
+    const localHits: SearchResult[] = searchExercises(q).map((e) => ({ name: e.name, muscle: e.muscle, equipment: e.equipment, defaultSets: e.defaultSets, defaultReps: e.defaultReps }));
+    const qLow = q.toLowerCase();
+    const dbHits: SearchResult[] = dbCache.filter((e) => e.name.toLowerCase().includes(qLow) || e.muscleGroup.toLowerCase().includes(qLow)).map(dbToResult);
+    const merged = [...localHits];
+    for (const d of dbHits) {
+      if (!merged.find((r) => r.name.toLowerCase() === d.name.toLowerCase())) merged.push(d);
+    }
+    setResults(merged.slice(0, 10));
+    if (wrapRef.current) {
       const rect = wrapRef.current.getBoundingClientRect();
       setDropPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
       setShowDrop(true);
-    } else {
-      setShowDrop(false);
     }
   }
 
-  function pick(ex: ExerciseEntry) {
+  function pick(ex: SearchResult) {
     setSelected(ex);
     setName(ex.name);
     setSets(String(ex.defaultSets));
@@ -171,73 +193,101 @@ function AddExerciseRow({ onAdd }: { onAdd: (name: string, sets: number, reps: s
 
   const muscleColors: Record<string, string> = {
     Brust: '#d96060', Rücken: 'var(--teal)', Schultern: '#c9a227',
-    Beine: 'var(--violet)', Bizeps: 'var(--teal)', Trizeps: '#c9a227', Bauch: '#d96060',
+    Beine: 'var(--violet)', Bizeps: 'var(--teal)', Trizeps: '#c9a227', Bauch: '#d96060', Cardio: '#d96060',
   };
 
   return (
-    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {/* Search field */}
-      <div ref={wrapRef}>
-        <div className="search-field">
-          <Search size={14} />
-          <input
-            ref={searchRef}
-            type="text"
-            placeholder="Übung suchen (z. B. Bankdrücken, Beine …)"
-            value={selected ? selected.name : query}
-            onChange={(e) => handleSearch(e.target.value)}
-            onFocus={() => { if (results.length > 0) setShowDrop(true); }}
-            onKeyDown={(e) => { if (e.key === 'Escape') close(); if (e.key === 'Enter' && !showDrop) submit(); }}
-            autoComplete="off"
-          />
-          {(query || selected) && (
-            <button type="button" onClick={() => { setQuery(''); setSelected(null); setResults([]); setShowDrop(false); }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--subtle)', padding: 2 }}>
-              <X size={14} />
-            </button>
-          )}
+    <>
+      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* Search field */}
+        <div ref={wrapRef}>
+          <div className="search-field">
+            <Search size={14} />
+            <input
+              ref={searchRef}
+              type="text"
+              placeholder="Übung suchen oder neu erstellen …"
+              value={selected ? selected.name : query}
+              onChange={(e) => handleSearch(e.target.value)}
+              onFocus={() => { if (results.length > 0) setShowDrop(true); }}
+              onKeyDown={(e) => { if (e.key === 'Escape') close(); if (e.key === 'Enter' && !showDrop) submit(); }}
+              autoComplete="off"
+            />
+            {(query || selected) && (
+              <button type="button" onClick={() => { setQuery(''); setSelected(null); setResults([]); setShowDrop(false); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--subtle)', padding: 2 }}>
+                <X size={14} />
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Dropdown */}
+        {showDrop && (
+          <div style={{
+            position: 'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 300,
+            background: 'var(--panel, #16161b)', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 10, boxShadow: '0 12px 40px rgba(0,0,0,0.7)', maxHeight: 280, overflowY: 'auto',
+          }}>
+            {results.map((ex) => (
+              <button key={ex.name} type="button"
+                onMouseDown={(e) => { e.preventDefault(); pick(ex); }}
+                style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14, color: 'var(--text)', fontWeight: 500 }}>{ex.name}</span>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    {ex.isCustom && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'rgba(123,92,240,0.2)', color: '#a990ff' }}>Custom</span>}
+                    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.07)', color: muscleColors[ex.muscle] ?? 'var(--subtle)', whiteSpace: 'nowrap' }}>
+                      {ex.muscle}
+                    </span>
+                  </div>
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--subtle)' }}>{ex.equipment} · {ex.defaultSets}×{ex.defaultReps}</span>
+              </button>
+            ))}
+            {/* Create new exercise option */}
+            {query.length >= 2 && (
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); setShowDrop(false); setShowCreate(true); }}
+                style={{ width: '100%', textAlign: 'left', background: 'rgba(123,92,240,0.08)', border: 'none', padding: '10px 14px', cursor: 'pointer', borderTop: results.length > 0 ? '1px solid rgba(255,255,255,0.08)' : 'none' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Plus size={13} color="#a990ff" />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#a990ff' }}>„{query}" als neue Übung erstellen</span>
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--subtle)' }}>Muskeln auswählen & in Community speichern</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Sets / Reps + manual name fallback */}
+        {(selected || query.length >= 2) && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            {!selected && (
+              <input className="input compact" value={name} onChange={(e) => setName(e.target.value)}
+                placeholder="Übungsname" style={{ flex: 2, minWidth: 120 }} />
+            )}
+            <input className="input compact" value={sets} onChange={(e) => setSets(e.target.value)}
+              placeholder="Sätze" inputMode="numeric" style={{ width: 64 }} />
+            <input className="input compact" value={reps} onChange={(e) => setReps(e.target.value)}
+              placeholder="Wdh." style={{ width: 80 }} />
+            <button type="button" className="button compact" style={{ padding: '6px 10px' }} onClick={submit}><Check size={14} /></button>
+            <button type="button" className="button ghost compact" style={{ padding: '6px 10px' }} onClick={close}><X size={14} /></button>
+          </div>
+        )}
       </div>
 
-      {/* Dropdown */}
-      {showDrop && results.length > 0 && (
-        <div style={{
-          position: 'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 300,
-          background: 'var(--panel, #16161b)', border: '1px solid rgba(255,255,255,0.12)',
-          borderRadius: 10, boxShadow: '0 12px 40px rgba(0,0,0,0.7)', maxHeight: 260, overflowY: 'auto',
-        }}>
-          {results.map((ex) => (
-            <button key={ex.name} type="button"
-              onMouseDown={(e) => { e.preventDefault(); pick(ex); }}
-              style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 14, color: 'var(--text)', fontWeight: 500 }}>{ex.name}</span>
-                <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.07)', color: muscleColors[ex.muscle] ?? 'var(--subtle)', whiteSpace: 'nowrap' }}>
-                  {ex.muscle}
-                </span>
-              </div>
-              <span style={{ fontSize: 11, color: 'var(--subtle)' }}>{ex.equipment} · {ex.defaultSets}×{ex.defaultReps}</span>
-            </button>
-          ))}
-        </div>
+      {showCreate && (
+        <CreateExerciseModal
+          userId={userId}
+          initialName={query}
+          onCreated={(n, s, r) => { onAdd(n, s, r); close(); setShowCreate(false); }}
+          onClose={() => setShowCreate(false)}
+        />
       )}
-
-      {/* Sets / Reps + manual name fallback */}
-      {(selected || query.length >= 2) && (
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-          {!selected && (
-            <input className="input compact" value={name} onChange={(e) => setName(e.target.value)}
-              placeholder="Übungsname" style={{ flex: 2, minWidth: 120 }} />
-          )}
-          <input className="input compact" value={sets} onChange={(e) => setSets(e.target.value)}
-            placeholder="Sätze" inputMode="numeric" style={{ width: 64 }} />
-          <input className="input compact" value={reps} onChange={(e) => setReps(e.target.value)}
-            placeholder="Wdh." style={{ width: 80 }} />
-          <button type="button" className="button compact" style={{ padding: '6px 10px' }} onClick={submit}><Check size={14} /></button>
-          <button type="button" className="button ghost compact" style={{ padding: '6px 10px' }} onClick={close}><X size={14} /></button>
-        </div>
-      )}
-    </div>
+    </>
   );
 }
 
@@ -246,6 +296,7 @@ function DayCard({
   plan,
   editMode,
   busy,
+  userId,
   onStart,
   onRenameDay,
   onDeleteDay,
@@ -258,6 +309,7 @@ function DayCard({
   plan: TrainingPlan;
   editMode: boolean;
   busy: string | null;
+  userId: string;
   onStart: () => void;
   onRenameDay: (name: string) => void;
   onDeleteDay: () => void;
@@ -317,7 +369,7 @@ function DayCard({
       </div>
 
       {editMode && (
-        <AddExerciseRow onAdd={onAddExercise} />
+        <AddExerciseRow userId={userId} onAdd={onAddExercise} />
       )}
     </div>
   );
@@ -327,6 +379,7 @@ function DayCard({
 
 export function PlanDetailView({ planId }: { planId: string }) {
   const { plans, loading, activate, remove, startDay, editPlanName, addDay, renameDay, deleteDay, addExercise, editExercise, deleteExercise } = usePlans();
+  const { user } = useAuth();
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -443,6 +496,7 @@ export function PlanDetailView({ planId }: { planId: string }) {
             plan={plan}
             editMode={editMode}
             busy={busy}
+            userId={user?.id ?? ''}
             onStart={() => handleStart(day)}
             onRenameDay={(name) => void renameDay(day.id, name)}
             onDeleteDay={async () => {
