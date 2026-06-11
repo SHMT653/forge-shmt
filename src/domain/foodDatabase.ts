@@ -473,6 +473,31 @@ export const FOOD_DATABASE: FoodItem[] = [
   // ── Kombinationsgerichte ─────────────────────────────────────────
   { name: 'Burger mit Pommes',           kcal: 1000, proteinG: 40, portionG: 550, portionLabel: '1 Portion' },
 
+  // ── Bäckerei Snacks & belegte Brötchen ───────────────────────────
+  { name: 'Frikadellenbrötchen',         kcal: 420, proteinG: 22, carbsG: 36, fatG: 20, portionG: 180, portionLabel: '1 Stück' },
+  { name: 'Bratwurst im Brötchen',       kcal: 480, proteinG: 18, carbsG: 36, fatG: 28, portionG: 180, portionLabel: '1 Stück' },
+  { name: 'Currywurst im Brötchen',      kcal: 520, proteinG: 18, carbsG: 44, fatG: 28, portionG: 200, portionLabel: '1 Stück' },
+  { name: 'Hotdog (klassisch)',          kcal: 380, proteinG: 14, carbsG: 38, fatG: 18, portionG: 155, portionLabel: '1 Stück' },
+  { name: 'Hotdog mit Käse',            kcal: 450, proteinG: 18, carbsG: 38, fatG: 24, portionG: 175, portionLabel: '1 Stück' },
+  { name: 'Leberkäsebrötchen',          kcal: 460, proteinG: 20, carbsG: 36, fatG: 26, portionG: 175, portionLabel: '1 Stück' },
+  { name: 'Leberkäse mit Ei im Brötchen', kcal: 530, proteinG: 26, carbsG: 36, fatG: 30, portionG: 210, portionLabel: '1 Stück' },
+  { name: 'Schnitzelbrötchen',          kcal: 550, proteinG: 28, carbsG: 42, fatG: 26, portionG: 220, portionLabel: '1 Stück' },
+  { name: 'Fleischkäsebrötchen',        kcal: 450, proteinG: 20, carbsG: 36, fatG: 24, portionG: 175, portionLabel: '1 Stück' },
+  { name: 'Döner-Brötchen (mini)',      kcal: 380, proteinG: 22, carbsG: 36, fatG: 16, portionG: 160, portionLabel: '1 Stück' },
+  { name: 'Salami-Brötchen',            kcal: 360, proteinG: 16, carbsG: 34, fatG: 18, portionG: 145, portionLabel: '1 Stück' },
+  { name: 'Thunfisch-Brötchen',         kcal: 340, proteinG: 22, carbsG: 34, fatG: 12, portionG: 145, portionLabel: '1 Stück' },
+  { name: 'Ei-Brötchen mit Mayo',       kcal: 380, proteinG: 14, carbsG: 32, fatG: 22, portionG: 155, portionLabel: '1 Stück' },
+  { name: 'Käse-Schinken-Brötchen',    kcal: 390, proteinG: 20, carbsG: 34, fatG: 18, portionG: 155, portionLabel: '1 Stück' },
+  { name: 'Lachs-Brötchen mit Frischkäse', kcal: 360, proteinG: 20, carbsG: 34, fatG: 16, portionG: 150, portionLabel: '1 Stück' },
+  { name: 'Mett-Brötchen',             kcal: 400, proteinG: 22, carbsG: 32, fatG: 20, portionG: 155, portionLabel: '1 Stück' },
+  { name: 'Graved Lachs Baguette',      kcal: 420, proteinG: 24, carbsG: 42, fatG: 16, portionG: 180, portionLabel: '1 Stück' },
+  { name: 'Chicken-Brötchen (Bäcker)',  kcal: 430, proteinG: 26, carbsG: 36, fatG: 18, portionG: 175, portionLabel: '1 Stück' },
+  { name: 'Käsebrötchen warm',         kcal: 320, proteinG: 14, carbsG: 34, fatG: 14, portionG: 130, portionLabel: '1 Stück' },
+  { name: 'Bäcker-Pizza-Schnitte',     kcal: 380, proteinG: 14, carbsG: 42, fatG: 16, portionG: 150, portionLabel: '1 Stück' },
+  { name: 'Laugenbrezel mit Obatzda',  kcal: 420, proteinG: 14, carbsG: 42, fatG: 22, portionG: 160, portionLabel: '1 Portion' },
+  { name: 'Wurstsemmel (Bayern)',      kcal: 430, proteinG: 18, carbsG: 36, fatG: 24, portionG: 165, portionLabel: '1 Stück' },
+  { name: 'Käsewurst-Brötchen',        kcal: 480, proteinG: 20, carbsG: 36, fatG: 26, portionG: 180, portionLabel: '1 Stück' },
+
   // ── Bäckerei · Brötchen & Brot ───────────────────────────────────
   { name: 'Brötchen pur',                kcal: 165, proteinG: 5,  carbsG: 32, fatG: 1,  portionG: 55,  portionLabel: '1 Stück' },
   { name: 'Vollkornbrötchen',            kcal: 155, proteinG: 6,  carbsG: 29, fatG: 2,  portionG: 55,  portionLabel: '1 Stück' },
