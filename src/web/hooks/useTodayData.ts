@@ -31,6 +31,7 @@ export type TodayData = {
   trainingStreak: number;
   weeklyTrainingStreak: number;
   recentTrainingDates: Set<string>;
+  caloriesBurned: { steps: number; workout: number; total: number };
 };
 
 export function useTodayData() {
@@ -78,6 +79,19 @@ export function useTodayData() {
       }
       for (const date of completedDates) habitDayKeys.add(date);
 
+      // ── Calorie burn ──────────────────────────────────────────────
+      const weightKg = goals.currentWeight ?? 75;
+      const stepsHabit = habits.find((h) => h.key === 'steps');
+      const stepsToday = stepsHabit ? (todayLogs.get(stepsHabit.id)?.value ?? 0) : 0;
+      const burnedSteps = Math.round(stepsToday * 0.04 * (weightKg / 80));
+
+      const completedToday = recentSessions.filter(
+        (s) => s.completedAt && s.completedAt.slice(0, 10) === today && s.durationSeconds,
+      );
+      const workoutSeconds = completedToday.reduce((sum, s) => sum + (s.durationSeconds ?? 0), 0);
+      const burnedWorkout = Math.round(5.5 * weightKg * (workoutSeconds / 3600));
+      const caloriesBurned = { steps: burnedSteps, workout: burnedWorkout, total: burnedSteps + burnedWorkout };
+
       setData({
         activePlan,
         suggestedDay,
@@ -91,6 +105,7 @@ export function useTodayData() {
         trainingStreak: consecutiveDayStreak(completedDates),
         weeklyTrainingStreak: weeklyStreak(completedDates, 3),
         recentTrainingDates: new Set(completedDates),
+        caloriesBurned,
       });
     } catch (err) {
       setError(errorMessage(err, 'Daten konnten nicht geladen werden.'));

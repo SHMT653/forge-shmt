@@ -98,6 +98,56 @@ export async function deleteProgressPhoto(userId: string, photoId: string, stora
   if (error) throw error;
 }
 
+export type ExerciseHistoryPoint = { date: string; maxWeightKg: number; totalSets: number };
+
+/** Per-exercise weight history across all completed sessions, sorted oldest→newest. */
+export async function listExerciseHistory(userId: string, exerciseName: string): Promise<ExerciseHistoryPoint[]> {
+  const supabase = getSupabaseClient();
+
+  const { data: sessions, error: sessionsError } = await supabase
+    .from('forge_workout_sessions')
+    .select('id, completed_at')
+    .eq('user_id', userId)
+    .not('completed_at', 'is', null)
+    .order('completed_at', { ascending: true });
+  if (sessionsError) throw sessionsError;
+  if (!sessions?.length) return [];
+
+  const sessionDateById = new Map(sessions.map((s) => [s.id, (s.completed_at as string).slice(0, 10)]));
+
+  const { data: exercises, error: exError } = await supabase
+    .from('forge_session_exercises')
+    .select('id, session_id')
+    .in('session_id', sessions.map((s) => s.id))
+    .eq('exercise_name', exerciseName);
+  if (exError) throw exError;
+  if (!exercises?.length) return [];
+
+  const sessionIdByExId = new Map(exercises.map((e) => [e.id, e.session_id as string]));
+
+  const { data: sets, error: setsError } = await supabase
+    .from('forge_session_sets')
+    .select('session_exercise_id, weight_kg')
+    .in('session_exercise_id', exercises.map((e) => e.id))
+    .eq('completed', true)
+    .not('weight_kg', 'is', null);
+  if (setsError) throw setsError;
+
+  const bySession = new Map<string, { maxWeight: number; sets: number }>();
+  for (const set of sets ?? []) {
+    const sessionId = sessionIdByExId.get(set.session_exercise_id);
+    if (!sessionId) continue;
+    const w = Number(set.weight_kg);
+    const cur = bySession.get(sessionId);
+    bySession.set(sessionId, { maxWeight: Math.max(w, cur?.maxWeight ?? 0), sets: (cur?.sets ?? 0) + 1 });
+  }
+
+  return [...bySession.entries()]
+    .map(([sessionId, d]) => ({ date: sessionDateById.get(sessionId) ?? '', maxWeightKg: d.maxWeight, totalSets: d.sets }))
+    .filter((p) => p.date)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
 /** Best (highest) weight per exercise from completed sets — basis for the strength progress list. */
 export async function listStrengthBests(userId: string): Promise<{ exerciseName: string; weightKg: number; reps: number; date: string }[]> {
   const supabase = getSupabaseClient();

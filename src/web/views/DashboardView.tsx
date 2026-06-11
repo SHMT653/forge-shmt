@@ -290,7 +290,8 @@ export function DashboardView() {
         {(() => {
           const eaten = data.nutritionLog.calories;
           const goal = data.goals.calorieGoal;
-          const balance = goal - eaten;
+          const burned = data.caloriesBurned.total;
+          const balance = goal - eaten + burned;
           const isOver = balance < 0;
           return (
             <div className="metric-card">
@@ -298,7 +299,14 @@ export function DashboardView() {
                 {Math.abs(balance).toLocaleString('de-DE')}
               </span>
               <span className="metric-label">{isOver ? 'kcal über Ziel' : 'kcal noch frei'}</span>
-              <span className="metric-label" style={{ fontSize: 10, marginTop: 2 }}>{eaten} / {goal} kcal</span>
+              {burned > 0 && (
+                <span className="metric-label" style={{ fontSize: 10, marginTop: 2, color: 'var(--teal)' }}>
+                  🔥 {burned.toLocaleString('de-DE')} verbrannt
+                </span>
+              )}
+              <span className="metric-label" style={{ fontSize: 10, marginTop: burned > 0 ? 0 : 2 }}>
+                {eaten} gegessen · Ziel {goal} kcal
+              </span>
             </div>
           );
         })()}

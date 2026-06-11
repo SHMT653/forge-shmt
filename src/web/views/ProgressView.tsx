@@ -1,14 +1,50 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { Camera, Dumbbell, Trash2, TrendingUp, Images, Scale } from 'lucide-react';
+import { Camera, ChevronDown, ChevronUp, Dumbbell, Trash2, TrendingUp, Images, Scale } from 'lucide-react';
 import { useProgress } from '@/web/hooks/useProgress';
+import { useAuth } from '@/web/hooks/useAuth';
+import { listExerciseHistory, type ExerciseHistoryPoint } from '@/data/progress';
 import { Sparkline } from '@/web/components/Sparkline';
 import { CardHead } from '@/web/components/CardHead';
 import { formatFullDate, todayKey } from '@/domain/dates';
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
+
+function ExerciseHistoryPanel({ userId, exerciseName }: { userId: string; exerciseName: string }) {
+  const [history, setHistory] = useState<ExerciseHistoryPoint[] | null>(null);
+
+  useEffect(() => {
+    listExerciseHistory(userId, exerciseName).then(setHistory).catch(() => setHistory([]));
+  }, [userId, exerciseName]);
+
+  if (!history) return <p className="copy" style={{ margin: '8px 0 0', fontSize: 12 }}>Lädt …</p>;
+  if (history.length < 2) {
+    return <p className="copy" style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--subtle)' }}>Noch zu wenig Daten — trainiere diese Übung öfter.</p>;
+  }
+
+  const values = history.map((h) => h.maxWeightKg);
+  const first = values[0]!;
+  const last = values[values.length - 1]!;
+  const delta = last - first;
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <Sparkline values={values} width={300} height={56} color="var(--gold)" />
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+        <span className="copy" style={{ margin: 0, fontSize: 11 }}>{formatFullDate(history[0]!.date)} · {first} kg</span>
+        <span className="copy" style={{ margin: 0, fontSize: 11, color: delta >= 0 ? 'var(--teal)' : 'var(--danger)', fontWeight: 700 }}>
+          {delta >= 0 ? '+' : ''}{delta.toFixed(1)} kg
+        </span>
+        <span className="copy" style={{ margin: 0, fontSize: 11 }}>Jetzt · {last} kg</span>
+      </div>
+      <p className="copy" style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--subtle)' }}>
+        {history.length} {history.length === 1 ? 'Session' : 'Sessions'} aufgezeichnet
+      </p>
+    </div>
+  );
+}
 
 function bmiCategory(bmi: number): { label: string; color: string } {
   if (bmi < 18.5) return { label: 'Untergewicht', color: 'var(--violet)' };
@@ -19,6 +55,8 @@ function bmiCategory(bmi: number): { label: string; color: string } {
 
 export function ProgressView() {
   const { metrics, photos, strengthBests, goals, loading, error, addMetric, addPhoto, removePhoto } = useProgress();
+  const { user } = useAuth();
+  const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
   const [weightInput, setWeightInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -182,16 +220,29 @@ export function ProgressView() {
           </div>
         ) : (
           <div className="list">
-            {strengthBests.slice(0, 8).map((best) => (
-              <div className="set-row" key={best.exerciseName}>
-                <span className="set-row-label"><Dumbbell size={14} /></span>
-                <span className="copy" style={{ margin: 0 }}>{best.exerciseName}</span>
-                <span className="copy" style={{ margin: 0, color: 'var(--text)', fontWeight: 800 }}>
-                  {best.weightKg} kg × {best.reps}
-                </span>
-                <span className="copy" style={{ margin: 0, color: 'var(--subtle)' }}>{formatFullDate(best.date.slice(0, 10))}</span>
-              </div>
-            ))}
+            {strengthBests.slice(0, 8).map((best) => {
+              const isOpen = expandedExercise === best.exerciseName;
+              return (
+                <div key={best.exerciseName} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: isOpen ? 12 : 0 }}>
+                  <button
+                    type="button"
+                    className="set-row"
+                    onClick={() => setExpandedExercise(isOpen ? null : best.exerciseName)}
+                    style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: '8px 0' }}
+                  >
+                    <span className="set-row-label"><Dumbbell size={14} /></span>
+                    <span className="copy" style={{ margin: 0, flex: 1 }}>{best.exerciseName}</span>
+                    <span className="copy" style={{ margin: 0, color: 'var(--text)', fontWeight: 800 }}>
+                      {best.weightKg} kg × {best.reps}
+                    </span>
+                    {isOpen ? <ChevronUp size={14} color="var(--subtle)" /> : <ChevronDown size={14} color="var(--subtle)" />}
+                  </button>
+                  {isOpen && user && (
+                    <ExerciseHistoryPanel userId={user.id} exerciseName={best.exerciseName} />
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </section>

@@ -8,6 +8,15 @@ import type { Habit } from '@/domain/types';
 
 const GLASS_ML = 250;
 
+const HABIT_TIMING: Record<string, { when: string; tip: string }> = {
+  water:    { when: 'Über den Tag verteilt',        tip: 'Je ein Glas morgens, zu jeder Mahlzeit und nach dem Sport' },
+  kreatin:  { when: 'Täglich zur Mahlzeit',         tip: 'Zusammen mit Kohlenhydraten aufnehmen — Timing sonst egal' },
+  protein:  { when: '30–60 Min nach dem Training',  tip: 'Anaboles Fenster nutzen — auch morgens und vor dem Schlafen sinnvoll' },
+  sleep:    { when: 'Feste Schlafenszeit',           tip: 'Selbe Uhrzeit täglich verbessert die Schlafqualität spürbar' },
+  training: { when: 'Planmäßig laut Trainingsplan', tip: 'Mindestens 48h Pause für dieselbe Muskelgruppe einhalten' },
+  steps:    { when: 'Über den Tag aktiv bleiben',   tip: 'Kurze Spaziergänge zwischen Sitzpausen zählen genauso' },
+};
+
 function fmtWater(ml: number): string {
   if (ml >= 1000) {
     const l = ml / 1000;
@@ -77,6 +86,14 @@ function WaterCard({
           </button>
         )}
       </div>
+
+      {HABIT_TIMING['water'] && (
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10, marginTop: 2 }}>
+          <p className="copy" style={{ margin: 0, fontSize: 11, color: 'var(--subtle)' }}>
+            💡 <strong style={{ color: 'var(--text)' }}>{HABIT_TIMING['water'].when}</strong> — {HABIT_TIMING['water'].tip}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -104,6 +121,11 @@ function ProteinCard({ proteinG, goalG }: { proteinG: number; goalG: number }) {
         </div>
         <p className="copy" style={{ marginTop: 6, marginBottom: 0 }}>
           Aus Ernährung · {pct}%
+        </p>
+      </div>
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10 }}>
+        <p className="copy" style={{ margin: 0, fontSize: 11, color: 'var(--subtle)' }}>
+          💡 <strong style={{ color: 'var(--text)' }}>{HABIT_TIMING['protein']!.when}</strong> — {HABIT_TIMING['protein']!.tip}
         </p>
       </div>
     </div>
@@ -179,6 +201,14 @@ function NumericCard({
           Speichern
         </button>
       </div>
+
+      {HABIT_TIMING[habit.key] && (
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10, marginTop: 2 }}>
+          <p className="copy" style={{ margin: 0, fontSize: 11, color: 'var(--subtle)' }}>
+            💡 <strong style={{ color: 'var(--text)' }}>{HABIT_TIMING[habit.key]!.when}</strong> — {HABIT_TIMING[habit.key]!.tip}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -228,6 +258,14 @@ function BinaryCard({
           </button>
         </div>
       </div>
+
+      {HABIT_TIMING[habit.key] && (
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8, marginTop: 4 }}>
+          <p className="copy" style={{ margin: 0, fontSize: 11, color: 'var(--subtle)' }}>
+            💡 <strong style={{ color: 'var(--text)' }}>{HABIT_TIMING[habit.key]!.when}</strong> — {HABIT_TIMING[habit.key]!.tip}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

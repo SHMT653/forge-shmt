@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Check, Pencil, Play, Plus, Star, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Check, Pencil, Play, Plus, Search, Star, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePlans } from '@/web/hooks/usePlans';
+import { searchExercises, type ExerciseEntry } from '@/domain/exerciseDatabase';
 import type { Exercise, PlanDay, TrainingPlan } from '@/domain/types';
 
 /* ── tiny inline sub-components ─────────────────────────── */
@@ -97,36 +98,139 @@ function ExerciseRow({
 }
 
 function AddExerciseRow({ onAdd }: { onAdd: (name: string, sets: number, reps: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [sets, setSets] = useState('3');
-  const [reps, setReps] = useState('8-12');
+  const [open, setOpen]           = useState(false);
+  const [query, setQuery]         = useState('');
+  const [results, setResults]     = useState<ExerciseEntry[]>([]);
+  const [selected, setSelected]   = useState<ExerciseEntry | null>(null);
+  const [name, setName]           = useState('');
+  const [sets, setSets]           = useState('3');
+  const [reps, setReps]           = useState('8-12');
+  const [showDrop, setShowDrop]   = useState(false);
+  const [dropPos, setDropPos]     = useState({ top: 0, left: 0, width: 280 });
+  const wrapRef                   = useRef<HTMLDivElement>(null);
+  const searchRef                 = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!showDrop) return;
+    function onDown(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setShowDrop(false);
+    }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [showDrop]);
+
+  function handleSearch(q: string) {
+    setQuery(q);
+    setSelected(null);
+    const hits = searchExercises(q);
+    setResults(hits);
+    if (hits.length > 0 && wrapRef.current) {
+      const rect = wrapRef.current.getBoundingClientRect();
+      setDropPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+      setShowDrop(true);
+    } else {
+      setShowDrop(false);
+    }
+  }
+
+  function pick(ex: ExerciseEntry) {
+    setSelected(ex);
+    setName(ex.name);
+    setSets(String(ex.defaultSets));
+    setReps(ex.defaultReps);
+    setQuery('');
+    setResults([]);
+    setShowDrop(false);
+  }
 
   function submit() {
-    if (!name.trim()) return;
-    onAdd(name.trim(), Math.max(1, Number(sets) || 3), reps.trim() || '8-12');
-    setName('');
-    setSets('3');
-    setReps('8-12');
+    const n = name.trim() || query.trim();
+    if (!n) return;
+    onAdd(n, Math.max(1, Number(sets) || 3), reps.trim() || '8-12');
+    setName(''); setQuery(''); setSets('3'); setReps('8-12'); setSelected(null);
     setOpen(false);
+  }
+
+  function close() {
+    setOpen(false); setName(''); setQuery(''); setSelected(null); setShowDrop(false);
   }
 
   if (!open) {
     return (
-      <button type="button" className="button ghost compact" style={{ marginTop: 4 }} onClick={() => setOpen(true)}>
+      <button type="button" className="button ghost compact" style={{ marginTop: 4 }} onClick={() => { setOpen(true); setTimeout(() => searchRef.current?.focus(), 50); }}>
         <Plus size={14} /> Übung hinzufügen
       </button>
     );
   }
 
+  const muscleColors: Record<string, string> = {
+    Brust: '#d96060', Rücken: 'var(--teal)', Schultern: '#c9a227',
+    Beine: 'var(--violet)', Bizeps: 'var(--teal)', Trizeps: '#c9a227', Bauch: '#d96060',
+  };
+
   return (
-    <div className="set-row" style={{ flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-      <input className="input compact" value={name} onChange={(e) => setName(e.target.value)} placeholder="Übungsname" autoFocus style={{ flex: 2, minWidth: 120 }}
-        onKeyDown={(e) => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') setOpen(false); }} />
-      <input className="input compact" value={sets} onChange={(e) => setSets(e.target.value)} placeholder="Sätze" inputMode="numeric" style={{ width: 64 }} />
-      <input className="input compact" value={reps} onChange={(e) => setReps(e.target.value)} placeholder="Wdh." style={{ width: 80 }} />
-      <button type="button" className="button compact" style={{ padding: '6px 10px' }} onClick={submit}><Check size={14} /></button>
-      <button type="button" className="button ghost compact" style={{ padding: '6px 10px' }} onClick={() => setOpen(false)}><X size={14} /></button>
+    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* Search field */}
+      <div ref={wrapRef}>
+        <div className="search-field">
+          <Search size={14} />
+          <input
+            ref={searchRef}
+            type="text"
+            placeholder="Übung suchen (z. B. Bankdrücken, Beine …)"
+            value={selected ? selected.name : query}
+            onChange={(e) => handleSearch(e.target.value)}
+            onFocus={() => { if (results.length > 0) setShowDrop(true); }}
+            onKeyDown={(e) => { if (e.key === 'Escape') close(); if (e.key === 'Enter' && !showDrop) submit(); }}
+            autoComplete="off"
+          />
+          {(query || selected) && (
+            <button type="button" onClick={() => { setQuery(''); setSelected(null); setResults([]); setShowDrop(false); }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--subtle)', padding: 2 }}>
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Dropdown */}
+      {showDrop && results.length > 0 && (
+        <div style={{
+          position: 'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 300,
+          background: 'var(--panel, #16161b)', border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: 10, boxShadow: '0 12px 40px rgba(0,0,0,0.7)', maxHeight: 260, overflowY: 'auto',
+        }}>
+          {results.map((ex) => (
+            <button key={ex.name} type="button"
+              onMouseDown={(e) => { e.preventDefault(); pick(ex); }}
+              style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 14, color: 'var(--text)', fontWeight: 500 }}>{ex.name}</span>
+                <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.07)', color: muscleColors[ex.muscle] ?? 'var(--subtle)', whiteSpace: 'nowrap' }}>
+                  {ex.muscle}
+                </span>
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--subtle)' }}>{ex.equipment} · {ex.defaultSets}×{ex.defaultReps}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Sets / Reps + manual name fallback */}
+      {(selected || query.length >= 2) && (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          {!selected && (
+            <input className="input compact" value={name} onChange={(e) => setName(e.target.value)}
+              placeholder="Übungsname" style={{ flex: 2, minWidth: 120 }} />
+          )}
+          <input className="input compact" value={sets} onChange={(e) => setSets(e.target.value)}
+            placeholder="Sätze" inputMode="numeric" style={{ width: 64 }} />
+          <input className="input compact" value={reps} onChange={(e) => setReps(e.target.value)}
+            placeholder="Wdh." style={{ width: 80 }} />
+          <button type="button" className="button compact" style={{ padding: '6px 10px' }} onClick={submit}><Check size={14} /></button>
+          <button type="button" className="button ghost compact" style={{ padding: '6px 10px' }} onClick={close}><X size={14} /></button>
+        </div>
+      )}
     </div>
   );
 }
