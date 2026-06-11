@@ -1,3 +1,5 @@
+export type ExerciseType = 'strength' | 'cardio';
+
 export type MuscleKey =
   | 'chest' | 'front-delt' | 'side-delt' | 'rear-delt'
   | 'lats' | 'rhomboids' | 'traps' | 'lower-back'
@@ -8,11 +10,14 @@ export type MuscleKey =
 export type ExerciseEntry = {
   name: string;
   muscle: string;
-  equipment: 'Langhantel' | 'Kurzhantel' | 'Maschine' | 'Kabel' | 'Körpergewicht' | 'Stange';
+  equipment: 'Langhantel' | 'Kurzhantel' | 'Maschine' | 'Kabel' | 'Körpergewicht' | 'Stange' | 'Ausdauer';
   defaultSets: number;
   defaultReps: string;
   muscles: MuscleKey[];
   machineInfo?: string;
+  type?: ExerciseType;
+  met?: number;
+  hasDistance?: boolean;
 };
 
 export const EXERCISES: ExerciseEntry[] = [
@@ -110,6 +115,24 @@ export const EXERCISES: ExerciseEntry[] = [
   { name: 'Kabelziehen Bauch',        muscle: 'Bauch',     equipment: 'Kabel',         defaultSets: 3, defaultReps: '15-20', muscles: ['abs'], machineInfo: 'Kabelturm — Rolle oben, Seil über Kopf, Rumpf nach vorne beugen (Kniend)' },
   { name: 'Mountain Climbers',        muscle: 'Bauch',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '20-30', muscles: ['abs', 'obliques'] },
   { name: 'Reverse Crunches',         muscle: 'Bauch',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '15-20', muscles: ['abs'] },
+
+  // ── Cardio / Ausdauer ────────────────────────────────────────────────
+  { name: 'Spazierengehen',           muscle: 'Cardio',    equipment: 'Ausdauer', defaultSets: 1, defaultReps: '30 Min', muscles: ['quads', 'calves'],      type: 'cardio', met: 3.5, hasDistance: true },
+  { name: 'Joggen 8 km/h',            muscle: 'Cardio',    equipment: 'Ausdauer', defaultSets: 1, defaultReps: '30 Min', muscles: ['quads', 'calves', 'glutes'], type: 'cardio', met: 8.3, hasDistance: true },
+  { name: 'Laufen 10 km/h',           muscle: 'Cardio',    equipment: 'Ausdauer', defaultSets: 1, defaultReps: '20 Min', muscles: ['quads', 'calves', 'glutes'], type: 'cardio', met: 10.0, hasDistance: true },
+  { name: 'Laufen 12 km/h',           muscle: 'Cardio',    equipment: 'Ausdauer', defaultSets: 1, defaultReps: '20 Min', muscles: ['quads', 'calves', 'glutes'], type: 'cardio', met: 11.8, hasDistance: true },
+  { name: 'Fahrrad leicht',           muscle: 'Cardio',    equipment: 'Ausdauer', defaultSets: 1, defaultReps: '40 Min', muscles: ['quads', 'glutes'],      type: 'cardio', met: 4.0, hasDistance: true },
+  { name: 'Fahrrad mittel',           muscle: 'Cardio',    equipment: 'Ausdauer', defaultSets: 1, defaultReps: '30 Min', muscles: ['quads', 'glutes', 'calves'], type: 'cardio', met: 5.8, hasDistance: true },
+  { name: 'Fahrrad intensiv',         muscle: 'Cardio',    equipment: 'Ausdauer', defaultSets: 1, defaultReps: '20 Min', muscles: ['quads', 'glutes', 'calves'], type: 'cardio', met: 10.0, hasDistance: true },
+  { name: 'Spinning',                 muscle: 'Cardio',    equipment: 'Maschine', defaultSets: 1, defaultReps: '30 Min', muscles: ['quads', 'glutes'],      type: 'cardio', met: 8.5, machineInfo: 'Spinning-Bike / Indoor Cycling Rad' },
+  { name: 'Ellipsentrainer',          muscle: 'Cardio',    equipment: 'Maschine', defaultSets: 1, defaultReps: '30 Min', muscles: ['quads', 'glutes', 'calves'], type: 'cardio', met: 5.0, machineInfo: 'Cross-Trainer / Ellipsentrainer: Ganzkörper-Ausdauer mit geringer Gelenkbelastung' },
+  { name: 'Laufband',                 muscle: 'Cardio',    equipment: 'Maschine', defaultSets: 1, defaultReps: '30 Min', muscles: ['quads', 'calves', 'glutes'], type: 'cardio', met: 8.3, hasDistance: true, machineInfo: 'Laufband: Geschwindigkeit in km/h einstellen, leichte Neigung für mehr Intensität' },
+  { name: 'Rudergerät',               muscle: 'Cardio',    equipment: 'Maschine', defaultSets: 1, defaultReps: '20 Min', muscles: ['lats', 'rhomboids', 'quads', 'glutes'], type: 'cardio', met: 7.0, machineInfo: 'Rowing Ergometer: Ganzkörper, Zug mit Rücken + Beinen + Armen' },
+  { name: 'Stairmaster',              muscle: 'Cardio',    equipment: 'Maschine', defaultSets: 1, defaultReps: '20 Min', muscles: ['quads', 'glutes', 'calves'], type: 'cardio', met: 6.0, machineInfo: 'Step Mill / Stairmaster: Treppensteigen simuliert, hoch effektiv für Gesäß und Waden' },
+  { name: 'HIIT',                     muscle: 'Cardio',    equipment: 'Körpergewicht', defaultSets: 1, defaultReps: '20 Min', muscles: ['quads', 'glutes', 'abs'], type: 'cardio', met: 8.0 },
+  { name: 'Seilspringen',             muscle: 'Cardio',    equipment: 'Körpergewicht', defaultSets: 1, defaultReps: '15 Min', muscles: ['calves', 'quads', 'abs'], type: 'cardio', met: 11.8 },
+  { name: 'Schwimmen',                muscle: 'Cardio',    equipment: 'Ausdauer', defaultSets: 1, defaultReps: '30 Min', muscles: ['lats', 'chest', 'quads'], type: 'cardio', met: 6.0, hasDistance: true },
+  { name: 'Wandern',                  muscle: 'Cardio',    equipment: 'Ausdauer', defaultSets: 1, defaultReps: '60 Min', muscles: ['quads', 'glutes', 'calves'], type: 'cardio', met: 5.3, hasDistance: true },
 ];
 
 export function searchExercises(query: string, limit = 8): ExerciseEntry[] {
