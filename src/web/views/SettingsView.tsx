@@ -9,7 +9,7 @@ import { signOut } from '@/services/supabase/auth';
 import { CardHead } from '@/web/components/CardHead';
 import { formatDuration } from '@/domain/dates';
 import { calculateMacros, GOAL_TYPE_LABELS, ACTIVITY_LABELS } from '@/domain/macroCalculator';
-import { PROGRAMS, FASTING_PROTOCOLS } from '@/domain/programs';
+import { GOAL_CATEGORIES, FASTING_PROTOCOLS, getProgram } from '@/domain/programs';
 import type { ActivityLevel, Gender, GoalType, UserGoals } from '@/domain/types';
 import type { ProgramId, FastingProtocol } from '@/domain/programs';
 
@@ -249,50 +249,70 @@ export function SettingsView() {
         </form>
       </section>
 
-      {/* Program selection */}
+      {/* Goal selection — specific goals in categories */}
       <section className="panel">
-        <CardHead icon={Target} tone="violet" title="Mein Programm" />
-        <p className="copy" style={{ marginTop: 6 }}>Wähle dein Hauptziel. Die App passt Anzeigen und Empfehlungen daran an.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginTop: 14 }}>
-          {PROGRAMS.map((p) => {
-            const active = programId === p.id;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => { setProgramId(p.id); }}
-                style={{
-                  textAlign: 'left', padding: '14px 14px', borderRadius: 14, cursor: 'pointer',
-                  border: `2px solid ${active ? p.accentColor : 'rgba(255,255,255,0.08)'}`,
-                  background: active ? `${p.accentColor}18` : 'rgba(255,255,255,0.03)',
-                  touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
-                  transition: 'border-color 0.15s, background 0.15s',
-                }}
-              >
-                <div style={{ fontSize: 26, marginBottom: 6 }}>{p.icon}</div>
-                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: active ? p.accentColor : 'var(--text)' }}>{p.title}</p>
-                <p style={{ margin: '3px 0 0', fontSize: 11, color: 'var(--subtle)', lineHeight: 1.4 }}>{p.tagline}</p>
-              </button>
-            );
-          })}
-        </div>
+        <CardHead icon={Target} tone="violet" title="Mein Ziel" />
+        <p className="copy" style={{ marginTop: 6 }}>Was willst du erreichen? Wähle dein genaues Ziel — die App passt sich komplett darauf an.</p>
 
-        {programId && (
-          <div style={{ marginTop: 14, padding: '12px 14px', background: 'rgba(255,255,255,0.04)', borderRadius: 10 }}>
-            <p style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--text)' }}>
-              {PROGRAMS.find((p) => p.id === programId)?.description}
+        {GOAL_CATEGORIES.map((cat) => (
+          <div key={cat.id} style={{ marginTop: 18 }}>
+            <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, color: 'var(--subtle)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+              {cat.icon} {cat.label}
             </p>
-            <ul style={{ margin: 0, padding: '0 0 0 16px', listStyle: 'disc' }}>
-              {PROGRAMS.find((p) => p.id === programId)?.highlights.map((h) => (
-                <li key={h} style={{ fontSize: 12, color: 'var(--subtle)', marginBottom: 2 }}>{h}</li>
-              ))}
-            </ul>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {cat.programs.map((p) => {
+                const active = programId === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setProgramId(active ? null : p.id)}
+                    style={{
+                      textAlign: 'left', padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
+                      border: `1.5px solid ${active ? p.accentColor : 'rgba(255,255,255,0.08)'}`,
+                      background: active ? `${p.accentColor}14` : 'rgba(255,255,255,0.02)',
+                      touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+                      transition: 'border-color 0.15s, background 0.15s',
+                      display: 'flex', alignItems: 'center', gap: 12,
+                    }}
+                  >
+                    <span style={{ fontSize: 22, flexShrink: 0 }}>{p.icon}</span>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: active ? p.accentColor : 'var(--text)' }}>{p.title}</p>
+                      <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--subtle)', lineHeight: 1.4 }}>{p.tagline}</p>
+                    </div>
+                    {active && (
+                      <span style={{ fontSize: 16, color: p.accentColor, flexShrink: 0 }}>✓</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        )}
+        ))}
 
-        <div style={{ marginTop: 12 }}>
+        {programId && (() => {
+          const p = getProgram(programId);
+          if (!p) return null;
+          return (
+            <div style={{ marginTop: 16, padding: '14px', background: `${p.accentColor}10`, border: `1px solid ${p.accentColor}30`, borderRadius: 12 }}>
+              <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: p.accentColor }}>{p.icon} {p.title}</p>
+              <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--text)', lineHeight: 1.5 }}>{p.description}</p>
+              <ul style={{ margin: 0, padding: '0 0 0 14px', listStyle: 'disc' }}>
+                {p.highlights.map((h) => (
+                  <li key={h} style={{ fontSize: 12, color: 'var(--subtle)', marginBottom: 3 }}>{h}</li>
+                ))}
+              </ul>
+              <p style={{ margin: '12px 0 0', fontSize: 12, fontWeight: 600, color: p.accentColor }}>
+                💡 {p.tip}
+              </p>
+            </div>
+          );
+        })()}
+
+        <div style={{ marginTop: 14 }}>
           <button type="button" className="button compact" onClick={() => void saveGoals(buildGoalsPayload())} disabled={savingGoals}>
-            {savingGoals ? 'Speichert …' : 'Programm speichern'}
+            {savingGoals ? 'Speichert …' : 'Ziel speichern'}
           </button>
         </div>
       </section>

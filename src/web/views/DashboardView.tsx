@@ -9,7 +9,7 @@ import { ProgressRing } from '@/web/components/ProgressRing';
 import { CardHead } from '@/web/components/CardHead';
 import { FastingCard } from '@/web/components/FastingCard';
 import { formatDuration } from '@/domain/dates';
-import { getFastingStatus, getFasting, getProgram } from '@/domain/programs';
+import { getFastingStatus, getFasting, getProgram, getBaseProgram } from '@/domain/programs';
 import { searchFood, estimateMacros, type FoodItem } from '@/domain/foodDatabase';
 import type { Habit } from '@/domain/types';
 
@@ -188,6 +188,7 @@ export function DashboardView() {
   const todayStr = new Date().toISOString().slice(0, 10);
 
   const program = data ? getProgram(data.goals.programId) : null;
+  const baseProgram = data ? getBaseProgram(data.goals.programId) : null;
   const fastingEntry = data?.goals.fastingProtocol ? getFasting(data.goals.fastingProtocol) : null;
   const fastingStatus = fastingEntry && !fastingEntry.is52 ? getFastingStatus(fastingEntry, data?.goals.fastingStartHour ?? 12) : null;
   const currentlyFasting = fastingStatus ? !fastingStatus.isEating : false;
@@ -355,7 +356,7 @@ export function DashboardView() {
           const burned = data.caloriesBurned.total;
           const balance = goal - eaten + burned;
           const isOver = balance < 0;
-          const isAbnehmen = data.goals.programId === 'abnehmen';
+          const isAbnehmen = baseProgram === 'abnehmen';
           // For Abnehmen: positive deficit is green (goal), over is red
           const kcalColor = isAbnehmen
             ? (isOver ? 'var(--danger)' : '#6bd9ad')
@@ -379,7 +380,7 @@ export function DashboardView() {
         })()}
 
         {/* Protein card for Aufbau / Komposition */}
-        {(data.goals.programId === 'aufbau' || data.goals.programId === 'komposition') ? (
+        {(baseProgram === 'aufbau' || baseProgram === 'komposition') ? (
           <div className="metric-card" style={{ border: '1px solid rgba(107,217,173,0.25)' }}>
             <span className="metric-value" style={{ color: data.nutritionLog.proteinG >= data.goals.proteinGoal ? 'var(--teal)' : 'var(--text)', fontSize: 26 }}>
               {data.nutritionLog.proteinG}<span style={{ fontSize: 14, color: 'var(--subtle)' }}>g</span>
@@ -652,14 +653,19 @@ export function DashboardView() {
                 {Math.abs(data.latestMetric.weightKg - data.goals.weightGoal).toFixed(1)} kg bis Zielgewicht ({data.goals.weightGoal} kg)
               </p>
             )}
-            {program?.id === 'abnehmen' && data.caloriesBurned.total > 0 && (
+            {baseProgram === 'abnehmen' && data.caloriesBurned.total > 0 && (
               <p className="check-line"><Flame size={16} /> {data.caloriesBurned.total} kcal heute verbrannt</p>
             )}
-            {program?.id === 'aufbau' && data.nutritionLog.proteinG > 0 && (
+            {(baseProgram === 'aufbau' || baseProgram === 'komposition') && data.nutritionLog.proteinG > 0 && (
               <p className="check-line">
                 <CheckCircle2 size={16} />
                 {data.nutritionLog.proteinG} / {data.goals.proteinGoal} g Protein heute
                 {data.nutritionLog.proteinG >= data.goals.proteinGoal ? ' ✓' : ''}
+              </p>
+            )}
+            {program?.tip && (
+              <p style={{ margin: '4px 0 0', fontSize: 12, color: program.accentColor, fontStyle: 'italic' }}>
+                💡 {program.tip}
               </p>
             )}
             {currentlyFasting && fastingStatus && (
