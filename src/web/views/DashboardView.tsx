@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle, ListChecks, Utensils, ArrowRight, Search, X, Check, Dumbbell, Zap, Moon, Trophy, Star } from 'lucide-react';
+import { Flame, Droplets, Footprints, Scale, CheckCircle2, Circle, ListChecks, Utensils, ArrowRight, Search, X, Check, Dumbbell, Zap, Moon, Trophy, Star, ScanLine } from 'lucide-react';
 import { useTodayData } from '@/web/hooks/useTodayData';
 import { ProgressRing } from '@/web/components/ProgressRing';
 import { CardHead } from '@/web/components/CardHead';
 import { FastingCard } from '@/web/components/FastingCard';
 import { formatDuration } from '@/domain/dates';
 import { getFastingStatus, getFasting, getProgram, getBaseProgram } from '@/domain/programs';
+import { BarcodeScannerModal } from '@/web/components/BarcodeScannerModal';
 import { searchFood, estimateMacros, type FoodItem } from '@/domain/foodDatabase';
 import type { Habit } from '@/domain/types';
 
@@ -134,6 +135,7 @@ export function DashboardView() {
   const foodSearchRef = useRef<HTMLInputElement>(null);
   const foodSearchWrap = useRef<HTMLDivElement>(null);
   const [doneBanner, setDoneBanner] = useState<{ exercises: number } | null>(null);
+  const [showScanner, setShowScanner] = useState(false);
 
   // Detect post-workout done redirect
   useEffect(() => {
@@ -425,14 +427,15 @@ export function DashboardView() {
         ) : (
           <div style={{ height: 72 }} />
         )}
-        {/* +Mahlzeit */}
-        <Link
-          href="/nutrition"
-          style={{ height: 72, borderRadius: 14, background: 'rgba(201,162,39,0.1)', border: '1px solid rgba(201,162,39,0.2)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, color: '#c9a227', textDecoration: 'none', touchAction: 'manipulation' }}
+        {/* +Mahlzeit / Barcode */}
+        <button
+          type="button"
+          onClick={() => setShowScanner(true)}
+          style={{ height: 72, borderRadius: 14, background: 'rgba(123,92,240,0.1)', border: '1px solid rgba(123,92,240,0.25)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, color: 'var(--violet)', cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
         >
-          <Utensils size={22} />
-          <span style={{ fontSize: 11, fontWeight: 600 }}>+Mahlzeit</span>
-        </Link>
+          <ScanLine size={22} />
+          <span style={{ fontSize: 11, fontWeight: 600 }}>Scannen</span>
+        </button>
         {/* Training */}
         {data.activeSession ? (
           <Link
@@ -673,6 +676,15 @@ export function DashboardView() {
             )}
           </div>
         </section>
+      )}
+
+      {showScanner && (
+        <BarcodeScannerModal
+          onLog={async (kcal, proteinG, name, carbsG, fatG) => {
+            await logNutrition(kcal, proteinG, name, carbsG, fatG);
+          }}
+          onClose={() => setShowScanner(false)}
+        />
       )}
     </>
   );

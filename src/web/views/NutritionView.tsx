@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Search, Plus, Trash2, Droplets, X } from 'lucide-react';
+import { Search, Plus, Trash2, Droplets, X, ScanLine } from 'lucide-react';
 import { useNutrition } from '@/web/hooks/useNutrition';
 import { searchFood, estimateMacros } from '@/domain/foodDatabase';
 import type { FoodItem } from '@/domain/foodDatabase';
+import { BarcodeScannerModal } from '@/web/components/BarcodeScannerModal';
 
 const GLASS_ML = 250;
 
@@ -379,6 +380,7 @@ function AddMealForm({ onAdd }: { onAdd: (entry: { name: string; kcal: number; p
 export function NutritionView() {
   const { state, addMeal, removeMeal, addWater } = useNutrition();
   const { meals, totals, goals, water, loading, error } = state;
+  const [showScanner, setShowScanner] = useState(false);
 
   const fatGoal   = Math.round((goals.calorieGoal * 0.28) / 9);
   const carbsGoal = Math.round((goals.calorieGoal - goals.proteinGoal * 4 - fatGoal * 9) / 4);
@@ -507,9 +509,34 @@ export function NutritionView() {
 
       {/* ── Mahlzeit hinzufügen ───────────────────────────────── */}
       <section className="panel">
-        <p className="h3" style={{ marginBottom: 14 }}>Mahlzeit hinzufügen</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <p className="h3" style={{ margin: 0 }}>Mahlzeit hinzufügen</p>
+          <button
+            type="button"
+            onClick={() => setShowScanner(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: 'rgba(123,92,240,0.12)', border: '1px solid rgba(123,92,240,0.3)',
+              borderRadius: 10, padding: '7px 12px', cursor: 'pointer', color: 'var(--violet)',
+              fontSize: 12, fontWeight: 600, touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+            }}
+            aria-label="Barcode scannen"
+          >
+            <ScanLine size={16} />
+            Barcode scannen
+          </button>
+        </div>
         <AddMealForm onAdd={addMeal} />
       </section>
+
+      {showScanner && (
+        <BarcodeScannerModal
+          onLog={async (kcal, proteinG, name, carbsG, fatG) => {
+            await addMeal({ name, kcal, proteinG, carbsG: carbsG ?? 0, fatG: fatG ?? 0 });
+          }}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
 
       {/* ── Heute gegessen ────────────────────────────────────── */}
       <section className="panel">
