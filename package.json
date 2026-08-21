@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
     "@supabase/supabase-js": "^2.75.0",
     "@zxing/browser": "^0.2.0",
     "@zxing/library": "^0.22.0",

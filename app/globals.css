@@ -1222,3 +1222,501 @@ button:disabled {
     font-size: 26px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Coach layer — status dots, ranges, timeline, sheets
+   Added for the tracker → coach rework. Uses the existing tokens only.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Range bar: a target BAND, not a single number ──────────────────── */
+.range-bar {
+  position: relative;
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+
+.range-bar-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.range-bar-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 999px;
+  transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1), background 0.25s ease;
+}
+
+.range-bar-marker {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* ── Day status strip (§8) ──────────────────────────────────────────── */
+.status-strip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.status-cell {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  justify-items: center;
+  padding: 10px 4px;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  text-align: center;
+}
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.status-cell-label {
+  color: var(--subtle);
+  font-size: 10px;
+  font-weight: 720;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.status-cell-value {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 820;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* ── Coach card ─────────────────────────────────────────────────────── */
+.coach-card {
+  display: flex;
+  gap: 12px;
+  padding: 15px 16px;
+  border: 1px solid rgba(139, 92, 246, 0.28);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(139, 92, 246, 0.12), rgba(22, 22, 27, 0.9));
+}
+
+.coach-avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--violet-soft);
+  color: var(--violet);
+}
+
+.coach-text {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.coach-label {
+  margin: 0 0 3px;
+  color: var(--violet);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+}
+
+/* ── Insight rows ───────────────────────────────────────────────────── */
+.insight-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.insight-row:last-child {
+  border-bottom: none;
+}
+
+.insight-text {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── Daily timeline (§9) ────────────────────────────────────────────── */
+.timeline {
+  display: grid;
+  gap: 2px;
+}
+
+.timeline-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: 61px;
+  top: 26px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--border);
+}
+
+.timeline-item:last-child::before {
+  display: none;
+}
+
+.timeline-time {
+  color: var(--subtle);
+  font-size: 12px;
+  font-weight: 760;
+  font-variant-numeric: tabular-nums;
+  padding-top: 3px;
+  text-align: right;
+}
+
+.timeline-marker {
+  position: absolute;
+  left: 56px;
+  top: 12px;
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+  background: var(--surface-3);
+  z-index: 1;
+}
+
+.timeline-body {
+  min-width: 0;
+  padding-left: 14px;
+}
+
+.timeline-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 780;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.timeline-meta {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.timeline-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding-top: 2px;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--subtle);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.icon-button:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.icon-button.danger:hover {
+  color: var(--danger);
+  background: rgba(248, 113, 113, 0.12);
+}
+
+/* ── Quality badge (§11) ────────────────────────────────────────────── */
+.quality-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 780;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.quality-badge.estimated {
+  background: rgba(240, 198, 116, 0.14);
+  color: var(--gold);
+}
+
+.quality-badge.unknown {
+  background: rgba(248, 113, 113, 0.13);
+  color: var(--danger);
+}
+
+/* ── Bottom sheet (§36) ─────────────────────────────────────────────── */
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(3px);
+  animation: sheet-fade 0.18s ease;
+}
+
+@keyframes sheet-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  max-height: 88dvh;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-strong);
+  border-radius: 18px 18px 0 0;
+  background: var(--bg-2);
+  padding-bottom: env(safe-area-inset-bottom);
+  animation: sheet-up 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.sheet-grip {
+  width: 38px;
+  height: 4px;
+  margin: 9px auto 2px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  flex: 0 0 auto;
+}
+
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 18px 12px;
+  flex: 0 0 auto;
+}
+
+.sheet-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 18px 20px;
+  display: grid;
+  gap: 14px;
+}
+
+@media (min-width: 640px) {
+  .sheet {
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(100%, 560px);
+    border-radius: 18px 18px 0 0;
+  }
+  @keyframes sheet-up {
+    from { transform: translate(-50%, 100%); }
+    to { transform: translate(-50%, 0); }
+  }
+}
+
+/* ── Chips / quick picks (§37/§38/§39) ──────────────────────────────── */
+.chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 13px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chip:hover {
+  border-color: var(--border-strong);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.chip.active {
+  border-color: rgba(139, 92, 246, 0.45);
+  background: var(--violet-soft);
+  color: var(--violet);
+}
+
+.chip-meta {
+  color: var(--subtle);
+  font-size: 11px;
+  font-weight: 640;
+}
+
+/* Grid of equal quick-action tiles */
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.tile {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 6px;
+  min-height: 76px;
+  padding: 10px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 740;
+  text-align: center;
+  text-decoration: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tile:hover {
+  border-color: var(--border-strong);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tile:active {
+  transform: scale(0.97);
+}
+
+/* ── Big number readout ─────────────────────────────────────────────── */
+.readout {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.readout-value {
+  color: var(--text);
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.readout-unit {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.readout-target {
+  color: var(--subtle);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ── Completed set marker ───────────────────────────────────────────── */
+.set-row-label.done {
+  background: var(--violet-soft);
+  color: var(--violet);
+}
+
+/* ── Section spacing helper ─────────────────────────────────────────── */
+.stack {
+  display: grid;
+  gap: 12px;
+}
+
+.stack-sm {
+  display: grid;
+  gap: 8px;
+}
+
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.muted-sm {
+  margin: 0;
+  color: var(--subtle);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* Mobile: the status strip wraps to two rows so labels stay readable */
+@media (max-width: 420px) {
+  .status-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet,
+  .sheet-overlay,
+  .range-bar-fill,
+  .progress-fill {
+    animation: none;
+    transition: none;
+  }
+}

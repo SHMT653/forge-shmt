@@ -1,38 +1,101 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './useAuth';
 import { listPlans } from '@/data/plans';
+import { getActiveSession, listCompletedSessionDates, listRecentSessions, startWorkoutSession } from '@/data/workouts';
+import { ensureDefaultHabits, listHabitLogsForRange } from '@/data/habits';
 import {
-  getActiveSession,
-  listCompletedSessionDates,
-  listRecentSessions,
-  startWorkoutSession,
-} from '@/data/workouts';
-import { ensureDefaultHabits, listHabitLogsForRange, setHabitLog } from '@/data/habits';
-import { addMealEntry, getNutritionLog, syncNutritionTotals } from '@/data/nutrition';
+  addMealEntry,
+  deleteMealEntry,
+  listMealEntries,
+  listNutritionLogs,
+  syncNutritionTotals,
+  type MealEntry,
+  type MealEntryInput,
+} from '@/data/nutrition';
+import { listActiveBatches, listFoodItems, listRecipes, markFoodUsed, consumeBatchPortions } from '@/data/foodLibrary';
+import { getCheckin, saveCheckin } from '@/data/checkins';
 import { getTodayCardioKcal } from '@/data/cardio';
 import { getUserGoals } from '@/data/profile';
-import { listBodyMetrics } from '@/data/progress';
+import { listBodyMetrics, listProgressPhotos } from '@/data/progress';
+import { buildDayMetrics, metricsForDate, pickMetricHabits, setDayMetric, type DayMetrics } from '@/data/dailyMetrics';
 import { errorMessage } from '@/domain/errors';
-import { consecutiveDayStreak, weeklyStreak } from '@/domain/streaks';
+import { consecutiveDayStreak } from '@/domain/streaks';
 import { dateKeyAddDays, todayKey } from '@/domain/dates';
-import type { BodyMetric, Habit, HabitLog, NutritionLog, PlanDay, TrainingPlan, UserGoals, WorkoutSession } from '@/domain/types';
+import { resolveTargets, type ResolvedTargets } from '@/domain/goalPhase';
+import { summarizeWeight, isPhotoDue, isWeighInDue, type WeightSummary } from '@/domain/weightTrend';
+import { combineQuality, slotForHour } from '@/domain/nutritionMath';
+import { weekBoundsFor } from '@/domain/weeklyReview';
+import {
+  buildDayStatus,
+  buildHeadline,
+  buildInsights,
+  scoreDay,
+  type CoachContext,
+  type CoachInsight,
+  type DayStatusItem,
+  type DayScore,
+} from '@/domain/coach';
+import type {
+  DailyCheckin,
+  FoodItem,
+  Habit,
+  HabitLog,
+  MealPrepBatch,
+  Macros,
+  PlanDay,
+  Recipe,
+  Soreness,
+  TrainingPlan,
+  UserGoals,
+  WorkoutSession,
+} from '@/domain/types';
+
+const HISTORY_DAYS = 120;
 
 export type TodayData = {
+  goals: UserGoals;
+  targets: ResolvedTargets;
+
+  // training
   activePlan: TrainingPlan | null;
   suggestedDay: PlanDay | null;
   activeSession: WorkoutSession | null;
+  recentTrainingDates: Set<string>;
+  fullWorkoutsThisWeek: number;
+  miniSessionsThisWeek: number;
+
+  // day
   habits: Habit[];
   todayLogs: Map<string, HabitLog>;
-  nutritionLog: NutritionLog;
-  goals: UserGoals;
-  latestMetric: BodyMetric | null;
+  metrics: DayMetrics;
+  checkin: DailyCheckin | null;
+  entries: MealEntry[];
+  totals: Macros;
+  caloriesBurned: { steps: number; workout: number; cardio: number; total: number };
+
+  // library
+  favoriteFoods: FoodItem[];
+  favoriteRecipes: Recipe[];
+  batches: MealPrepBatch[];
+
+  // analysis
+  weight: WeightSummary;
+  weekly: { avgKcal: number | null; avgProtein: number | null; avgSteps: number | null; daysWithData: number };
   dailyStreak: number;
   trainingStreak: number;
-  weeklyTrainingStreak: number;
-  recentTrainingDates: Set<string>;
-  caloriesBurned: { steps: number; workout: number; cardio: number; total: number };
+
+  // coach
+  coach: CoachContext;
+  headline: string;
+  insights: CoachInsight[];
+  dayStatus: DayStatusItem[];
+  dayScore: DayScore;
+
+  // reminders
+  weighInDue: boolean;
+  photoDue: boolean;
 };
 
 export function useTodayData() {
@@ -43,76 +106,162 @@ export function useTodayData() {
 
   const load = useCallback(async () => {
     if (!user) return;
-    setLoading(true);
     setError(null);
     try {
       const today = todayKey();
-      const since = dateKeyAddDays(today, -120);
+      const since = dateKeyAddDays(today, -HISTORY_DAYS);
+      const week = weekBoundsFor(today);
 
-      const [plans, activeSession, habits, habitLogs, nutritionLog, goals, metrics, completedDates, recentSessions, cardioKcal] =
-        await Promise.all([
-          listPlans(user.id),
-          getActiveSession(user.id),
-          ensureDefaultHabits(user.id),
-          listHabitLogsForRange(user.id, since),
-          getNutritionLog(user.id, today),
-          getUserGoals(user.id),
-          listBodyMetrics(user.id, 1),
-          listCompletedSessionDates(user.id),
-          listRecentSessions(user.id, 100),
-          getTodayCardioKcal(user.id, today),
-        ]);
+      const [
+        plans, activeSession, habits, habitLogs, entries, goals, metrics, completedDates,
+        recentSessions, cardioKcal, foods, recipes, batches, checkin, photos, weekLogs,
+      ] = await Promise.all([
+        listPlans(user.id),
+        getActiveSession(user.id),
+        ensureDefaultHabits(user.id),
+        listHabitLogsForRange(user.id, since),
+        listMealEntries(user.id, today),
+        getUserGoals(user.id),
+        listBodyMetrics(user.id, 180),
+        listCompletedSessionDates(user.id),
+        listRecentSessions(user.id, 120),
+        getTodayCardioKcal(user.id, today),
+        listFoodItems(user.id),
+        listRecipes(user.id),
+        listActiveBatches(user.id),
+        getCheckin(user.id, today),
+        listProgressPhotos(user.id),
+        listNutritionLogs(user.id, dateKeyAddDays(today, -6), today),
+      ]);
 
+      const targets = resolveTargets(goals);
+
+      // ── Training ────────────────────────────────────────────────────
       const activePlan = plans.find((p) => p.isActive) ?? plans[0] ?? null;
       let suggestedDay: PlanDay | null = null;
       if (activePlan && activePlan.days.length > 0) {
         const completedForPlan = recentSessions.filter((s) => s.planId === activePlan.id).length;
-        suggestedDay = activePlan.days[completedForPlan % activePlan.days.length] ?? activePlan.days[0]!;
+        suggestedDay = activePlan.days[completedForPlan % activePlan.days.length] ?? activePlan.days[0] ?? null;
       }
 
+      const inThisWeek = (iso: string | null) => {
+        if (!iso) return false;
+        const key = iso.slice(0, 10);
+        return key >= week.start && key <= week.end;
+      };
+      const fullWorkoutsThisWeek = recentSessions.filter((s) => s.kind === 'full' && inThisWeek(s.completedAt)).length;
+      const miniSessionsThisWeek = recentSessions.filter((s) => s.kind === 'mini' && inThisWeek(s.completedAt)).length;
+
+      // ── Habit-backed metrics ────────────────────────────────────────
       const todayLogs = new Map<string, HabitLog>();
-      for (const log of habitLogs) {
-        if (log.logDate === today) todayLogs.set(log.habitId, log);
-      }
+      for (const log of habitLogs) if (log.logDate === today) todayLogs.set(log.habitId, log);
 
-      const habitDayKeys = new Set<string>();
-      for (const log of habitLogs) {
-        if (log.completed) habitDayKeys.add(log.logDate);
-      }
-      for (const date of completedDates) habitDayKeys.add(date);
+      const metricsByDate = buildDayMetrics(habits, habitLogs);
+      const dayMetrics = metricsForDate(metricsByDate, today);
 
-      // ── Calorie burn ──────────────────────────────────────────────
-      const weightKg = goals.currentWeight ?? 75;
-      const stepsHabit = habits.find((h) => h.key === 'steps');
-      const stepsToday = stepsHabit ? (todayLogs.get(stepsHabit.id)?.value ?? 0) : 0;
-      const burnedSteps = Math.round(stepsToday * 0.04 * (weightKg / 80));
-
-      const completedToday = recentSessions.filter(
-        (s) => s.completedAt && s.completedAt.slice(0, 10) === today && s.durationSeconds,
+      // ── Nutrition ───────────────────────────────────────────────────
+      const totals = entries.reduce<Macros>(
+        (acc, e) => ({
+          kcal: acc.kcal + e.kcal,
+          proteinG: acc.proteinG + e.proteinG,
+          carbsG: acc.carbsG + e.carbsG,
+          fatG: acc.fatG + e.fatG,
+        }),
+        { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 },
       );
-      const workoutSeconds = completedToday.reduce((sum, s) => sum + (s.durationSeconds ?? 0), 0);
+      const quality = combineQuality(entries.map((e) => e.dataQuality));
+
+      // ── Burn estimate ───────────────────────────────────────────────
+      const weightKg = goals.currentWeight ?? 75;
+      const burnedSteps = Math.round(dayMetrics.steps * 0.04 * (weightKg / 80));
+      const workoutSeconds = recentSessions
+        .filter((s) => s.completedAt?.slice(0, 10) === today)
+        .reduce((sum, s) => sum + (s.durationSeconds ?? 0), 0);
       const burnedWorkout = Math.round(5.5 * weightKg * (workoutSeconds / 3600));
-      const caloriesBurned = {
-        steps: burnedSteps,
-        workout: burnedWorkout,
-        cardio: cardioKcal,
-        total: burnedSteps + burnedWorkout + cardioKcal,
+
+      // ── Rolling 7-day averages ──────────────────────────────────────
+      const loggedDays = weekLogs.filter((l) => l.calories > 0);
+      const avg = (values: number[]) =>
+        values.length > 0 ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : null;
+      const stepValues = Array.from({ length: 7 }, (_, i) => dateKeyAddDays(today, -i))
+        .map((d) => metricsForDate(metricsByDate, d).steps)
+        .filter((v) => v > 0);
+
+      const weekly = {
+        avgKcal: avg(loggedDays.map((l) => l.calories)),
+        avgProtein: avg(loggedDays.map((l) => l.proteinG)),
+        avgSteps: avg(stepValues),
+        daysWithData: loggedDays.length,
       };
 
+      // ── Weight ──────────────────────────────────────────────────────
+      const weight = summarizeWeight(metrics);
+
+      // ── Streaks ─────────────────────────────────────────────────────
+      const habitDayKeys = new Set<string>();
+      for (const log of habitLogs) if (log.completed) habitDayKeys.add(log.logDate);
+      for (const date of completedDates) habitDayKeys.add(date);
+
+      // ── Coach context ───────────────────────────────────────────────
+      const lastCompleted = recentSessions.find((s) => s.completedAt);
+      const coach: CoachContext = {
+        today,
+        hour: new Date().getHours(),
+        targets,
+        nutrition: { ...totals, quality, entryCount: entries.length },
+        metrics: { steps: dayMetrics.steps, waterMl: dayMetrics.waterMl, sleepH: dayMetrics.sleepH },
+        training: {
+          trainedToday: completedDates.includes(today),
+          hasActiveSession: activeSession !== null,
+          lastWorkoutDate: lastCompleted?.completedAt?.slice(0, 10) ?? null,
+          lastWorkoutName: lastCompleted?.dayName ?? null,
+          fullWorkoutsThisWeek,
+          miniSessionsThisWeek,
+          plannedDayName: suggestedDay?.name ?? null,
+          weeklyTarget: 3,
+        },
+        soreness: checkin?.soreness ?? null,
+        weight,
+        weekly,
+      };
+
+      const lastPhoto = photos[0]?.takenAt ?? null;
+
       setData({
+        goals,
+        targets,
         activePlan,
         suggestedDay,
         activeSession,
+        recentTrainingDates: new Set(completedDates),
+        fullWorkoutsThisWeek,
+        miniSessionsThisWeek,
         habits,
         todayLogs,
-        nutritionLog,
-        goals,
-        latestMetric: metrics[metrics.length - 1] ?? null,
+        metrics: dayMetrics,
+        checkin,
+        entries,
+        totals,
+        caloriesBurned: {
+          steps: burnedSteps,
+          workout: burnedWorkout,
+          cardio: cardioKcal,
+          total: burnedSteps + burnedWorkout + cardioKcal,
+        },
+        favoriteFoods: foods.filter((f) => f.favorite || f.useCount > 0).slice(0, 12),
+        favoriteRecipes: recipes.filter((r) => r.favorite).slice(0, 8),
+        batches,
+        weight,
+        weekly,
         dailyStreak: consecutiveDayStreak(habitDayKeys),
         trainingStreak: consecutiveDayStreak(completedDates),
-        weeklyTrainingStreak: weeklyStreak(completedDates, 3),
-        recentTrainingDates: new Set(completedDates),
-        caloriesBurned,
+        coach,
+        headline: buildHeadline(coach),
+        insights: buildInsights(coach),
+        dayStatus: buildDayStatus(coach),
+        dayScore: scoreDay(coach),
+        weighInDue: isWeighInDue(weight.latestDate, today, goals.weighInWeekday),
+        photoDue: isPhotoDue(lastPhoto, today, goals.photoIntervalDays),
       });
     } catch (err) {
       setError(errorMessage(err, 'Daten konnten nicht geladen werden.'));
@@ -125,37 +274,86 @@ export function useTodayData() {
     void load();
   }, [load]);
 
+  const metricHabits = useMemo(() => pickMetricHabits(data?.habits ?? []), [data?.habits]);
+
+  /** Writes one of the habit-backed day metrics (steps / water / sleep). */
+  const setMetric = useCallback(
+    async (key: 'steps' | 'water' | 'sleep', value: number) => {
+      if (!user) return;
+      const habit = metricHabits[key];
+      if (!habit) return;
+      // Optimistic — these are tapped repeatedly and must feel instant.
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              metrics: {
+                ...prev.metrics,
+                ...(key === 'water' ? { waterMl: value } : key === 'steps' ? { steps: value } : { sleepH: value }),
+              },
+            }
+          : prev,
+      );
+      await setDayMetric(user.id, habit, todayKey(), value);
+      void load();
+    },
+    [user, metricHabits, load],
+  );
+
+  const addWater = useCallback(
+    async (ml: number) => {
+      const current = data?.metrics.waterMl ?? 0;
+      await setMetric('water', current + ml);
+    },
+    [data?.metrics.waterMl, setMetric],
+  );
+
   const toggleHabit = useCallback(
     async (habit: Habit, value: number, completed: boolean) => {
       if (!user) return;
-      await setHabitLog(user.id, habit.id, todayKey(), value, completed);
+      await setDayMetric(user.id, habit, todayKey(), completed ? Math.max(value, habit.target) : value);
+      void load();
+    },
+    [user, load],
+  );
+
+  /** Adds a meal entry and re-syncs the cached daily total. */
+  const addEntry = useCallback(
+    async (entry: MealEntryInput) => {
+      if (!user) return;
+      const today = todayKey();
+      const withSlot: MealEntryInput = { slot: slotForHour(new Date().getHours()), ...entry };
+
+      await addMealEntry(user.id, today, withSlot);
+      if (entry.foodItemId) {
+        const food = data?.favoriteFoods.find((f) => f.id === entry.foodItemId);
+        await markFoodUsed(user.id, entry.foodItemId, food?.useCount ?? 0);
+      }
+      if (entry.batchId) {
+        await consumeBatchPortions(user.id, entry.batchId, entry.servings ?? 1);
+      }
+      await syncNutritionTotals(user.id, today);
+      await load();
+    },
+    [user, data?.favoriteFoods, load],
+  );
+
+  const removeEntry = useCallback(
+    async (entryId: string) => {
+      if (!user) return;
+      const today = todayKey();
+      setData((prev) => (prev ? { ...prev, entries: prev.entries.filter((e) => e.id !== entryId) } : prev));
+      await deleteMealEntry(user.id, entryId);
+      await syncNutritionTotals(user.id, today);
       await load();
     },
     [user, load],
   );
 
-  const logNutrition = useCallback(
-    async (
-      kcal:     number,
-      proteinG: number,
-      name?:    string,
-      carbsG?:  number,
-      fatG?:    number,
-    ) => {
-      if (!user || (!kcal && !proteinG)) return;
-      const today = todayKey();
-      // Estimate carbs/fat from remaining kcal if not provided
-      const remaining   = Math.max(0, kcal - proteinG * 4);
-      const resolvedCarbs = carbsG  ?? Math.round((remaining * 0.62) / 4);
-      const resolvedFat   = fatG    ?? Math.round((remaining * 0.38) / 9);
-      await addMealEntry(user.id, today, {
-        name:     name ?? (kcal ? `${kcal} kcal` : 'Eintrag'),
-        kcal,
-        proteinG,
-        carbsG:   resolvedCarbs,
-        fatG:     resolvedFat,
-      });
-      await syncNutritionTotals(user.id, today);
+  const setSoreness = useCallback(
+    async (soreness: Soreness | null) => {
+      if (!user) return;
+      await saveCheckin(user.id, todayKey(), { soreness });
       await load();
     },
     [user, load],
@@ -166,5 +364,17 @@ export function useTodayData() {
     return startWorkoutSession(user.id, data.activePlan.id, data.activePlan.name, data.suggestedDay);
   }, [user, data]);
 
-  return { data, loading, error, reload: load, toggleHabit, logNutrition, startSuggestedWorkout };
+  return {
+    data,
+    loading,
+    error,
+    reload: load,
+    addEntry,
+    removeEntry,
+    addWater,
+    setMetric,
+    setSoreness,
+    toggleHabit,
+    startSuggestedWorkout,
+  };
 }

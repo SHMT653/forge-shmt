@@ -1,572 +1,397 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Search, Plus, Trash2, Droplets, X, ScanLine } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import Link from 'next/link';
+import {
+  Utensils, Droplets, Plus, ScanLine, Star, Box, ArrowRight, ChefHat,
+} from 'lucide-react';
 import { useNutrition } from '@/web/hooks/useNutrition';
-import { searchFood, estimateMacros } from '@/domain/foodDatabase';
-import type { FoodItem } from '@/domain/foodDatabase';
+import { RangeBar, GoalBar } from '@/web/components/RangeBar';
+import { AiQuickInput } from '@/web/components/AiQuickInput';
+import { QuickAddSheet } from '@/web/components/QuickAddSheet';
 import { BarcodeScannerModal } from '@/web/components/BarcodeScannerModal';
+import { DailyTimeline, mealToEvent, type TimelineEvent } from '@/web/components/DailyTimeline';
+import { evaluateRange, evaluateGoal, TONE_COLOR } from '@/domain/goalPhase';
+import { isDayInProgress, formatLiters } from '@/domain/coach';
+import {
+  MEAL_SLOTS, MEAL_SLOT_LABEL, MEAL_SLOT_ICON, macrosForServings, sumMacros,
+} from '@/domain/nutritionMath';
+import type { MealEntryInput } from '@/data/nutrition';
+import type { MealSlot } from '@/domain/types';
 
-const GLASS_ML = 250;
-
-function fmtWater(ml: number): string {
-  if (ml >= 1000) {
-    const l = ml / 1000;
-    return `${l.toLocaleString('de-DE', { minimumFractionDigits: l % 1 === 0 ? 0 : 1, maximumFractionDigits: 1 })} L`;
-  }
-  return `${ml} ml`;
-}
-
-// ─── Donut Chart ───────────────────────────────────────────────────────────────
-
-function MacroDonut({
-  proteinKcal, carbsKcal, fatKcal, totalKcal, goalKcal,
-}: {
-  proteinKcal: number;
-  carbsKcal:   number;
-  fatKcal:     number;
-  totalKcal:   number;
-  goalKcal:    number;
-}) {
-  const r     = 52;
-  const cx    = 64;
-  const cy    = 64;
-  const sw    = 14;
-  const circ  = 2 * Math.PI * r;
-  const cap   = Math.max(goalKcal, totalKcal, 1);
-
-  const segments = [
-    { kcal: proteinKcal, color: 'var(--teal)'   },
-    { kcal: carbsKcal,   color: '#c9a227'        },
-    { kcal: fatKcal,     color: '#d96060'        },
-  ];
-
-  let cumOffset = 0;
-  const arcs = segments.map((seg) => {
-    const arc    = (seg.kcal / cap) * circ;
-    const offset = cumOffset;
-    cumOffset   += arc;
-    return { color: seg.color, dasharray: `${arc} ${circ}`, dashoffset: -offset };
-  });
-
-  const pct = Math.round(Math.min(totalKcal / Math.max(goalKcal, 1), 1) * 100);
-
-  return (
-    <svg width={128} height={128} viewBox="0 0 128 128" aria-label={`${totalKcal} von ${goalKcal} kcal`}>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={sw} />
-      <g transform={`rotate(-90 ${cx} ${cy})`}>
-        {arcs.map((arc, i) => (
-          <circle
-            key={i} cx={cx} cy={cy} r={r} fill="none"
-            stroke={arc.color} strokeWidth={sw}
-            strokeDasharray={arc.dasharray} strokeDashoffset={arc.dashoffset}
-          />
-        ))}
-      </g>
-      <text x={cx} y={cy - 8}  textAnchor="middle" fill="var(--text)"   fontSize={22} fontWeight={700}>{totalKcal}</text>
-      <text x={cx} y={cy + 10} textAnchor="middle" fill="var(--subtle)" fontSize={10}>von {goalKcal} kcal</text>
-      <text x={cx} y={cy + 23} textAnchor="middle" fill="var(--subtle)" fontSize={10}>{pct}%</text>
-    </svg>
-  );
-}
-
-// ─── Macro Bar ─────────────────────────────────────────────────────────────────
-
-function MacroBar({ label, value, goal, unit, color }: {
-  label: string; value: number; goal: number; unit: string; color: string;
-}) {
-  const pct = goal > 0 ? Math.min(100, Math.round((value / goal) * 100)) : 0;
-  return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ fontSize: 13, color: 'var(--text)' }}>{label}</span>
-        <span style={{ fontSize: 13 }}>
-          <strong style={{ color }}>{value}{unit}</strong>
-          <span style={{ color: 'var(--subtle)' }}> / {goal}{unit}</span>
-        </span>
-      </div>
-      <div style={{ height: 6, background: 'rgba(255,255,255,0.07)', borderRadius: 3, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 3, transition: 'width 0.4s ease' }} />
-      </div>
-    </div>
-  );
-}
-
-// ─── Meal Row ──────────────────────────────────────────────────────────────────
-
-function MealRow({ entry, onDelete }: {
-  entry: { id: string; name: string; kcal: number; proteinG: number; carbsG: number; fatG: number };
-  onDelete: (id: string) => void;
-}) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0',
-      borderBottom: '1px solid rgba(255,255,255,0.05)',
-    }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {entry.name}
-        </p>
-        <div style={{ display: 'flex', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, fontWeight: 700 }}>{entry.kcal} kcal</span>
-          <span style={{ fontSize: 11, color: 'var(--teal)' }}>P {entry.proteinG}g</span>
-          <span style={{ fontSize: 11, color: '#c9a227' }}>K {entry.carbsG}g</span>
-          <span style={{ fontSize: 11, color: '#d96060' }}>F {entry.fatG}g</span>
-        </div>
-      </div>
-      <button
-        type="button" onClick={() => onDelete(entry.id)}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--subtle)', padding: 4, flexShrink: 0 }}
-        aria-label="Mahlzeit entfernen"
-      >
-        <Trash2 size={15} />
-      </button>
-    </div>
-  );
-}
-
-// ─── Add Meal Form ─────────────────────────────────────────────────────────────
-
-type BaseValues = { kcal: number; prot: number; carbs: number; fat: number };
-
-function AddMealForm({ onAdd }: { onAdd: (entry: { name: string; kcal: number; proteinG: number; carbsG: number; fatG: number }) => Promise<void> }) {
-  const [foodQuery, setFoodQuery]     = useState('');
-  const [foodResults, setFoodResults] = useState<FoodItem[]>([]);
-  const [showDrop, setShowDrop]       = useState(false);
-  const [dropPos, setDropPos]         = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 300 });
-
-  const [portions, setPortions]   = useState(1);
-  const [base, setBase]           = useState<BaseValues | null>(null);
-  const [manualName, setManualName]   = useState('');
-  const [manualKcal, setManualKcal]   = useState('');
-  const [manualProt, setManualProt]   = useState('');
-  const [manualCarbs, setManualCarbs] = useState('');
-  const [manualFat, setManualFat]     = useState('');
-  const [saving, setSaving]           = useState(false);
-
-  const searchRef  = useRef<HTMLInputElement>(null);
-  const searchWrap = useRef<HTMLDivElement>(null);
-
-  // Update form fields when portions changes (only if food was selected from DB)
-  useEffect(() => {
-    if (!base) return;
-    setManualKcal(String(Math.round(base.kcal  * portions)));
-    setManualProt(String(Math.round(base.prot  * portions)));
-    setManualCarbs(String(Math.round(base.carbs * portions)));
-    setManualFat(String(Math.round(base.fat    * portions)));
-  }, [portions, base]);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    if (!showDrop) return;
-    function onDown(e: MouseEvent) {
-      if (searchWrap.current && !searchWrap.current.contains(e.target as Node)) {
-        setShowDrop(false);
-      }
-    }
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [showDrop]);
-
-  function openDrop() {
-    if (searchWrap.current) {
-      const rect = searchWrap.current.getBoundingClientRect();
-      setDropPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
-    }
-    setShowDrop(true);
-  }
-
-  function handleSearch(q: string) {
-    setFoodQuery(q);
-    const results = q.trim().length >= 2 ? searchFood(q) : [];
-    setFoodResults(results);
-    if (results.length > 0) {
-      openDrop();
-    } else {
-      setShowDrop(false);
-    }
-  }
-
-  function selectFood(item: FoodItem) {
-    const { carbsG, fatG } = estimateMacros(item);
-    const b: BaseValues = { kcal: item.kcal, prot: item.proteinG, carbs: carbsG, fat: fatG };
-    setBase(b);
-    setManualName(item.name);
-    setManualKcal(String(Math.round(b.kcal  * portions)));
-    setManualProt(String(Math.round(b.prot  * portions)));
-    setManualCarbs(String(Math.round(b.carbs * portions)));
-    setManualFat(String(Math.round(b.fat    * portions)));
-    setFoodQuery('');
-    setFoodResults([]);
-    setShowDrop(false);
-  }
-
-  function clearAll() {
-    setBase(null); setPortions(1);
-    setManualName(''); setManualKcal(''); setManualProt(''); setManualCarbs(''); setManualFat('');
-  }
-
-  async function handleAdd(e: React.FormEvent) {
-    e.preventDefault();
-    const kcal = Number(manualKcal) || 0;
-    if (!kcal && !manualName) return;
-    setSaving(true);
-    try {
-      await onAdd({
-        name:     manualName || `${kcal} kcal`,
-        kcal,
-        proteinG: Number(manualProt)  || 0,
-        carbsG:   Number(manualCarbs) || 0,
-        fatG:     Number(manualFat)   || 0,
-      });
-      clearAll();
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const hasInput = !!(manualName || manualKcal);
-
-  return (
-    <div>
-      {/* Search — the anchor for the fixed dropdown */}
-      <div ref={searchWrap} style={{ position: 'relative', marginBottom: 12 }}>
-        <div className="search-field">
-          <Search size={14} />
-          <input
-            ref={searchRef}
-            type="text"
-            placeholder="Lebensmittel suchen (z. B. Hähnchen, Reis …)"
-            value={foodQuery}
-            onChange={(e) => handleSearch(e.target.value)}
-            onFocus={() => { if (foodResults.length > 0) openDrop(); }}
-            onKeyDown={(e) => { if (e.key === 'Escape') { setShowDrop(false); setFoodQuery(''); setFoodResults([]); } }}
-            autoComplete="off"
-            aria-label="Lebensmittel suchen"
-            aria-expanded={showDrop}
-            aria-haspopup="listbox"
-          />
-          {foodQuery && (
-            <button type="button" onClick={() => { setFoodQuery(''); setFoodResults([]); setShowDrop(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--subtle)', padding: 2 }} aria-label="Suche löschen">
-              <X size={14} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Dropdown — rendered with position:fixed so it floats above all panels */}
-      {showDrop && foodResults.length > 0 && (
-        <div
-          role="listbox"
-          style={{
-            position: 'fixed',
-            top:    dropPos.top,
-            left:   dropPos.left,
-            width:  dropPos.width,
-            zIndex: 300,
-            background:   'var(--panel, #16161b)',
-            border:       '1px solid rgba(255,255,255,0.12)',
-            borderRadius: 10,
-            boxShadow:    '0 12px 40px rgba(0,0,0,0.7)',
-            maxHeight:    260,
-            overflowY:    'auto',
-          }}
-        >
-          {foodResults.map((item) => {
-            const { carbsG, fatG } = estimateMacros(item);
-            return (
-              <button
-                key={item.name}
-                type="button"
-                role="option"
-                aria-selected={false}
-                onMouseDown={(e) => { e.preventDefault(); selectFood(item); }}
-                style={{
-                  width: '100%', textAlign: 'left', background: 'none', border: 'none',
-                  padding: '10px 14px', cursor: 'pointer',
-                  borderBottom: '1px solid rgba(255,255,255,0.05)',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 14, color: 'var(--text)', fontWeight: 500 }}>{item.name}</span>
-                  <span style={{ fontSize: 11, color: 'var(--subtle)', whiteSpace: 'nowrap' }}>{item.portionLabel}</span>
-                </div>
-                <div style={{ display: 'flex', gap: 10, marginTop: 2 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700 }}>{item.kcal} kcal</span>
-                  <span style={{ fontSize: 11, color: 'var(--teal)' }}>P {item.proteinG}g</span>
-                  <span style={{ fontSize: 11, color: '#c9a227' }}>K {carbsG}g</span>
-                  <span style={{ fontSize: 11, color: '#d96060' }}>F {fatG}g</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Add form */}
-      <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <input
-          className="input compact"
-          placeholder="Name (z. B. Mittagessen)"
-          value={manualName}
-          onChange={(e) => setManualName(e.target.value)}
-        />
-
-        {/* Portionen — only shown if a food was selected from the DB */}
-        {base && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'rgba(139,92,246,0.1)', borderRadius: 8, border: '1px solid rgba(139,92,246,0.2)' }}>
-            <span style={{ fontSize: 13, color: 'var(--text)', flex: 1 }}>Portionen</span>
-            <button type="button" className="button ghost compact" style={{ padding: '2px 10px', fontSize: 16 }}
-              onClick={() => setPortions((p) => Math.max(0.5, +(p - 0.5).toFixed(1)))}>−</button>
-            <span style={{ fontSize: 15, fontWeight: 700, minWidth: 28, textAlign: 'center' }}>{portions}</span>
-            <button type="button" className="button ghost compact" style={{ padding: '2px 10px', fontSize: 16 }}
-              onClick={() => setPortions((p) => +(p + 0.5).toFixed(1))}>+</button>
-          </div>
-        )}
-
-        {/* Portionen for manual entry */}
-        {!base && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 13, color: 'var(--subtle)' }}>Portionen:</span>
-            <button type="button" className="button ghost compact" style={{ padding: '2px 8px', fontSize: 14 }}
-              onClick={() => setPortions((p) => Math.max(0.5, +(p - 0.5).toFixed(1)))}>−</button>
-            <span style={{ fontSize: 14, fontWeight: 600, minWidth: 24, textAlign: 'center' }}>{portions}</span>
-            <button type="button" className="button ghost compact" style={{ padding: '2px 8px', fontSize: 14 }}
-              onClick={() => setPortions((p) => +(p + 0.5).toFixed(1))}>+</button>
-          </div>
-        )}
-
-        <div className="button-row" style={{ gap: 8 }}>
-          <div className="field" style={{ flex: 1 }}>
-            <label className="field-label">kcal</label>
-            <input className="input compact" inputMode="numeric" placeholder="0"
-              value={manualKcal} onChange={(e) => { setBase(null); setManualKcal(e.target.value); }} />
-          </div>
-          <div className="field" style={{ flex: 1 }}>
-            <label className="field-label">Protein g</label>
-            <input className="input compact" inputMode="numeric" placeholder="0"
-              value={manualProt} onChange={(e) => { setBase(null); setManualProt(e.target.value); }} />
-          </div>
-        </div>
-        <div className="button-row" style={{ gap: 8 }}>
-          <div className="field" style={{ flex: 1 }}>
-            <label className="field-label">Kohlenhydrate g</label>
-            <input className="input compact" inputMode="numeric" placeholder="0"
-              value={manualCarbs} onChange={(e) => { setBase(null); setManualCarbs(e.target.value); }} />
-          </div>
-          <div className="field" style={{ flex: 1 }}>
-            <label className="field-label">Fette g</label>
-            <input className="input compact" inputMode="numeric" placeholder="0"
-              value={manualFat} onChange={(e) => { setBase(null); setManualFat(e.target.value); }} />
-          </div>
-        </div>
-        <div className="button-row" style={{ gap: 8, marginTop: 4 }}>
-          <button type="submit" className="button" style={{ flex: 1 }} disabled={saving || !hasInput}>
-            {saving ? 'Wird gespeichert …' : <><Plus size={16} /> Hinzufügen</>}
-          </button>
-          {hasInput && (
-            <button type="button" className="button ghost compact" onClick={clearAll} aria-label="Felder leeren">
-              <X size={16} />
-            </button>
-          )}
-        </div>
-      </form>
-    </div>
-  );
-}
-
-// ─── Main View ─────────────────────────────────────────────────────────────────
+const WATER_STEPS = [250, 500, 750];
 
 export function NutritionView() {
-  const { state, addMeal, removeMeal, addWater } = useNutrition();
-  const { meals, totals, goals, water, loading, error } = state;
-  const [showScanner, setShowScanner] = useState(false);
+  const { state, favorites, addMeal, removeMeal, addWater, saveAsFood, cookBatch } = useNutrition();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
-  const fatGoal   = Math.round((goals.calorieGoal * 0.28) / 9);
-  const carbsGoal = Math.round((goals.calorieGoal - goals.proteinGoal * 4 - fatGoal * 9) / 4);
+  const bySlot = useMemo(() => {
+    const map = new Map<MealSlot | 'other', typeof state.meals>();
+    for (const meal of state.meals) {
+      const key = meal.slot ?? 'other';
+      map.set(key, [...(map.get(key) ?? []), meal]);
+    }
+    return map;
+  }, [state.meals]);
 
-  const proteinKcal = Math.round(totals.proteinG * 4);
-  const carbsKcal   = Math.round(totals.carbsG   * 4);
-  const fatKcal     = Math.round(totals.fatG      * 9);
-
-  const waterPct    = water.habit ? Math.min(100, Math.round((water.todayMl / water.habit.target) * 100)) : 0;
-  const waterGlasses = Math.floor(water.todayMl / GLASS_ML);
-  const waterTarget  = water.habit?.target ?? 2500;
-
-  if (error && !meals.length) {
-    return <div className="panel"><p className="copy" style={{ color: 'var(--danger)' }}>{error}</p></div>;
-  }
-  if (loading) {
+  if (state.loading) {
     return <div className="panel"><p className="copy">Ernährung wird geladen …</p></div>;
+  }
+  if (state.error) {
+    return <div className="panel"><p className="copy" style={{ color: 'var(--danger)' }}>{state.error}</p></div>;
+  }
+
+  const { targets, totals } = state;
+  const inProgress = isDayInProgress(new Date().getHours());
+  const kcalEval = evaluateRange(totals.kcal, targets.calories, { dayInProgress: inProgress });
+  const proteinEval = evaluateRange(totals.proteinG, targets.protein, { dayInProgress: inProgress, overTolerance: 9999 });
+  const waterEval = evaluateGoal(state.water.todayMl, state.water.goalMl, inProgress);
+
+  const proteinLeft = Math.max(0, targets.protein.min - totals.proteinG);
+  const kcalLeft = targets.calories.max - totals.kcal;
+
+  /** Resolve library references to their stored macros before saving. */
+  function handleEntry(entry: MealEntryInput) {
+    if (entry.recipeId) {
+      const recipe = state.recipes.find((r) => r.id === entry.recipeId);
+      if (recipe) {
+        void addMeal({ ...entry, macros: macrosForServings(recipe, entry.servings ?? 1), dataQuality: 'verified' });
+        return;
+      }
+    }
+    if (entry.foodItemId) {
+      const food = state.foods.find((f) => f.id === entry.foodItemId);
+      if (food) {
+        const servings = entry.servings ?? 1;
+        void addMeal({
+          ...entry,
+          macros: {
+            kcal: Math.round(food.macros.kcal * servings),
+            proteinG: Math.round(food.macros.proteinG * servings),
+            carbsG: Math.round(food.macros.carbsG * servings),
+            fatG: Math.round(food.macros.fatG * servings),
+          },
+          dataQuality: food.dataQuality,
+        });
+        return;
+      }
+    }
+    void addMeal(entry);
   }
 
   return (
     <>
-      {/* ── Header ────────────────────────────────────────────── */}
+      {/* ── Today's totals — range first, single number never (§14) ──── */}
       <section className="panel">
-        <p className="eyebrow">Ernährung</p>
-        <h1 className="h1" style={{ fontSize: 28 }}>Was du heute getankt hast.</h1>
-      </section>
-
-      {/* ── Kalorien-Balance ──────────────────────────────────── */}
-      <section className="panel" style={{ textAlign: 'center' }}>
-        {(() => {
-          const remaining = goals.calorieGoal - totals.kcal;
-          const isOver = remaining < 0;
-          const pct = Math.min(100, Math.round((totals.kcal / Math.max(1, goals.calorieGoal)) * 100));
-          return (
-            <>
-              <p style={{ fontSize: 48, fontWeight: 700, margin: '0 0 2px', color: isOver ? 'var(--danger)' : 'var(--teal)', lineHeight: 1 }}>
-                {Math.abs(remaining).toLocaleString('de-DE')}
-              </p>
-              <p className="copy" style={{ margin: '0 0 14px', fontSize: 13 }}>
-                kcal {isOver ? 'über deinem Tagesziel' : 'noch verfügbar heute'}
-              </p>
-              <div style={{ height: 6, background: 'rgba(255,255,255,0.07)', borderRadius: 3, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${pct}%`, background: isOver ? 'var(--danger)' : 'var(--teal)', borderRadius: 3, transition: 'width 0.4s ease' }} />
-              </div>
-              <p className="copy" style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--subtle)' }}>
-                {totals.kcal.toLocaleString('de-DE')} von {goals.calorieGoal.toLocaleString('de-DE')} kcal gegessen ({pct}%)
-              </p>
-            </>
-          );
-        })()}
-      </section>
-
-      {/* ── Donut + Macros ────────────────────────────────────── */}
-      <section className="panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-        <MacroDonut
-          proteinKcal={proteinKcal} carbsKcal={carbsKcal} fatKcal={fatKcal}
-          totalKcal={totals.kcal}   goalKcal={goals.calorieGoal}
-        />
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <span className="pill" style={{ background: 'rgba(107,217,173,0.15)', color: 'var(--teal)' }}>Protein</span>
-          <span className="pill" style={{ background: 'rgba(201,162,39,0.15)', color: '#c9a227' }}>Kohlenhydrate</span>
-          <span className="pill" style={{ background: 'rgba(217,96,96,0.15)', color: '#d96060' }}>Fette</span>
+        <div className="row-between" style={{ marginBottom: 14 }}>
+          <div>
+            <p className="section-label">Ernährung heute</p>
+            <p className="h2" style={{ marginTop: 4, fontSize: 19 }}>
+              {state.quality === 'verified' ? '' : '~'}
+              {Math.round(totals.kcal).toLocaleString('de-DE')} kcal
+            </p>
+          </div>
+          <span className="pill" style={{ flexShrink: 0, color: TONE_COLOR[kcalEval.tone] }}>
+            {kcalEval.status === 'in' ? 'im Zielbereich'
+              : kcalEval.status === 'over' ? 'deutlich darüber'
+              : kcalEval.status === 'slightly_over' ? 'leicht darüber'
+              : 'noch darunter'}
+          </span>
         </div>
-        <div style={{ width: '100%', maxWidth: 400 }}>
-          <MacroBar label="Protein"       value={Math.round(totals.proteinG)} goal={goals.proteinGoal} unit="g" color="var(--teal)" />
-          <MacroBar label="Kohlenhydrate" value={Math.round(totals.carbsG)}   goal={carbsGoal}         unit="g" color="#c9a227" />
-          <MacroBar label="Fette"         value={Math.round(totals.fatG)}     goal={fatGoal}           unit="g" color="#d96060" />
+
+        <div className="stack">
+          <div className="stack-sm">
+            <div className="row-between">
+              <span className="muted-sm">Kalorien</span>
+              <span className="readout-target">
+                Ziel {targets.calories.min.toLocaleString('de-DE')}–{targets.calories.max.toLocaleString('de-DE')}
+              </span>
+            </div>
+            <RangeBar value={totals.kcal} range={targets.calories} tone={kcalEval.tone} />
+          </div>
+
+          {/* Protein gets top billing for this phase (§15) */}
+          <div className="stack-sm">
+            <div className="row-between">
+              <span className="readout">
+                <span className="readout-value" style={{ fontSize: 24, color: TONE_COLOR[proteinEval.tone] }}>
+                  {Math.round(totals.proteinG)}
+                </span>
+                <span className="readout-unit">/ {targets.protein.min}–{targets.protein.max} g Protein</span>
+              </span>
+            </div>
+            <RangeBar value={totals.proteinG} range={targets.protein} tone={proteinEval.tone} />
+          </div>
+
+          <div className="split-3">
+            <MacroChip label="Kohlenhydrate" value={totals.carbsG} />
+            <MacroChip label="Fett" value={totals.fatG} />
+            <MacroChip label="Ø Woche" value={state.weekly.avgKcal ?? 0} unit="kcal" muted />
+          </div>
+        </div>
+
+        {state.quality !== 'verified' && (
+          <p className="muted-sm" style={{ marginTop: 12 }}>
+            Enthält geschätzte Werte — die Tagessumme ist deshalb ein Richtwert.
+          </p>
+        )}
+      </section>
+
+      {/* ── What still fits today (§14) ───────────────────────────────── */}
+      <section className="coach-card">
+        <span className="coach-avatar" aria-hidden><Utensils size={17} /></span>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <p className="coach-label">Heute sinnvoll</p>
+          <p className="coach-text">
+            {state.meals.length === 0
+              ? 'Noch nichts eingetragen. Trag deine erste Mahlzeit ein, dann rechne ich dir den Rest aus.'
+              : proteinLeft > 5 && kcalLeft > 150
+                ? `Protein fehlen noch etwa ${Math.round(proteinLeft)} g. Kalorisch hast du noch rund ${Math.round(kcalLeft).toLocaleString('de-DE')} kcal Spielraum.`
+                : proteinLeft > 5
+                  ? `Noch ${Math.round(proteinLeft)} g Protein — der kalorische Spielraum ist aber knapp. Etwas Mageres passt noch.`
+                  : kcalLeft > 300
+                    ? `Protein sitzt. Du hast noch etwa ${Math.round(kcalLeft).toLocaleString('de-DE')} kcal im Zielbereich.`
+                    : 'Kalorien und Protein liegen beide im Rahmen.'}
+          </p>
         </div>
       </section>
 
-      {/* ── Wasser ────────────────────────────────────────────── */}
-      {water.habit && (
-        <section className="panel">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <Droplets size={18} color="var(--teal)" />
-            <p className="h3" style={{ margin: 0 }}>Wasser</p>
-            <span className="copy" style={{ margin: 0, marginLeft: 'auto' }}>
-              {fmtWater(water.todayMl)} / {fmtWater(waterTarget)} ({waterPct}%)
-            </span>
-          </div>
-          <div style={{ height: 8, background: 'rgba(255,255,255,0.07)', borderRadius: 4, overflow: 'hidden', marginBottom: 10 }}>
-            <div style={{ height: '100%', width: `${waterPct}%`, background: 'var(--teal)', borderRadius: 4, transition: 'width 0.4s ease' }} />
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="button compact" style={{ flex: 1 }} onClick={() => void addWater(1)}>
-              <Plus size={14} /> +1 Glas (250 ml)
-            </button>
-            {waterGlasses > 0 && (
-              <button type="button" className="button ghost compact" onClick={() => void addWater(-1)} aria-label="Glas abziehen">−</button>
-            )}
-          </div>
-        </section>
-      )}
+      {/* ── Input ─────────────────────────────────────────────────────── */}
+      <section className="stack-sm">
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" className="button" style={{ flex: 1 }} onClick={() => setSheetOpen(true)}>
+            <Plus size={17} /> Mahlzeit eintragen
+          </button>
+          <button type="button" className="button secondary" onClick={() => setScannerOpen(true)} aria-label="Barcode scannen">
+            <ScanLine size={17} />
+          </button>
+        </div>
+        {state.goals.aiParsingEnabled && <AiQuickInput onAdd={handleEntry} compact />}
+      </section>
 
-      {/* ── Kürzlich gegessen ─────────────────────────────────── */}
-      {state.recentMeals.length > 0 && (
-        <section className="panel">
-          <p className="h3" style={{ marginBottom: 10 }}>Kürzlich gegessen</p>
-          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' }}>
-            {state.recentMeals.map((meal) => (
+      {/* ── Favourites (§37) ──────────────────────────────────────────── */}
+      {favorites.length > 0 && (
+        <section className="panel soft">
+          <div className="section-head">
+            <p className="h3" style={{ fontSize: 15 }}>Favoriten</p>
+            <Link href="/recipes" className="card-link">Bibliothek <ArrowRight size={14} /></Link>
+          </div>
+          <div className="chip-row">
+            {favorites.map((food) => (
               <button
-                key={meal.id}
+                key={food.id}
                 type="button"
-                onClick={() => void addMeal({ name: meal.name, kcal: meal.kcal, proteinG: meal.proteinG, carbsG: meal.carbsG, fatG: meal.fatG })}
-                style={{
-                  flexShrink: 0, textAlign: 'left', background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10,
-                  padding: '8px 12px', cursor: 'pointer', color: 'var(--text)',
-                  minWidth: 120, maxWidth: 160,
-                }}
+                className="chip"
+                onClick={() => handleEntry({
+                  name: food.name,
+                  macros: food.macros,
+                  dataQuality: food.dataQuality,
+                  foodItemId: food.id,
+                  source: 'favorite',
+                })}
               >
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {meal.name}
-                </p>
-                <p style={{ margin: '3px 0 0', fontSize: 11, color: 'var(--subtle)' }}>
-                  {meal.kcal} kcal · {meal.proteinG}g P
-                </p>
+                {food.favorite && <Star size={12} color="var(--gold)" />}
+                {food.name}
+                <span className="chip-meta">{Math.round(food.macros.kcal)} kcal</span>
               </button>
             ))}
           </div>
-          <p className="copy" style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--subtle)' }}>
-            Tippen zum sofort Hinzufügen
-          </p>
         </section>
       )}
 
-      {/* ── Mahlzeit hinzufügen ───────────────────────────────── */}
+      {/* ── Meal prep (§13) ───────────────────────────────────────────── */}
+      {(state.batches.length > 0 || state.recipes.some((r) => r.isMealPrep)) && (
+        <section className="panel soft">
+          <div className="section-head">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Box size={15} color="var(--violet)" />
+              <p className="h3" style={{ fontSize: 15 }}>Meal Prep</p>
+            </div>
+          </div>
+
+          <div className="stack-sm">
+            {state.batches.map((batch) => {
+              const recipe = state.recipes.find((r) => r.id === batch.recipeId);
+              return (
+                <div key={batch.id} className="row-between">
+                  <div style={{ minWidth: 0 }}>
+                    <p className="h3" style={{ fontSize: 14 }}>{batch.recipeName}</p>
+                    <p className="muted-sm">
+                      {batch.portionsLeft} / {batch.totalPortions} Portionen verfügbar · gekocht am {batch.cookedOn}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="button secondary compact"
+                    disabled={!recipe || batch.portionsLeft <= 0}
+                    onClick={() => recipe && void addMeal({
+                      name: `${batch.recipeName} (Meal Prep)`,
+                      macros: macrosForServings(recipe, 1),
+                      dataQuality: 'verified',
+                      recipeId: recipe.id,
+                      batchId: batch.id,
+                      servings: 1,
+                      source: 'prep',
+                    })}
+                  >
+                    1 Portion
+                  </button>
+                </div>
+              );
+            })}
+
+            {state.recipes.filter((r) => r.isMealPrep && !state.batches.some((b) => b.recipeId === r.id)).map((recipe) => (
+              <div key={recipe.id} className="row-between">
+                <div style={{ minWidth: 0 }}>
+                  <p className="h3" style={{ fontSize: 14 }}>{recipe.name}</p>
+                  <p className="muted-sm">Kein offener Batch</p>
+                </div>
+                <button
+                  type="button"
+                  className="button secondary compact"
+                  onClick={() => void cookBatch(recipe.id, recipe.totalServings)}
+                >
+                  <ChefHat size={14} /> Gekocht
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Meals by slot (§14) ───────────────────────────────────────── */}
       <section className="panel">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <p className="h3" style={{ margin: 0 }}>Mahlzeit hinzufügen</p>
-          <button
-            type="button"
-            onClick={() => setShowScanner(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: 'rgba(123,92,240,0.12)', border: '1px solid rgba(123,92,240,0.3)',
-              borderRadius: 10, padding: '7px 12px', cursor: 'pointer', color: 'var(--violet)',
-              fontSize: 12, fontWeight: 600, touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
-            }}
-            aria-label="Barcode scannen"
-          >
-            <ScanLine size={16} />
-            Barcode scannen
-          </button>
+        <div className="section-head">
+          <p className="h3" style={{ fontSize: 15 }}>Mahlzeiten</p>
+          <span className="muted-sm">{state.meals.length} Einträge</span>
         </div>
-        <AddMealForm onAdd={addMeal} />
+
+        {state.meals.length === 0 ? (
+          <div className="empty-state">
+            <p className="copy" style={{ margin: 0 }}>Noch keine Mahlzeit heute.</p>
+            <button type="button" className="button compact" style={{ marginTop: 8 }} onClick={() => setSheetOpen(true)}>
+              <Plus size={15} /> Erste Mahlzeit eintragen
+            </button>
+          </div>
+        ) : (
+          <div className="stack">
+            {MEAL_SLOTS.map((slot) => {
+              const meals = bySlot.get(slot) ?? [];
+              if (meals.length === 0) return null;
+              const slotTotals = sumMacros(meals.map((m) => ({ kcal: m.kcal, proteinG: m.proteinG, carbsG: m.carbsG, fatG: m.fatG })));
+              const events: TimelineEvent[] = meals.map((meal) =>
+                mealToEvent(meal, {
+                  onDelete: () => void removeMeal(meal.id),
+                  // Already-saved products have nothing to promote.
+                  ...(meal.foodItemId
+                    ? {}
+                    : {
+                        onFavorite: () =>
+                          void saveAsFood({
+                            name: meal.name,
+                            macros: { kcal: meal.kcal, proteinG: meal.proteinG, carbsG: meal.carbsG, fatG: meal.fatG },
+                            dataQuality: meal.dataQuality,
+                            favorite: true,
+                          }),
+                      }),
+                }),
+              );
+
+              return (
+                <div key={slot}>
+                  <div className="row-between" style={{ marginBottom: 2 }}>
+                    <p className="section-label">{MEAL_SLOT_ICON[slot]} {MEAL_SLOT_LABEL[slot]}</p>
+                    <span className="muted-sm">
+                      {Math.round(slotTotals.kcal)} kcal · {Math.round(slotTotals.proteinG)} g P
+                    </span>
+                  </div>
+                  <DailyTimeline events={events} />
+                </div>
+              );
+            })}
+
+            {(bySlot.get('other') ?? []).length > 0 && (
+              <div>
+                <p className="section-label">Ohne Zuordnung</p>
+                <DailyTimeline
+                  events={(bySlot.get('other') ?? []).map((meal) =>
+                    mealToEvent(meal, { onDelete: () => void removeMeal(meal.id) }),
+                  )}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
-      {showScanner && (
-        <BarcodeScannerModal
-          onLog={async (kcal, proteinG, name, carbsG, fatG) => {
-            await addMeal({ name, kcal, proteinG, carbsG: carbsG ?? 0, fatG: fatG ?? 0 });
+      {/* ── Water (§38) ───────────────────────────────────────────────── */}
+      <section className="panel soft">
+        <div className="row-between" style={{ marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Droplets size={15} color="var(--teal)" />
+            <span style={{ fontSize: 13, fontWeight: 700 }}>Wasser</span>
+          </div>
+          <span className="muted-sm">
+            {formatLiters(state.water.todayMl)} / {formatLiters(state.water.goalMl)}
+          </span>
+        </div>
+        <GoalBar value={state.water.todayMl} goal={state.water.goalMl} tone={waterEval.tone} />
+        <div className="chip-row" style={{ marginTop: 10 }}>
+          {WATER_STEPS.map((ml) => (
+            <button key={ml} type="button" className="chip" onClick={() => void addWater(ml)}>
+              <Plus size={13} /> {ml} ml
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {sheetOpen && (
+        <QuickAddSheet
+          onClose={() => setSheetOpen(false)}
+          favoriteFoods={state.foods}
+          favoriteRecipes={state.recipes}
+          batches={state.batches}
+          currentWater={state.water.todayMl}
+          currentSteps={0}
+          currentSleep={0}
+          currentWeight={state.goals.currentWeight}
+          aiEnabled={state.goals.aiParsingEnabled}
+          handlers={{
+            onAddEntry: handleEntry,
+            onAddWater: addWater,
+            onSetSteps: () => {},
+            onSetSleep: () => {},
+            onSaveWeight: () => {},
           }}
-          onClose={() => setShowScanner(false)}
         />
       )}
 
-      {/* ── Heute gegessen ────────────────────────────────────── */}
-      <section className="panel">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <p className="h3" style={{ margin: 0 }}>Heute gegessen</p>
-          {meals.length > 0 && (
-            <span className="copy" style={{ margin: 0, fontSize: 13 }}>{meals.length} {meals.length === 1 ? 'Eintrag' : 'Einträge'}</span>
-          )}
-        </div>
-        {meals.length === 0 ? (
-          <p className="copy" style={{ textAlign: 'center', padding: '20px 0', color: 'var(--subtle)' }}>
-            Noch nichts eingetragen. Füge deine erste Mahlzeit oben hinzu.
-          </p>
-        ) : (
-          <>
-            {meals.map((meal) => (
-              <MealRow key={meal.id} entry={meal} onDelete={(id) => void removeMeal(id)} />
-            ))}
-            <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-              <span style={{ fontSize: 13, color: 'var(--subtle)' }}>Gesamt</span>
-              <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
-                <strong style={{ fontSize: 13 }}>{totals.kcal} kcal</strong>
-                <span style={{ color: 'var(--teal)' }}>P {Math.round(totals.proteinG)}g</span>
-                <span style={{ color: '#c9a227' }}>K {Math.round(totals.carbsG)}g</span>
-                <span style={{ color: '#d96060' }}>F {Math.round(totals.fatG)}g</span>
-              </div>
-            </div>
-          </>
-        )}
-      </section>
+      {scannerOpen && (
+        <BarcodeScannerModal
+          onLog={async (kcal, proteinG, name, carbsG, fatG) => {
+            await addMeal({
+              name: name ?? 'Gescanntes Produkt',
+              macros: { kcal, proteinG, carbsG: carbsG ?? 0, fatG: fatG ?? 0 },
+              dataQuality: 'verified',
+              source: 'barcode',
+            });
+          }}
+          onClose={() => setScannerOpen(false)}
+        />
+      )}
     </>
+  );
+}
+
+function MacroChip({ label, value, unit = 'g', muted }: { label: string; value: number; unit?: string; muted?: boolean }) {
+  return (
+    <div className="metric-card">
+      <span className="metric-value" style={{ fontSize: 18, color: muted ? 'var(--muted)' : 'var(--text)' }}>
+        {Math.round(value).toLocaleString('de-DE')}
+        <span style={{ fontSize: 12, color: 'var(--subtle)' }}> {unit}</span>
+      </span>
+      <span className="metric-label">{label}</span>
+    </div>
   );
 }
