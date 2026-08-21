@@ -84,7 +84,8 @@ export type BodyMetric = {
   armsCm: number | null;
   /** BIA scale readings (§29). Always shown as estimates, never as exact truth. */
   bia: BiaValues | null;
-  source: 'manual' | 'bia';
+  /** Where the measurement came from — a scale can reach FORGE via Health (§18). */
+  source: 'manual' | 'bia' | 'apple_health';
 };
 
 /** Body-composition values from a BIA scale. Every one of these is an estimate. */
@@ -151,6 +152,36 @@ export type UserGoals = {
   aiCoachEnabled: boolean;
   aiParsingEnabled: boolean;
   units: 'metric' | 'imperial';
+
+  // ── Training setup (§32/§33). Empty means "not configured yet", which the
+  // onboarding uses to decide whether to ask.
+  equipment: import('@/domain/equipment').EquipmentId[];
+  trainingFocus: import('@/domain/equipment').TrainingFocusId[];
+  weeklyTrainingGoal: number | null;
+  onboardedAt: string | null;
+  healthEnabled: boolean;
+};
+
+/**
+ * One entry in the user's goal history (§29).
+ * The active phase is the one with `endDate === null`.
+ */
+export type GoalPhaseRecord = {
+  id: string;
+  phaseType: import('@/domain/goalPhase').PhaseType;
+  label: string;
+  startDate: string;
+  endDate: string | null;
+  caloriesMin: number | null;
+  caloriesMax: number | null;
+  proteinMin: number | null;
+  proteinMax: number | null;
+  stepsGoal: number | null;
+  waterGoalMl: number | null;
+  sleepGoalH: number | null;
+  weeklyTrainingGoal: number | null;
+  weightGoal: number | null;
+  weeklyWeightChangeKg: number | null;
 };
 
 export type NutritionLog = {

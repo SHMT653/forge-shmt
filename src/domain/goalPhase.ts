@@ -10,7 +10,7 @@
 import type { UserGoals } from './types';
 import { calculateTdee } from './macroCalculator';
 
-export type PhaseType = 'cut' | 'recomp' | 'maintain' | 'lean_bulk';
+export type PhaseType = 'cut' | 'recomp' | 'maintain' | 'lean_bulk' | 'custom';
 
 export type TargetRange = { min: number; max: number };
 
@@ -31,6 +31,11 @@ export type PhaseDefinition = {
   proteinPerKg: TargetRange;
   /** expected weekly weight change in kg, used to judge whether things are on track */
   weeklyWeightChangeKg: TargetRange;
+  /**
+   * Which numbers this phase leads with on the dashboard (§37). A cut is judged
+   * on the calorie range; a lean bulk on whether strength is actually rising.
+   */
+  emphasis: ('calories' | 'protein' | 'weight' | 'strength' | 'activity')[];
 };
 
 export const PHASES: Record<PhaseType, PhaseDefinition> = {
@@ -42,6 +47,7 @@ export const PHASES: Record<PhaseType, PhaseDefinition> = {
     kcalOffset: -400,
     proteinPerKg: { min: 2.0, max: 2.4 },
     weeklyWeightChangeKg: { min: -0.7, max: -0.2 },
+    emphasis: ['calories', 'protein', 'weight'],
   },
   recomp: {
     type: 'recomp',
@@ -51,6 +57,7 @@ export const PHASES: Record<PhaseType, PhaseDefinition> = {
     kcalOffset: -150,
     proteinPerKg: { min: 2.0, max: 2.4 },
     weeklyWeightChangeKg: { min: -0.3, max: 0.1 },
+    emphasis: ['protein', 'strength', 'weight'],
   },
   maintain: {
     type: 'maintain',
@@ -60,6 +67,7 @@ export const PHASES: Record<PhaseType, PhaseDefinition> = {
     kcalOffset: 0,
     proteinPerKg: { min: 1.8, max: 2.2 },
     weeklyWeightChangeKg: { min: -0.2, max: 0.2 },
+    emphasis: ['weight', 'activity', 'protein'],
   },
   lean_bulk: {
     type: 'lean_bulk',
@@ -69,13 +77,24 @@ export const PHASES: Record<PhaseType, PhaseDefinition> = {
     kcalOffset: 250,
     proteinPerKg: { min: 1.8, max: 2.2 },
     weeklyWeightChangeKg: { min: 0.1, max: 0.4 },
+    emphasis: ['calories', 'strength', 'protein'],
+  },
+  custom: {
+    type: 'custom',
+    label: 'Eigenes Ziel',
+    short: 'Selbst definiert',
+    description: 'Du legst Kalorien, Protein und die übrigen Zielwerte selbst fest. FORGE schlägt nichts vor und wertet nur gegen deine eigenen Zahlen aus.',
+    kcalOffset: 0,
+    proteinPerKg: { min: 1.6, max: 2.2 },
+    weeklyWeightChangeKg: { min: -0.5, max: 0.5 },
+    emphasis: ['calories', 'protein', 'activity'],
   },
 };
 
-export const PHASE_ORDER: PhaseType[] = ['cut', 'recomp', 'maintain', 'lean_bulk'];
+export const PHASE_ORDER: PhaseType[] = ['cut', 'recomp', 'maintain', 'lean_bulk', 'custom'];
 
 export function isPhaseType(value: string | null | undefined): value is PhaseType {
-  return value === 'cut' || value === 'recomp' || value === 'maintain' || value === 'lean_bulk';
+  return PHASE_ORDER.includes(value as PhaseType);
 }
 
 /** Maps the legacy `goalType` field onto a phase, so existing users land somewhere sensible. */
@@ -96,9 +115,19 @@ export type ResolvedTargets = {
   steps: number;
   waterMl: number;
   sleepH: number;
+  weeklyTrainingGoal: number;
+  weightGoal: number | null;
   /** true when the ranges come from stored user settings rather than being derived */
   explicit: boolean;
 };
+
+/** Fallbacks used only until the user has been through onboarding (§26/§27). */
+export const TARGET_FALLBACKS = {
+  steps: 8000,
+  waterMl: 2500,
+  sleepH: 8,
+  weeklyTrainingGoal: 3,
+} as const;
 
 /**
  * The single place that answers "what are today's targets?".
@@ -146,11 +175,22 @@ export function resolveTargets(goals: UserGoals): ResolvedTargets {
     phase,
     calories,
     protein,
-    steps: goals.stepsGoal ?? 8000,
-    waterMl: goals.waterGoalMl ?? 2500,
-    sleepH: goals.sleepGoalH ?? 8,
+    steps: goals.stepsGoal ?? TARGET_FALLBACKS.steps,
+    waterMl: goals.waterGoalMl ?? TARGET_FALLBACKS.waterMl,
+    sleepH: goals.sleepGoalH ?? TARGET_FALLBACKS.sleepH,
+    weeklyTrainingGoal: goals.weeklyTrainingGoal ?? TARGET_FALLBACKS.weeklyTrainingGoal,
+    weightGoal: goals.weightGoal,
     explicit,
   };
+}
+
+/**
+ * A custom phase must never have targets invented for it — the user said they
+ * want to decide. Only the explicit branch above applies; the derived branch is
+ * skipped by giving it a zero offset and the user's own numbers.
+ */
+export function isDerivable(phaseType: PhaseType): boolean {
+  return phaseType !== 'custom';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

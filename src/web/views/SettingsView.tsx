@@ -12,6 +12,10 @@ import { formatDuration } from '@/domain/dates';
 import { calculateMacros, GOAL_TYPE_LABELS, ACTIVITY_LABELS } from '@/domain/macroCalculator';
 import { GOAL_CATEGORIES, FASTING_PROTOCOLS, getProgram } from '@/domain/programs';
 import { PHASES, PHASE_ORDER, resolveTargets, type PhaseType } from '@/domain/goalPhase';
+import { EQUIPMENT, TRAINING_FOCUS, type EquipmentId, type TrainingFocusId } from '@/domain/equipment';
+import { HealthCard } from '@/web/components/HealthCard';
+import { startPhase } from '@/data/goalPhases';
+import { todayKey } from '@/domain/dates';
 import type { ActivityLevel, Gender, GoalType, UserGoals } from '@/domain/types';
 import type { ProgramId, FastingProtocol } from '@/domain/programs';
 
@@ -95,6 +99,12 @@ export function SettingsView() {
   const [fastingEnabled, setFastingEnabled] = useState(false);
   const [aiCoachEnabled, setAiCoachEnabled] = useState(true);
   const [aiParsingEnabled, setAiParsingEnabled] = useState(true);
+  const [equipment, setEquipment] = useState<EquipmentId[]>([]);
+  const [trainingFocus, setTrainingFocus] = useState<TrainingFocusId[]>([]);
+  const [weeklyTrainingGoal, setWeeklyTrainingGoal] = useState('3');
+  // Remembers which phase was active when the form loaded, so we can tell a
+  // real phase switch from an ordinary edit.
+  const [loadedPhase, setLoadedPhase] = useState<PhaseType | null>(null);
 
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingGoals, setSavingGoals] = useState(false);
@@ -135,6 +145,10 @@ export function SettingsView() {
     setFastingEnabled(goals.fastingEnabled);
     setAiCoachEnabled(goals.aiCoachEnabled);
     setAiParsingEnabled(goals.aiParsingEnabled);
+    setEquipment(goals.equipment);
+    setTrainingFocus(goals.trainingFocus);
+    setWeeklyTrainingGoal(String(resolved.weeklyTrainingGoal));
+    setLoadedPhase(goals.phaseType);
   }, [goals]);
 
   async function handleProfileSubmit(e: React.FormEvent) {
@@ -173,6 +187,9 @@ export function SettingsView() {
       fastingEnabled,
       aiCoachEnabled,
       aiParsingEnabled,
+      equipment,
+      trainingFocus,
+      weeklyTrainingGoal: numberOrNull(weeklyTrainingGoal),
     };
   }
 
@@ -205,8 +222,33 @@ export function SettingsView() {
   async function handleGoalsSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSavingGoals(true);
-    setAutoCalc(null);
-    try { await saveGoals(buildGoalsPayload()); } finally { setSavingGoals(false); }
+    try {
+      const payload = buildGoalsPayload();
+      await saveGoals(payload);
+
+      // Changing the phase closes the old one and opens a new one, so the
+      // history keeps a real date range for each (§29).
+      if (user && phaseType && phaseType !== loadedPhase) {
+        await startPhase(user.id, {
+          phaseType,
+          label: '',
+          startDate: todayKey(),
+          caloriesMin: payload.caloriesMin,
+          caloriesMax: payload.caloriesMax,
+          proteinMin: payload.proteinMin,
+          proteinMax: payload.proteinMax,
+          stepsGoal: payload.stepsGoal,
+          waterGoalMl: payload.waterGoalMl,
+          sleepGoalH: payload.sleepGoalH,
+          weeklyTrainingGoal: payload.weeklyTrainingGoal,
+          weightGoal: payload.weightGoal,
+          weeklyWeightChangeKg: null,
+        });
+        setLoadedPhase(phaseType);
+      }
+    } finally {
+      setSavingGoals(false);
+    }
   }
 
   async function handleSignOut() {
@@ -440,6 +482,49 @@ export function SettingsView() {
             </div>
           </div>
 
+          {/* ── Training setup (§32/§33) ── */}
+          <div style={{ marginTop: 18 }}>
+            <CardHead icon={Target} tone="violet" title="Training" />
+            <p className="copy" style={{ marginTop: 4, fontSize: 13 }}>
+              Womit trainierst du und worauf willst du hinaus? Danach richten sich Mini-Sessions,
+              Planvorschläge und die Antworten des Coaches.
+            </p>
+
+            <p className="section-label" style={{ marginTop: 12 }}>Equipment</p>
+            <div className="chip-row" style={{ marginTop: 8 }}>
+              {EQUIPMENT.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`chip${equipment.includes(item.id) ? ' active' : ''}`}
+                  onClick={() => setEquipment((prev) => (prev.includes(item.id) ? prev.filter((x) => x !== item.id) : [...prev, item.id]))}
+                >
+                  <span aria-hidden>{item.icon}</span> {item.label}
+                </button>
+              ))}
+            </div>
+
+            <p className="section-label" style={{ marginTop: 14 }}>Fokus</p>
+            <div className="chip-row" style={{ marginTop: 8 }}>
+              {TRAINING_FOCUS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`chip${trainingFocus.includes(item.id) ? ' active' : ''}`}
+                  onClick={() => setTrainingFocus((prev) => (prev.includes(item.id) ? prev.filter((x) => x !== item.id) : [...prev, item.id]))}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="field" style={{ marginTop: 14, maxWidth: 240 }}>
+              <label className="field-label" htmlFor="weeklyTraining">Einheiten pro Woche</label>
+              <input id="weeklyTraining" className="input compact" inputMode="numeric"
+                value={weeklyTrainingGoal} onChange={(e) => setWeeklyTrainingGoal(e.target.value)} />
+            </div>
+          </div>
+
           {/* ── Feature switches (§41/§70) ── */}
           <div style={{ marginTop: 18 }}>
             <CardHead icon={ShieldCheck} tone="violet" title="Funktionen" />
@@ -472,6 +557,9 @@ export function SettingsView() {
           </div>
         </form>
       </section>
+
+      {/* Apple Health (§9) — renders a plain explanation in the browser */}
+      <HealthCard />
 
       {/* Goal selection — specific goals in categories */}
       <section className="panel">

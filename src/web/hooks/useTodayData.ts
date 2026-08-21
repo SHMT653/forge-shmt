@@ -19,7 +19,9 @@ import { getCheckin, saveCheckin } from '@/data/checkins';
 import { getTodayCardioKcal } from '@/data/cardio';
 import { getUserGoals } from '@/data/profile';
 import { listBodyMetrics, listProgressPhotos } from '@/data/progress';
-import { buildDayMetrics, metricsForDate, pickMetricHabits, setDayMetric, type DayMetrics } from '@/data/dailyMetrics';
+import { buildDayMetrics, mergeHealth, metricsForDate, pickMetricHabits, setDayMetric, type DayMetrics } from '@/data/dailyMetrics';
+import { listDailyHealth, setHealthMetric } from '@/data/dailyHealth';
+import { getActivePhase } from '@/data/goalPhases';
 import { errorMessage } from '@/domain/errors';
 import { consecutiveDayStreak } from '@/domain/streaks';
 import { dateKeyAddDays, todayKey } from '@/domain/dates';
@@ -38,6 +40,7 @@ import {
   type DayScore,
 } from '@/domain/coach';
 import type {
+  GoalPhaseRecord,
   DailyCheckin,
   FoodItem,
   Habit,
@@ -54,9 +57,35 @@ import type {
 
 const HISTORY_DAYS = 120;
 
+/**
+ * Overlays an active goal phase onto the profile.
+ *
+ * Phase values win where they are set; anything the phase leaves null falls
+ * through to the profile, then to the derived defaults. No target is ever read
+ * from a constant in a component (§51).
+ */
+function applyPhase(goals: UserGoals, phase: GoalPhaseRecord | null): UserGoals {
+  if (!phase) return goals;
+  return {
+    ...goals,
+    phaseType: phase.phaseType,
+    caloriesMin: phase.caloriesMin ?? goals.caloriesMin,
+    caloriesMax: phase.caloriesMax ?? goals.caloriesMax,
+    proteinMin: phase.proteinMin ?? goals.proteinMin,
+    proteinMax: phase.proteinMax ?? goals.proteinMax,
+    stepsGoal: phase.stepsGoal ?? goals.stepsGoal,
+    waterGoalMl: phase.waterGoalMl ?? goals.waterGoalMl,
+    sleepGoalH: phase.sleepGoalH ?? goals.sleepGoalH,
+    weeklyTrainingGoal: phase.weeklyTrainingGoal ?? goals.weeklyTrainingGoal,
+    weightGoal: phase.weightGoal ?? goals.weightGoal,
+  };
+}
+
 export type TodayData = {
   goals: UserGoals;
   targets: ResolvedTargets;
+  /** The running goal phase, when the user has started one (§29/§38). */
+  activePhase: GoalPhaseRecord | null;
 
   // training
   activePlan: TrainingPlan | null;
@@ -115,6 +144,7 @@ export function useTodayData() {
       const [
         plans, activeSession, habits, habitLogs, entries, goals, metrics, completedDates,
         recentSessions, cardioKcal, foods, recipes, batches, checkin, photos, weekLogs,
+        healthDays, activePhase,
       ] = await Promise.all([
         listPlans(user.id),
         getActiveSession(user.id),
@@ -132,9 +162,13 @@ export function useTodayData() {
         getCheckin(user.id, today),
         listProgressPhotos(user.id),
         listNutritionLogs(user.id, dateKeyAddDays(today, -6), today),
+        listDailyHealth(user.id, since, today),
+        getActivePhase(user.id),
       ]);
 
-      const targets = resolveTargets(goals);
+      // The active phase, when there is one, overrides the profile defaults —
+      // that is what makes switching from cut to bulk a data change (§29).
+      const targets = resolveTargets(applyPhase(goals, activePhase));
 
       // ── Training ────────────────────────────────────────────────────
       const activePlan = plans.find((p) => p.isActive) ?? plans[0] ?? null;
@@ -156,7 +190,7 @@ export function useTodayData() {
       const todayLogs = new Map<string, HabitLog>();
       for (const log of habitLogs) if (log.logDate === today) todayLogs.set(log.habitId, log);
 
-      const metricsByDate = buildDayMetrics(habits, habitLogs);
+      const metricsByDate = mergeHealth(buildDayMetrics(habits, habitLogs), healthDays);
       const dayMetrics = metricsForDate(metricsByDate, today);
 
       // ── Nutrition ───────────────────────────────────────────────────
@@ -218,7 +252,7 @@ export function useTodayData() {
           fullWorkoutsThisWeek,
           miniSessionsThisWeek,
           plannedDayName: suggestedDay?.name ?? null,
-          weeklyTarget: 3,
+          weeklyTarget: targets.weeklyTrainingGoal,
         },
         soreness: checkin?.soreness ?? null,
         weight,
@@ -230,6 +264,7 @@ export function useTodayData() {
       setData({
         goals,
         targets,
+        activePhase,
         activePlan,
         suggestedDay,
         activeSession,
@@ -276,12 +311,16 @@ export function useTodayData() {
 
   const metricHabits = useMemo(() => pickMetricHabits(data?.habits ?? []), [data?.habits]);
 
-  /** Writes one of the habit-backed day metrics (steps / water / sleep). */
+  /**
+   * Writes a day metric.
+   *
+   * Steps and sleep go to the health store so their source is recorded and a
+   * later sync knows not to overwrite this value; water stays a habit.
+   */
   const setMetric = useCallback(
     async (key: 'steps' | 'water' | 'sleep', value: number) => {
       if (!user) return;
-      const habit = metricHabits[key];
-      if (!habit) return;
+
       // Optimistic — these are tapped repeatedly and must feel instant.
       setData((prev) =>
         prev
@@ -290,11 +329,23 @@ export function useTodayData() {
               metrics: {
                 ...prev.metrics,
                 ...(key === 'water' ? { waterMl: value } : key === 'steps' ? { steps: value } : { sleepH: value }),
+                ...(key !== 'water'
+                  ? { sources: { ...prev.metrics.sources, [key]: 'manual' as const } }
+                  : {}),
               },
             }
           : prev,
       );
-      await setDayMetric(user.id, habit, todayKey(), value);
+
+      const today = todayKey();
+      if (key === 'water') {
+        const habit = metricHabits.water;
+        if (habit) await setDayMetric(user.id, habit, today, value);
+      } else if (key === 'steps') {
+        await setHealthMetric(user.id, today, 'steps', Math.round(value), 'manual');
+      } else {
+        await setHealthMetric(user.id, today, 'sleepMinutes', Math.round(value * 60), 'manual');
+      }
       void load();
     },
     [user, metricHabits, load],

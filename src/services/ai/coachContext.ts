@@ -5,6 +5,8 @@ import { formatHours, formatLiters } from '@/domain/coach';
 import { weekBoundsFor } from '@/domain/weeklyReview';
 import { dateKeyAddDays } from '@/domain/dates';
 import { GOALS_DEFAULTS } from '@/data/profile';
+import { equipmentLabel, focusLabel, isEquipmentId, isTrainingFocusId } from '@/domain/equipment';
+import { formatSleep } from '@/domain/health';
 import type { LibraryEntry } from './provider';
 import type { BodyMetric, UserGoals } from '@/domain/types';
 
@@ -48,6 +50,9 @@ async function loadGoals(userId: string): Promise<UserGoals> {
     stepsGoal: data.steps_goal === null || data.steps_goal === undefined ? null : num(data.steps_goal),
     waterGoalMl: data.water_goal_ml === null || data.water_goal_ml === undefined ? null : num(data.water_goal_ml),
     sleepGoalH: data.sleep_goal_h === null || data.sleep_goal_h === undefined ? null : num(data.sleep_goal_h),
+    weeklyTrainingGoal: data.weekly_training_goal === null || data.weekly_training_goal === undefined ? null : num(data.weekly_training_goal),
+    equipment: Array.isArray(data.equipment) ? data.equipment.filter((x): x is string => typeof x === 'string').filter(isEquipmentId) : [],
+    trainingFocus: Array.isArray(data.training_focus) ? data.training_focus.filter((x): x is string => typeof x === 'string').filter(isTrainingFocusId) : [],
   };
 }
 
@@ -90,7 +95,7 @@ export async function buildCoachContext(userId: string, today: string): Promise<
   const week = weekBoundsFor(today);
   const since = dateKeyAddDays(today, -30);
 
-  const [goals, nutritionRes, entriesRes, habitsRes, logsRes, metricsRes, sessionsRes, checkinRes, recipesRes] =
+  const [goals, nutritionRes, entriesRes, habitsRes, logsRes, metricsRes, sessionsRes, checkinRes, recipesRes, phaseRes, healthRes] =
     await Promise.all([
       loadGoals(userId),
       supabase.from('forge_nutrition_logs').select('log_date, calories, protein_g').eq('user_id', userId).gte('log_date', since).order('log_date'),
@@ -101,16 +106,41 @@ export async function buildCoachContext(userId: string, today: string): Promise<
       supabase.from('forge_workout_sessions').select('day_name, completed_at, duration_seconds, kind').eq('user_id', userId).not('completed_at', 'is', null).order('completed_at', { ascending: false }).limit(20),
       supabase.from('forge_daily_checkins').select('soreness, soreness_area, energy').eq('user_id', userId).eq('log_date', today).maybeSingle(),
       supabase.from('forge_recipes').select('name, is_meal_prep').eq('user_id', userId).limit(30),
+      supabase.from('forge_goal_phases').select('phase_type, label, start_date, calories_min, calories_max, protein_min, protein_max, steps_goal, weekly_training_goal').eq('user_id', userId).is('end_date', null).maybeSingle(),
+      supabase.from('forge_daily_health').select('log_date, steps, sleep_minutes, active_energy_kcal, steps_source, sleep_source').eq('user_id', userId).gte('log_date', dateKeyAddDays(today, -7)),
     ]);
 
-  const targets = resolveTargets(goals);
+  const phase = phaseRes.data;
+  const effectiveGoals: UserGoals = phase
+    ? {
+        ...goals,
+        phaseType: (phase.phase_type ?? goals.phaseType) as UserGoals['phaseType'],
+        caloriesMin: num(phase.calories_min) ?? goals.caloriesMin,
+        caloriesMax: num(phase.calories_max) ?? goals.caloriesMax,
+        proteinMin: num(phase.protein_min) ?? goals.proteinMin,
+        proteinMax: num(phase.protein_max) ?? goals.proteinMax,
+        stepsGoal: num(phase.steps_goal) ?? goals.stepsGoal,
+        weeklyTrainingGoal: num(phase.weekly_training_goal) ?? goals.weeklyTrainingGoal,
+      }
+    : goals;
+
+  const targets = resolveTargets(effectiveGoals);
   const lines: string[] = [];
 
   // ── Goals ─────────────────────────────────────────────────────────
-  lines.push(`Phase: ${targets.phase.label} (${targets.phase.short})`);
+  // The coach must never carry a hard-coded idea of what the user wants (§39).
+  lines.push(`Phase: ${phase?.label?.trim() || targets.phase.label} (${targets.phase.short})`);
+  if (phase?.start_date) lines.push(`Phase läuft seit: ${phase.start_date}`);
   lines.push(`Zielbereich Kalorien: ${targets.calories.min}–${targets.calories.max} kcal`);
   lines.push(`Zielbereich Protein: ${targets.protein.min}–${targets.protein.max} g`);
   lines.push(`Ziele: ${targets.steps} Schritte, ${formatLiters(targets.waterMl)} Wasser, ${formatHours(targets.sleepH)} Schlaf`);
+  lines.push(`Trainingsziel: ${targets.weeklyTrainingGoal} Einheiten pro Woche`);
+  if (effectiveGoals.equipment.length > 0) {
+    lines.push(`Verfügbares Equipment: ${effectiveGoals.equipment.map(equipmentLabel).join(', ')}`);
+  }
+  if (effectiveGoals.trainingFocus.length > 0) {
+    lines.push(`Trainingsfokus: ${effectiveGoals.trainingFocus.map(focusLabel).join(', ')}`);
+  }
 
   // ── Today ─────────────────────────────────────────────────────────
   const todayLog = (nutritionRes.data ?? []).find((r) => r.log_date === today);
@@ -138,9 +168,17 @@ export async function buildCoachContext(userId: string, today: string): Promise<
     if (!habit) return 0;
     return num(logs.find((l) => l.habit_id === habit.id && l.log_date === date)?.value);
   };
-  lines.push(`Schritte heute: ${valueFor('steps', today)}`);
+  // Health data wins over the habit log where it exists — never summed (§43).
+  const healthToday = (healthRes.data ?? []).find((row) => row.log_date === today);
+  const stepsToday = healthToday?.steps !== null && healthToday?.steps !== undefined ? num(healthToday.steps) : valueFor('steps', today);
+  const sleepMinutes = healthToday?.sleep_minutes !== null && healthToday?.sleep_minutes !== undefined
+    ? num(healthToday.sleep_minutes)
+    : valueFor('sleep', today) * 60;
+
+  lines.push(`Schritte heute: ${stepsToday}${healthToday?.steps_source === 'apple_health' ? ' (aus Apple Health)' : ''}`);
   lines.push(`Wasser heute: ${valueFor('water', today)} ml`);
-  lines.push(`Schlaf letzte Nacht: ${valueFor('sleep', today)} h`);
+  lines.push(`Schlaf letzte Nacht: ${formatSleep(sleepMinutes)}${healthToday?.sleep_source === 'apple_health' ? ' (aus Apple Health)' : ''}`);
+  if (healthToday?.active_energy_kcal) lines.push(`Aktive Energie heute: ${num(healthToday.active_energy_kcal)} kcal (Apple Health)`);
 
   const checkin = checkinRes.data;
   if (checkin?.soreness) {
@@ -192,7 +230,7 @@ export async function buildCoachContext(userId: string, today: string): Promise<
   });
   lines.push('');
   lines.push('TRAINING');
-  lines.push(`Diese Woche: ${thisWeek.filter((s) => s.kind !== 'mini').length} volle Einheiten, ${thisWeek.filter((s) => s.kind === 'mini').length} Mini-Sessions`);
+  lines.push(`Diese Woche: ${thisWeek.filter((s) => s.kind !== 'mini').length} von ${targets.weeklyTrainingGoal} vollen Einheiten, ${thisWeek.filter((s) => s.kind === 'mini').length} Mini-Sessions`);
   if (sessions.length > 0) {
     lines.push('Letzte Einheiten:');
     for (const s of sessions.slice(0, 5)) {

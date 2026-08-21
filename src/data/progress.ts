@@ -38,7 +38,7 @@ function toMetric(row: Record<string, unknown>): BodyMetric {
     chestCm: num(row.chest_cm),
     armsCm: num(row.arms_cm),
     bia: toBia(row),
-    source: row.source === 'bia' ? 'bia' : 'manual',
+    source: row.source === 'bia' ? 'bia' : row.source === 'apple_health' ? 'apple_health' : 'manual',
   };
 }
 
@@ -60,7 +60,7 @@ export type BodyMetricInput = {
   chestCm: number | null;
   armsCm: number | null;
   bia?: Partial<BiaValues> | null;
-  source?: 'manual' | 'bia';
+  source?: 'manual' | 'bia' | 'apple_health';
 };
 
 export async function saveBodyMetric(userId: string, logDate: string, values: BodyMetricInput): Promise<void> {

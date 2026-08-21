@@ -17,6 +17,9 @@ import type { DataQuality, Soreness } from './types';
 
 export type CoachContext = {
   today: string;
+  /** Empty when the user has not configured a setup yet. */
+  equipment?: readonly string[];
+  trainingFocus?: readonly string[];
   /** Local hour 0–23, used to decide whether the day is still in progress. */
   hour: number;
   targets: ResolvedTargets;
@@ -201,6 +204,14 @@ export function buildHeadline(ctx: CoachContext): string {
   // Day is done and clearly under — flag it, because under-eating is not a win.
   if (!inProgress && kcalEval.status === 'far_under') {
     return `Du liegst heute deutlich unter deinem Zielbereich (${Math.round(nutrition.kcal).toLocaleString('de-DE')} von ${targets.calories.min.toLocaleString('de-DE')}–${targets.calories.max.toLocaleString('de-DE')} kcal). Für Regeneration und Leistung wäre eine weitere ausgewogene Mahlzeit sinnvoll.`;
+  }
+
+  // In a surplus phase, calories still missing are the goal, not headroom —
+  // the same 1.500 kcal means opposite things in a cut and a lean bulk (§36).
+  const wantsSurplus = targets.phase.type === 'lean_bulk';
+  if (wantsSurplus && nutrition.kcal < targets.calories.min) {
+    const missing = targets.calories.min - nutrition.kcal;
+    return `Für deinen Aufbau fehlen heute noch etwa ${Math.round(missing).toLocaleString('de-DE')} kcal${proteinLeft > 5 ? ` und ${Math.round(proteinLeft)} g Protein` : ''}. Ohne den Überschuss fehlt dem Muskelaufbau die Grundlage.`;
   }
 
   // The normal case: what is still missing today.

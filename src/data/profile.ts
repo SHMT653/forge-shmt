@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '@/services/supabase/client';
+import { isEquipmentId, isTrainingFocusId, type EquipmentId, type TrainingFocusId } from '@/domain/equipment';
 import type { ActivityLevel, Gender, GoalType, Profile, UserGoals } from '@/domain/types';
 
 export async function ensureProfile(userId: string, displayName: string): Promise<Profile> {
@@ -59,6 +60,11 @@ export const GOALS_DEFAULTS: UserGoals = {
   aiCoachEnabled: true,
   aiParsingEnabled: true,
   units: 'metric',
+  equipment: [],
+  trainingFocus: [],
+  weeklyTrainingGoal: null,
+  onboardedAt: null,
+  healthEnabled: false,
 };
 
 const GOALS_COLUMNS =
@@ -66,7 +72,19 @@ const GOALS_COLUMNS =
   'activity_level, goal_type, program_id, fasting_protocol, fasting_start_hour, ' +
   'phase_type, phase_start_date, phase_end_date, calories_min, calories_max, protein_min, protein_max, ' +
   'steps_goal, water_goal_ml, sleep_goal_h, weigh_in_weekday, photo_interval_days, ' +
-  'fasting_enabled, ai_coach_enabled, ai_parsing_enabled, units';
+  'fasting_enabled, ai_coach_enabled, ai_parsing_enabled, units, ' +
+  'equipment, training_focus, weekly_training_goal, onboarded_at, health_enabled';
+
+/** Postgres text[] arrives as an array; filter it down to ids we know. */
+function toEquipment(value: unknown): EquipmentId[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is EquipmentId => typeof item === 'string' && isEquipmentId(item));
+}
+
+function toFocus(value: unknown): TrainingFocusId[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is TrainingFocusId => typeof item === 'string' && isTrainingFocusId(item));
+}
 
 /** Postgres `numeric` arrives as a string; `integer` as a number. Normalise both. */
 function num(value: unknown): number | null {
@@ -114,6 +132,11 @@ export async function getUserGoals(userId: string): Promise<UserGoals> {
     aiCoachEnabled: (data.ai_coach_enabled as boolean | null) ?? true,
     aiParsingEnabled: (data.ai_parsing_enabled as boolean | null) ?? true,
     units: (data.units === 'imperial' ? 'imperial' : 'metric'),
+    equipment: toEquipment(data.equipment),
+    trainingFocus: toFocus(data.training_focus),
+    weeklyTrainingGoal: num(data.weekly_training_goal),
+    onboardedAt: (data.onboarded_at as string | null) ?? null,
+    healthEnabled: (data.health_enabled as boolean | null) ?? false,
   };
 }
 
@@ -150,6 +173,11 @@ export async function saveUserGoals(userId: string, goals: UserGoals): Promise<v
       ai_coach_enabled: goals.aiCoachEnabled,
       ai_parsing_enabled: goals.aiParsingEnabled,
       units: goals.units,
+      equipment: goals.equipment,
+      training_focus: goals.trainingFocus,
+      weekly_training_goal: goals.weeklyTrainingGoal,
+      onboarded_at: goals.onboardedAt,
+      health_enabled: goals.healthEnabled,
     },
     { onConflict: 'user_id' },
   );

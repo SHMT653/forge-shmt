@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateGoal, evaluateRange, formatRange, resolveTargets, PHASES } from '@/domain/goalPhase';
+import { evaluateGoal, evaluateRange, formatRange, isDerivable, resolveTargets, PHASES, TARGET_FALLBACKS } from '@/domain/goalPhase';
 import { GOALS_DEFAULTS } from '@/data/profile';
 import type { UserGoals } from '@/domain/types';
 
@@ -129,5 +129,41 @@ describe('recentHitRate (§43)', () => {
   it('is zero for an empty history without throwing', async () => {
     const { recentHitRate } = await import('@/domain/streaks');
     expect(recentHitRate([])).toEqual({ hits: 0, total: 7 });
+  });
+});
+
+describe('phase history and flexibility (§22–§29)', () => {
+  it('supports a custom phase so nothing is forced on the user', () => {
+    const targets = resolveTargets(goals({ phaseType: 'custom', caloriesMin: 1800, caloriesMax: 2000 }));
+    expect(targets.phase.type).toBe('custom');
+    expect(targets.calories).toEqual({ min: 1800, max: 2000 });
+  });
+
+  it('leads with different numbers per phase (§37)', () => {
+    expect(resolveTargets(goals({ phaseType: 'cut' })).phase.emphasis).toContain('calories');
+    expect(resolveTargets(goals({ phaseType: 'lean_bulk' })).phase.emphasis).toContain('strength');
+    expect(resolveTargets(goals({ phaseType: 'maintain' })).phase.emphasis[0]).toBe('weight');
+  });
+
+  it('takes the weekly training goal from the user, not a constant', () => {
+    expect(resolveTargets(goals({ weeklyTrainingGoal: 5 })).weeklyTrainingGoal).toBe(5);
+  });
+
+  it('falls back only when the user has set nothing', () => {
+    const targets = resolveTargets(goals());
+    expect(targets.weeklyTrainingGoal).toBe(TARGET_FALLBACKS.weeklyTrainingGoal);
+    expect(targets.steps).toBe(TARGET_FALLBACKS.steps);
+  });
+
+  it('honours every user-set target over the fallback', () => {
+    const targets = resolveTargets(goals({ stepsGoal: 12000, waterGoalMl: 3500, sleepGoalH: 7 }));
+    expect(targets.steps).toBe(12000);
+    expect(targets.waterMl).toBe(3500);
+    expect(targets.sleepH).toBe(7);
+  });
+
+  it('never derives targets for a custom phase', () => {
+    expect(isDerivable('custom')).toBe(false);
+    expect(isDerivable('cut')).toBe(true);
   });
 });

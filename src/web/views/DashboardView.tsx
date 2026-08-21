@@ -15,20 +15,20 @@ import { QuickAddSheet } from '@/web/components/QuickAddSheet';
 import { AiQuickInput } from '@/web/components/AiQuickInput';
 import { CoachDrawer } from '@/web/components/CoachDrawer';
 import { SorenessPicker } from '@/web/components/SorenessPicker';
+import { GoalCard } from '@/web/components/GoalCard';
+import { SourceBadge } from '@/web/components/SourceBadge';
 import { BarcodeScannerModal } from '@/web/components/BarcodeScannerModal';
+import { OnboardingView } from '@/web/views/OnboardingView';
 import { evaluateRange, TONE_COLOR } from '@/domain/goalPhase';
 import { isDayInProgress } from '@/domain/coach';
 import { macrosForServings } from '@/domain/nutritionMath';
 import { saveBodyMetric } from '@/data/progress';
 import { startMiniSession } from '@/data/workouts';
+import { suggestMiniSession } from '@/domain/miniSessions';
+import { useHealth } from '@/web/hooks/useHealth';
 import { useAuth } from '@/web/hooks/useAuth';
 import { todayKey } from '@/domain/dates';
 import type { MealEntryInput } from '@/data/nutrition';
-
-const MINI_SESSION = [
-  { name: 'Liegestütze', sets: 3, targetReps: '8-12' },
-  { name: 'Plank', sets: 2, targetReps: '45-60' },
-];
 
 function todayLabel(): string {
   return new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -39,6 +39,9 @@ export function DashboardView() {
     useTodayData();
   const { user } = useAuth();
   const router = useRouter();
+  // Pull fresh health data on mount and on app resume (§12). Resolves to a
+  // no-op in the browser.
+  const health = useHealth({ autoSync: true });
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
@@ -111,6 +114,11 @@ export function DashboardView() {
     );
   }
 
+  // First run: ask for goals before showing a dashboard full of defaults (§26).
+  if (!data.goals.onboardedAt) {
+    return <OnboardingView goals={data.goals} onDone={() => void reload()} />;
+  }
+
   const { targets, totals, metrics, dayStatus, insights, headline } = data;
   const inProgress = isDayInProgress(new Date().getHours());
   const kcalEval = evaluateRange(totals.kcal, targets.calories, { dayInProgress: inProgress });
@@ -128,10 +136,11 @@ export function DashboardView() {
   }
 
   async function handleStartMini() {
-    if (!user) return;
+    if (!user || !data) return;
     setStarting(true);
     try {
-      const sessionId = await startMiniSession(user.id, 'Quick Push', MINI_SESSION);
+      const session = suggestMiniSession(data.goals.equipment);
+      const sessionId = await startMiniSession(user.id, session.name, session.exercises);
       router.push(`/workout/${sessionId}`);
     } finally {
       setStarting(false);
@@ -237,7 +246,18 @@ export function DashboardView() {
         <div style={{ marginTop: 16 }}>
           <StatusStrip items={dayStatus} />
         </div>
+
+        {(metrics.sources.steps === 'apple_health' || metrics.sources.sleep === 'apple_health') && (
+          <p className="muted-sm" style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <SourceBadge source="apple_health" />
+            Schritte und Schlaf kommen automatisch aus Apple Health
+            {health.state.syncing ? ' · wird aktualisiert …' : ''}
+          </p>
+        )}
       </section>
+
+      {/* ── Current goal phase (§38) ──────────────────────────────────── */}
+      <GoalCard targets={targets} phase={data.activePhase} />
 
       {/* ── Coach ─────────────────────────────────────────────────────── */}
       <CoachCard
