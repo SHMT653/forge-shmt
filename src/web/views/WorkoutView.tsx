@@ -232,7 +232,7 @@ function CardioExercisePanel({
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function WorkoutView({ sessionId }: { sessionId: string }) {
-  const { session, loading, error, lastPerformance, saveSet, finish, abandon } = useActiveWorkout(sessionId);
+  const { session, loading, error, lastPerformance, saveSet, addSet, finish, abandon } = useActiveWorkout(sessionId);
   const { user } = useAuth();
   const router = useRouter();
   const [exerciseIndex, setExerciseIndex] = useState(0);
@@ -377,6 +377,15 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
               />
             ))}
           </div>
+
+          <button
+            type="button"
+            className="button ghost compact"
+            style={{ marginTop: 10, width: '100%' }}
+            onClick={() => void addSet(exercise.id)}
+          >
+            + Satz hinzufügen
+          </button>
         </div>
       )}
 

@@ -5,35 +5,35 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Flame, Dumbbell, TrendingUp, CheckCircle2, Settings, Search, LogOut, Menu, X, Check, Utensils, Moon,
+  Flame, Dumbbell, TrendingUp, CheckCircle2, Settings, LogOut, Menu, X, Utensils, Moon, BookOpen, Activity,
 } from 'lucide-react';
 import { useAuth } from '@/web/hooks/useAuth';
 import { signOut } from '@/services/supabase/auth';
 
-const ALL_NAV = [
-  { href: '/',           label: 'Heute',          icon: Flame },
-  { href: '/plans',      label: 'Pläne',          icon: Dumbbell },
-  { href: '/nutrition',  label: 'Ernährung',      icon: Utensils },
-  { href: '/sleep',      label: 'Zeiten',         icon: Moon },
-  { href: '/progress',   label: 'Fortschritt',    icon: TrendingUp },
-  { href: '/habits',     label: 'Gewohnheiten',   icon: CheckCircle2 },
-  { href: '/settings',   label: 'Einstellungen',  icon: Settings },
+/**
+ * One primary navigation, four destinations (§49).
+ *
+ * The app previously offered a hamburger drawer AND a long-press-customisable
+ * bottom bar covering the same seven routes, which meant two ways to reach
+ * everything and no clear hierarchy. Now the bottom bar is the four screens
+ * you use daily and the drawer holds everything else.
+ */
+const PRIMARY_NAV = [
+  { href: '/',          label: 'Heute',       icon: Flame },
+  { href: '/plans',     label: 'Training',    icon: Dumbbell },
+  { href: '/nutrition', label: 'Ernährung',   icon: Utensils },
+  { href: '/progress',  label: 'Fortschritt', icon: TrendingUp },
 ] as const;
 
-const DEFAULT_BOTTOM = ['/', '/nutrition', '/sleep', '/plans'] as const;
-const STORAGE_KEY = 'forge_bottom_nav';
+const SECONDARY_NAV = [
+  { href: '/recipes',  label: 'Rezepte',       icon: BookOpen },
+  { href: '/habits',   label: 'Gewohnheiten',  icon: CheckCircle2 },
+  { href: '/cardio',   label: 'Cardio',        icon: Activity },
+  { href: '/sleep',    label: 'Essensfenster', icon: Moon },
+  { href: '/settings', label: 'Einstellungen', icon: Settings },
+] as const;
 
-function loadBottomKeys(): string[] {
-  if (typeof window === 'undefined') return [...DEFAULT_BOTTOM];
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored) as string[];
-      if (Array.isArray(parsed) && parsed.length === 4) return parsed;
-    }
-  } catch { /* ignore */ }
-  return [...DEFAULT_BOTTOM];
-}
+const ALL_NAV = [...PRIMARY_NAV, ...SECONDARY_NAV];
 
 function greetingForHour(hour: number): string {
   if (hour < 5)  return 'Guten Abend';
@@ -95,53 +95,14 @@ function ProfileCard({ user }: { user: { email?: string | null; user_metadata?: 
 }
 
 function AppHeader({ user }: { user: { email?: string | null; user_metadata?: Record<string, unknown> } }) {
-  const router = useRouter();
-  const [query, setQuery] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
   const name = displayNameFor(user);
   const greeting = useMemo(() => greetingForHour(new Date().getHours()), []);
-  const dateLabel = useMemo(
-    () => new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
-    [],
-  );
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        inputRef.current?.focus();
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    const needle = query.trim().toLowerCase();
-    if (!needle) return;
-    const match = ALL_NAV.find((n) => n.label.toLowerCase().includes(needle));
-    if (match) { router.push(match.href); setQuery(''); inputRef.current?.blur(); }
-  }
 
   return (
     <div className="app-header">
-      <div>
-        <h1 className="greeting-title">{greeting}{name ? `, ${name}` : ''} 👋</h1>
-        <p className="greeting-date">{dateLabel}</p>
+      <div style={{ minWidth: 0 }}>
+        <h1 className="greeting-title">{greeting}{name ? `, ${name}` : ''}</h1>
       </div>
-      <form className="search-field" onSubmit={handleSearch} role="search">
-        <Search size={16} />
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder="Suchen …"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="In FORGE suchen"
-        />
-        <span className="search-kbd">⌘K</span>
-      </form>
     </div>
   );
 }
@@ -181,7 +142,19 @@ function Drawer({ open, onClose, pathname, user }: {
         </div>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-          {ALL_NAV.map(({ href, label, icon: Icon }) => (
+          {PRIMARY_NAV.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}
+              onClick={onClose}
+            >
+              <Icon size={18} />
+              <span>{label}</span>
+            </Link>
+          ))}
+          <p className="section-label" style={{ margin: '12px 0 4px 13px' }}>Mehr</p>
+          {SECONDARY_NAV.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
               href={href}
@@ -209,84 +182,17 @@ function Drawer({ open, onClose, pathname, user }: {
   );
 }
 
-/* ── Customisable 4-item bottom nav ─────────────────────── */
+/* ── Fixed 4-item bottom nav ─────────────────────────────── */
 function BottomNav({ pathname }: { pathname: string }) {
-  const [bottomKeys, setBottomKeys] = useState<string[]>(() => loadBottomKeys());
-  const [customising, setCustomising] = useState(false);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  function startLongPress() {
-    longPressTimer.current = setTimeout(() => setCustomising(true), 600);
-  }
-  function cancelLongPress() {
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-  }
-
-  function toggleItem(href: string) {
-    setBottomKeys((prev) => {
-      const next = prev.includes(href)
-        ? prev.filter((k) => k !== href)
-        : prev.length < 4 ? [...prev, href] : prev;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
-  }
-
-  const bottomItems = ALL_NAV.filter((n) => bottomKeys.includes(n.href));
-
   return (
-    <>
-      {customising && (
-        <>
-          <div className="drawer-overlay open" onClick={() => setCustomising(false)} aria-hidden />
-          <div className="nav-customize-panel">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <p className="h3" style={{ margin: 0, fontSize: 15 }}>Navigation anpassen</p>
-              <button type="button" className="button ghost compact" onClick={() => setCustomising(false)}><X size={16} /></button>
-            </div>
-            <p className="copy" style={{ marginTop: 4, marginBottom: 0, fontSize: 12 }}>Wähle 4 Seiten für die Leiste unten.</p>
-            <div className="nav-customize-grid">
-              {ALL_NAV.map(({ href, label, icon: Icon }) => {
-                const selected = bottomKeys.includes(href);
-                return (
-                  <button
-                    key={href}
-                    type="button"
-                    className={`nav-button${selected ? ' active' : ''}`}
-                    style={{ flexDirection: 'column', gap: 4, minHeight: 64, justifyContent: 'center', fontSize: 12 }}
-                    onClick={() => toggleItem(href)}
-                    disabled={!selected && bottomKeys.length >= 4}
-                  >
-                    <Icon size={18} />
-                    <span>{label}</span>
-                    {selected && <Check size={12} style={{ position: 'absolute', top: 6, right: 6 }} />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </>
-      )}
-
-      <nav
-        className="bottom-nav"
-        onMouseDown={startLongPress}
-        onMouseUp={cancelLongPress}
-        onTouchStart={startLongPress}
-        onTouchEnd={cancelLongPress}
-      >
-        {bottomItems.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}
-          >
-            <Icon size={20} />
-            <span>{label}</span>
-          </Link>
-        ))}
-      </nav>
-    </>
+    <nav className="bottom-nav" aria-label="Hauptnavigation">
+      {PRIMARY_NAV.map(({ href, label, icon: Icon }) => (
+        <Link key={href} href={href} className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}>
+          <Icon size={20} />
+          <span>{label}</span>
+        </Link>
+      ))}
+    </nav>
   );
 }
 
@@ -322,7 +228,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Brand />
         </Link>
         <nav className="nav-list">
-          {ALL_NAV.map(({ href, label, icon: Icon }) => (
+          {PRIMARY_NAV.map(({ href, label, icon: Icon }) => (
+            <Link key={href} href={href} className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}>
+              <Icon size={18} />
+              <span>{label}</span>
+            </Link>
+          ))}
+          <p className="section-label" style={{ margin: '14px 0 2px 13px' }}>Mehr</p>
+          {SECONDARY_NAV.map(({ href, label, icon: Icon }) => (
             <Link key={href} href={href} className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}>
               <Icon size={18} />
               <span>{label}</span>

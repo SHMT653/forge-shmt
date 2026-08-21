@@ -11,8 +11,49 @@ import { CardHead } from '@/web/components/CardHead';
 import { formatDuration } from '@/domain/dates';
 import { calculateMacros, GOAL_TYPE_LABELS, ACTIVITY_LABELS } from '@/domain/macroCalculator';
 import { GOAL_CATEGORIES, FASTING_PROTOCOLS, getProgram } from '@/domain/programs';
+import { PHASES, PHASE_ORDER, resolveTargets, type PhaseType } from '@/domain/goalPhase';
 import type { ActivityLevel, Gender, GoalType, UserGoals } from '@/domain/types';
 import type { ProgramId, FastingProtocol } from '@/domain/programs';
+
+const WEEKDAYS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+
+function numberOrNull(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed.replace(',', '.'));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function ToggleRow({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <div className="habit-row" style={{ padding: '12px 14px' }}>
+      <div className="habit-body">
+        <p className="h3" style={{ fontSize: 14 }}>{label}</p>
+        <p className="muted-sm">{hint}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        onClick={() => onChange(!checked)}
+        className={`habit-toggle${checked ? ' done' : ''}`}
+      >
+        {checked ? '✓' : ''}
+      </button>
+    </div>
+  );
+}
 
 const GENDER_OPTIONS: { value: Gender; label: string }[] = [
   { value: 'male',   label: 'Männlich' },
@@ -40,6 +81,21 @@ export function SettingsView() {
   const [fastingStartHour, setFastingStartHour] = useState(12);
   const [autoCalc, setAutoCalc] = useState<{ calories: number; protein: number } | null>(null);
 
+  // ── Phase, ranges, tracking routine and feature switches (§44/§70) ──
+  const [phaseType, setPhaseType] = useState<PhaseType | null>(null);
+  const [caloriesMin, setCaloriesMin] = useState('');
+  const [caloriesMax, setCaloriesMax] = useState('');
+  const [proteinMin, setProteinMin] = useState('');
+  const [proteinMax, setProteinMax] = useState('');
+  const [stepsGoal, setStepsGoal] = useState('');
+  const [waterGoalMl, setWaterGoalMl] = useState('');
+  const [sleepGoalH, setSleepGoalH] = useState('');
+  const [weighInWeekday, setWeighInWeekday] = useState(0);
+  const [photoIntervalDays, setPhotoIntervalDays] = useState(14);
+  const [fastingEnabled, setFastingEnabled] = useState(false);
+  const [aiCoachEnabled, setAiCoachEnabled] = useState(true);
+  const [aiParsingEnabled, setAiParsingEnabled] = useState(true);
+
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingGoals, setSavingGoals] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -62,6 +118,23 @@ export function SettingsView() {
     setProgramId(goals.programId);
     setFastingProtocol(goals.fastingProtocol);
     setFastingStartHour(goals.fastingStartHour ?? 12);
+
+    // Show the ranges FORGE is actually using, whether stored or derived —
+    // an empty box would hide the fact that a real target already exists.
+    const resolved = resolveTargets(goals);
+    setPhaseType(goals.phaseType);
+    setCaloriesMin(String(resolved.calories.min));
+    setCaloriesMax(String(resolved.calories.max));
+    setProteinMin(String(resolved.protein.min));
+    setProteinMax(String(resolved.protein.max));
+    setStepsGoal(String(resolved.steps));
+    setWaterGoalMl(String(resolved.waterMl));
+    setSleepGoalH(String(resolved.sleepH));
+    setWeighInWeekday(goals.weighInWeekday);
+    setPhotoIntervalDays(goals.photoIntervalDays);
+    setFastingEnabled(goals.fastingEnabled);
+    setAiCoachEnabled(goals.aiCoachEnabled);
+    setAiParsingEnabled(goals.aiParsingEnabled);
   }, [goals]);
 
   async function handleProfileSubmit(e: React.FormEvent) {
@@ -87,7 +160,37 @@ export function SettingsView() {
       programId,
       fastingProtocol,
       fastingStartHour: fastingProtocol ? fastingStartHour : null,
+      phaseType,
+      caloriesMin: numberOrNull(caloriesMin),
+      caloriesMax: numberOrNull(caloriesMax),
+      proteinMin: numberOrNull(proteinMin),
+      proteinMax: numberOrNull(proteinMax),
+      stepsGoal: numberOrNull(stepsGoal),
+      waterGoalMl: numberOrNull(waterGoalMl),
+      sleepGoalH: numberOrNull(sleepGoalH),
+      weighInWeekday,
+      photoIntervalDays,
+      fastingEnabled,
+      aiCoachEnabled,
+      aiParsingEnabled,
     };
+  }
+
+  /** Applies the recommended range for a phase, so picking one is a single tap. */
+  function applyPhase(next: PhaseType) {
+    setPhaseType(next);
+    const preview = resolveTargets({
+      ...(goals ?? GOALS_DEFAULTS),
+      phaseType: next,
+      caloriesMin: null,
+      caloriesMax: null,
+      proteinMin: null,
+      proteinMax: null,
+    });
+    setCaloriesMin(String(preview.calories.min));
+    setCaloriesMax(String(preview.calories.max));
+    setProteinMin(String(preview.protein.min));
+    setProteinMax(String(preview.protein.max));
   }
 
   function handleAutoCalc() {
@@ -226,29 +329,146 @@ export function SettingsView() {
             </div>
           )}
 
-          <CardHead icon={Target} tone="gold" title="Manuelle Ziele" />
-          <p className="copy" style={{ marginTop: 4 }}>Diese Werte steuern die Fortschrittsanzeigen auf "Heute".</p>
-          <div className="split-3" style={{ marginTop: 8 }}>
+          <CardHead icon={Target} tone="gold" title="Phase & Zielbereiche" />
+          <p className="copy" style={{ marginTop: 4 }}>
+            FORGE arbeitet mit Zielbereichen statt einer harten Zahl — du bist entweder darin, darunter
+            oder darüber, und alle drei haben eine ruhige Antwort.
+          </p>
+
+          <div className="chip-row" style={{ marginTop: 10 }}>
+            {PHASE_ORDER.map((type) => (
+              <button
+                key={type}
+                type="button"
+                className={`chip${phaseType === type ? ' active' : ''}`}
+                onClick={() => applyPhase(type)}
+              >
+                {PHASES[type].label}
+              </button>
+            ))}
+          </div>
+          {phaseType && (
+            <p className="muted-sm" style={{ marginTop: 8 }}>{PHASES[phaseType].description}</p>
+          )}
+
+          <div className="split" style={{ marginTop: 12 }}>
             <div className="field">
-              <label className="field-label" htmlFor="calorieGoal">Kalorienziel (kcal)</label>
-              <input id="calorieGoal" className="input compact" inputMode="numeric"
-                value={calorieGoal} onChange={(e) => setCalorieGoal(e.target.value)} />
+              <label className="field-label" htmlFor="caloriesMin">Kalorien von</label>
+              <input id="caloriesMin" className="input compact" inputMode="numeric"
+                value={caloriesMin} onChange={(e) => setCaloriesMin(e.target.value)} />
             </div>
             <div className="field">
-              <label className="field-label" htmlFor="proteinGoal">Proteinziel (g)</label>
-              <input id="proteinGoal" className="input compact" inputMode="numeric"
-                value={proteinGoal} onChange={(e) => setProteinGoal(e.target.value)} />
+              <label className="field-label" htmlFor="caloriesMax">Kalorien bis</label>
+              <input id="caloriesMax" className="input compact" inputMode="numeric"
+                value={caloriesMax} onChange={(e) => setCaloriesMax(e.target.value)} />
+            </div>
+            <div className="field">
+              <label className="field-label" htmlFor="proteinMin">Protein von (g)</label>
+              <input id="proteinMin" className="input compact" inputMode="numeric"
+                value={proteinMin} onChange={(e) => setProteinMin(e.target.value)} />
+            </div>
+            <div className="field">
+              <label className="field-label" htmlFor="proteinMax">Protein bis (g)</label>
+              <input id="proteinMax" className="input compact" inputMode="numeric"
+                value={proteinMax} onChange={(e) => setProteinMax(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="split-3" style={{ marginTop: 12 }}>
+            <div className="field">
+              <label className="field-label" htmlFor="stepsGoal">Schritte / Tag</label>
+              <input id="stepsGoal" className="input compact" inputMode="numeric"
+                value={stepsGoal} onChange={(e) => setStepsGoal(e.target.value)} />
+            </div>
+            <div className="field">
+              <label className="field-label" htmlFor="waterGoalMl">Wasser (ml)</label>
+              <input id="waterGoalMl" className="input compact" inputMode="numeric"
+                value={waterGoalMl} onChange={(e) => setWaterGoalMl(e.target.value)} />
+            </div>
+            <div className="field">
+              <label className="field-label" htmlFor="sleepGoalH">Schlaf (h)</label>
+              <input id="sleepGoalH" className="input compact" inputMode="decimal"
+                value={sleepGoalH} onChange={(e) => setSleepGoalH(e.target.value)} />
             </div>
             <div className="field">
               <label className="field-label" htmlFor="weightGoal">Gewichtsziel (kg)</label>
               <input id="weightGoal" className="input compact" inputMode="decimal"
                 value={weightGoal} onChange={(e) => setWeightGoal(e.target.value)} placeholder="optional" />
             </div>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <button type="submit" className="button compact" disabled={savingGoals}>
-                {savingGoals ? 'Speichert …' : 'Ziele speichern'}
-              </button>
+          </div>
+
+          <details style={{ marginTop: 12 }}>
+            <summary style={{ cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 700 }}>
+              Alte Einzelwerte
+            </summary>
+            <div className="split" style={{ marginTop: 10 }}>
+              <div className="field">
+                <label className="field-label" htmlFor="calorieGoal">Kalorienziel (kcal)</label>
+                <input id="calorieGoal" className="input compact" inputMode="numeric"
+                  value={calorieGoal} onChange={(e) => setCalorieGoal(e.target.value)} />
+              </div>
+              <div className="field">
+                <label className="field-label" htmlFor="proteinGoal">Proteinziel (g)</label>
+                <input id="proteinGoal" className="input compact" inputMode="numeric"
+                  value={proteinGoal} onChange={(e) => setProteinGoal(e.target.value)} />
+              </div>
             </div>
+            <p className="muted-sm" style={{ marginTop: 6 }}>
+              Werden nur noch als Rückfallwert genutzt, wenn kein Bereich gesetzt ist.
+            </p>
+          </details>
+
+          {/* ── Tracking routine (§26/§27) ── */}
+          <div style={{ marginTop: 18 }}>
+            <CardHead icon={Calculator} tone="teal" title="Tracking" />
+            <div className="split" style={{ marginTop: 10 }}>
+              <div className="field">
+                <label className="field-label" htmlFor="weighDay">Wiegetag</label>
+                <select id="weighDay" className="select" value={weighInWeekday}
+                  onChange={(e) => setWeighInWeekday(Number(e.target.value))}>
+                  {WEEKDAYS.map((day, index) => (
+                    <option key={day} value={index}>{day}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label className="field-label" htmlFor="photoInterval">Foto-Intervall (Tage)</label>
+                <input id="photoInterval" className="input compact" inputMode="numeric"
+                  value={String(photoIntervalDays)}
+                  onChange={(e) => setPhotoIntervalDays(Number(e.target.value) || 14)} />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Feature switches (§41/§70) ── */}
+          <div style={{ marginTop: 18 }}>
+            <CardHead icon={ShieldCheck} tone="violet" title="Funktionen" />
+            <div className="stack-sm" style={{ marginTop: 10 }}>
+              <ToggleRow
+                label="AI Coach"
+                hint="Chat mit Zugriff auf deine FORGE-Daten."
+                checked={aiCoachEnabled}
+                onChange={setAiCoachEnabled}
+              />
+              <ToggleRow
+                label="AI Eingabe"
+                hint="Freitext wie „2 Isoclear“ in Einträge umwandeln."
+                checked={aiParsingEnabled}
+                onChange={setAiParsingEnabled}
+              />
+              <ToggleRow
+                label="Essensfenster"
+                hint="Intervallfasten ist optional — ohne diesen Schalter taucht es nirgends auf."
+                checked={fastingEnabled}
+                onChange={(next) => { setFastingEnabled(next); if (!next) setFastingProtocol(null); }}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginTop: 16 }}>
+            <button type="submit" className="button compact" disabled={savingGoals}>
+              {savingGoals ? 'Speichert …' : 'Ziele speichern'}
+            </button>
           </div>
         </form>
       </section>
@@ -321,7 +541,8 @@ export function SettingsView() {
         </div>
       </section>
 
-      {/* Intervallfasten */}
+      {/* Intervallfasten — only when the user turned it on (§41) */}
+      {fastingEnabled && (
       <section className="panel">
         <CardHead icon={Moon} tone="violet" title="Intervallfasten" />
         <p className="copy" style={{ marginTop: 6 }}>Wähle ein Fastenprogramm oder deaktiviere es. Der Timer läuft dann auf deiner Startseite.</p>
@@ -393,6 +614,7 @@ export function SettingsView() {
           </button>
         </div>
       </section>
+      )}
 
       {/* Sign out */}
       <section className="panel">

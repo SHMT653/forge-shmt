@@ -70,7 +70,13 @@ export function buildDayStatus(ctx: CoachContext): DayStatusItem[] {
   const { targets } = ctx;
 
   const calories = evaluateRange(ctx.nutrition.kcal, targets.calories, { dayInProgress: inProgress });
-  const protein = evaluateRange(ctx.nutrition.proteinG, targets.protein, { dayInProgress: inProgress, overTolerance: 9999 });
+  // Protein above the range is a good outcome, not an overshoot to warn about,
+  // so anything at or beyond the minimum reads green.
+  const proteinRaw = evaluateRange(ctx.nutrition.proteinG, targets.protein, { dayInProgress: inProgress });
+  const protein =
+    ctx.nutrition.proteinG >= targets.protein.min
+      ? { ...proteinRaw, status: 'in' as const, tone: 'green' as const, deviation: 0 }
+      : proteinRaw;
   const steps = evaluateGoal(ctx.metrics.steps, targets.steps, inProgress);
   const water = evaluateGoal(ctx.metrics.waterMl, targets.waterMl, inProgress);
   const sleep = evaluateGoal(ctx.metrics.sleepH, targets.sleepH, false);
@@ -466,14 +472,15 @@ export function scoreDay(ctx: CoachContext): DayScore {
   const strengths: string[] = [];
   const gaps: string[] = [];
   for (const item of items) {
-    if (item.tone === 'green') strengths.push(item.label.toLowerCase());
-    else if (item.tone === 'yellow' || item.tone === 'red') gaps.push(item.label.toLowerCase());
+    if (item.tone === 'green') strengths.push(item.label);
+    else if (item.tone === 'yellow' || item.tone === 'red') gaps.push(item.label);
   }
 
+  // Every band stays factual: a weak day is reported, never scolded (§32).
   let summary: string;
   if (score >= 8.5) summary = 'Starker Tag. Genau so sieht Konstanz aus.';
   else if (score >= 7) summary = strengths.length > 0 ? `Solide — ${strengths.slice(0, 2).join(' und ')} liefen gut.` : 'Solider Tag.';
-  else if (score >= 5) summary = gaps.length > 0 ? `Durchwachsen. Morgen wäre ${gaps[0]} der Hebel.` : 'Durchwachsener Tag.';
+  else if (score >= 5) summary = gaps.length > 0 ? `Durchwachsen — der größte Hebel für morgen ist ${gaps[0]}. Ein Tag entscheidet nichts, die Woche schon.` : 'Durchwachsener Tag. Ein Tag entscheidet nichts, die Woche schon.';
   else summary = 'Kein starker Tag — das ist völlig okay. Ein Tag entscheidet nichts, die Woche schon.';
 
   return { score, summary, items };
