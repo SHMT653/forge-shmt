@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Sparkles, Check, X, CornerDownLeft } from 'lucide-react';
 import { useAuth } from '@/web/hooks/useAuth';
 import { formatKcalRange } from '@/domain/nutritionMath';
+import { parseLocally, type LibraryItem } from '@/domain/localParse';
 import type { ValidatedEntry, ValidatedParseResult } from '@/domain/aiSchema';
 import type { MealEntryInput } from '@/data/nutrition';
 
@@ -19,10 +20,16 @@ export function AiQuickInput({
   onAdd,
   onMetric,
   compact,
+  library = [],
+  aiEnabled = true,
 }: {
   onAdd: (entry: MealEntryInput) => void;
   onMetric?: (metric: 'steps' | 'water_ml' | 'sleep_h' | 'weight_kg', value: number) => void;
   compact?: boolean;
+  /** The user's saved foods and recipes, so the local parser can match them. */
+  library?: readonly LibraryItem[];
+  /** When false, only the local rules run — no request is ever sent. */
+  aiEnabled?: boolean;
 }) {
   const { session } = useAuth();
   const [text, setText] = useState('');
@@ -38,6 +45,33 @@ export function AiQuickInput({
     setBusy(true);
     setError(null);
     setResult(null);
+
+    // Rules first. "7000 Schritte" or "2 Isoclear" needs no model — this is
+    // instant, works offline, and costs nothing.
+    const local = parseLocally(value, library);
+    if (local.entries.length > 0 && local.unresolved.length === 0) {
+      setResult({ entries: local.entries, question: null, note: null, rejected: 0 });
+      setBusy(false);
+      return;
+    }
+
+    // Nothing left to try: without the model, say what was not understood
+    // rather than failing silently.
+    if (!aiEnabled) {
+      if (local.entries.length > 0) {
+        setResult({
+          entries: local.entries,
+          question: null,
+          note: `Nicht erkannt: ${local.unresolved.join(', ')}. Trag das über „Eintragen“ ein.`,
+          rejected: 0,
+        });
+      } else {
+        setError('Das konnte ich nicht zuordnen. Nutze „Eintragen“ oder aktiviere die AI-Eingabe.');
+      }
+      setBusy(false);
+      return;
+    }
+
     try {
       const response = await fetch('/api/ai/parse', {
         method: 'POST',
@@ -49,7 +83,17 @@ export function AiQuickInput({
       });
       const data = await response.json();
       if (!response.ok) {
-        setError(typeof data.error === 'string' ? data.error : 'Das hat nicht geklappt.');
+        // The model is unavailable — keep whatever the rules did manage.
+        if (local.entries.length > 0) {
+          setResult({
+            entries: local.entries,
+            question: null,
+            note: `Nicht erkannt: ${local.unresolved.join(', ')}.`,
+            rejected: 0,
+          });
+        } else {
+          setError(typeof data.error === 'string' ? data.error : 'Das hat nicht geklappt.');
+        }
         return;
       }
       const parsed = data as ValidatedParseResult;
@@ -59,7 +103,11 @@ export function AiQuickInput({
       }
       setResult(parsed);
     } catch {
-      setError('Keine Verbindung zum Server.');
+      if (local.entries.length > 0) {
+        setResult({ entries: local.entries, question: null, note: null, rejected: 0 });
+      } else {
+        setError('Keine Verbindung zum Server.');
+      }
     } finally {
       setBusy(false);
     }

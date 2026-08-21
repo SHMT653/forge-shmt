@@ -291,7 +291,15 @@ export function DashboardView() {
           )}
         </div>
 
-        {data.goals.aiParsingEnabled && <AiQuickInput onAdd={handleEntry} onMetric={handleMetric} />}
+        <AiQuickInput
+          onAdd={handleEntry}
+          onMetric={handleMetric}
+          aiEnabled={data.goals.aiParsingEnabled}
+          library={[
+            ...data.favoriteFoods.map((f) => ({ id: f.id, kind: 'food' as const, name: f.name })),
+            ...data.favoriteRecipes.map((r) => ({ id: r.id, kind: 'recipe' as const, name: r.name })),
+          ]}
+        />
       </section>
 
       {/* ── Reminders (§26/§27) ───────────────────────────────────────── */}

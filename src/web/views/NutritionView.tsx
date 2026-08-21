@@ -167,7 +167,15 @@ export function NutritionView() {
             <ScanLine size={17} />
           </button>
         </div>
-        {state.goals.aiParsingEnabled && <AiQuickInput onAdd={handleEntry} compact />}
+        <AiQuickInput
+          onAdd={handleEntry}
+          compact
+          aiEnabled={state.goals.aiParsingEnabled}
+          library={[
+            ...state.foods.map((f) => ({ id: f.id, kind: 'food' as const, name: f.name })),
+            ...state.recipes.map((r) => ({ id: r.id, kind: 'recipe' as const, name: r.name })),
+          ]}
+        />
       </section>
 
       {/* ── Favourites (§37) ──────────────────────────────────────────── */}
