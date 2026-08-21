@@ -11,7 +11,18 @@ import { calcKcalBurned } from '@/domain/cardioActivities';
 import { getUserGoals } from '@/data/profile';
 import { todayKey } from '@/domain/dates';
 import { ExerciseInfoModal } from '@/web/components/ExerciseInfoModal';
+import { metricForSets, type LastPerformance, type MetricKind } from '@/domain/progression';
+import type { SetUpdate } from '@/data/workouts';
 import type { SetEntry } from '@/domain/types';
+
+/** True when this set beats the last session on whichever metric the exercise uses. */
+function isPersonalRecord(patch: SetUpdate, previous: LastPerformance | undefined): boolean {
+  if (!previous) return false;
+  if (patch.weightKg != null && previous.weightKg != null) return patch.weightKg > previous.weightKg;
+  if (patch.durationSeconds != null && previous.durationSeconds != null) return patch.durationSeconds > previous.durationSeconds;
+  if (patch.reps != null && previous.weightKg == null) return patch.reps > previous.reps;
+  return false;
+}
 
 type IconComponent = React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>;
 
@@ -39,46 +50,81 @@ function SetRow({
   set,
   index,
   suggestion,
+  metric,
   onSave,
 }: {
   set: SetEntry;
   index: number;
-  suggestion: { reps: number; weightKg: number } | undefined;
-  onSave: (reps: number | null, weightKg: number | null, completed: boolean) => void;
+  suggestion: LastPerformance | undefined;
+  metric: MetricKind;
+  onSave: (patch: SetUpdate) => void;
 }) {
   const [reps, setReps] = useState(set.reps !== null ? String(set.reps) : '');
   const [weight, setWeight] = useState(set.weightKg !== null ? String(set.weightKg) : '');
+  const [seconds, setSeconds] = useState(set.durationSeconds !== null ? String(set.durationSeconds) : '');
 
-  function commit(completed: boolean) {
-    const repsValue = reps.trim() ? Number(reps) : null;
-    const weightValue = weight.trim() ? Number(weight) : null;
-    onSave(repsValue, weightValue, completed);
+  const isHold = metric === 'duration';
+
+  function buildPatch(completed: boolean): SetUpdate {
+    const patch: SetUpdate = { completed };
+    if (isHold) {
+      patch.durationSeconds = seconds.trim() ? Number(seconds) : null;
+    } else {
+      patch.reps = reps.trim() ? Number(reps) : null;
+      // Only touch weight when the user actually typed one, so a bodyweight
+      // exercise never writes a stray 0 kg into its history.
+      if (weight.trim() || set.weightKg !== null) patch.weightKg = weight.trim() ? Number(weight) : null;
+    }
+    return patch;
   }
+
+  const done = set.completed;
 
   return (
     <div className="set-row">
-      <span className="set-row-label">{index + 1}</span>
-      <input
-        className="input compact"
-        inputMode="decimal"
-        placeholder={suggestion ? `${suggestion.reps}` : 'Wdh.'}
-        value={reps}
-        onChange={(e) => setReps(e.target.value)}
-        onBlur={() => commit(set.completed)}
-      />
-      <input
-        className="input compact"
-        inputMode="decimal"
-        placeholder={suggestion ? `${suggestion.weightKg} kg` : 'kg'}
-        value={weight}
-        onChange={(e) => setWeight(e.target.value)}
-        onBlur={() => commit(set.completed)}
-      />
+      <span className={`set-row-label${done ? ' done' : ''}`}>{index + 1}</span>
+
+      {isHold ? (
+        <input
+          className="input compact"
+          inputMode="numeric"
+          placeholder={suggestion?.durationSeconds ? `${suggestion.durationSeconds} s` : 'Sek.'}
+          value={seconds}
+          onChange={(e) => setSeconds(e.target.value)}
+          onBlur={() => onSave(buildPatch(done))}
+          aria-label={`Satz ${index + 1} Sekunden`}
+        />
+      ) : (
+        <input
+          className="input compact"
+          inputMode="numeric"
+          placeholder={suggestion?.reps ? `${suggestion.reps}` : 'Wdh.'}
+          value={reps}
+          onChange={(e) => setReps(e.target.value)}
+          onBlur={() => onSave(buildPatch(done))}
+          aria-label={`Satz ${index + 1} Wiederholungen`}
+        />
+      )}
+
+      {isHold ? (
+        <span style={{ color: 'var(--subtle)', fontSize: 12, textAlign: 'center' }}>Sekunden halten</span>
+      ) : (
+        <input
+          className="input compact"
+          inputMode="decimal"
+          placeholder={suggestion?.weightKg ? `${suggestion.weightKg} kg` : 'kg / optional'}
+          value={weight}
+          onChange={(e) => setWeight(e.target.value)}
+          onBlur={() => onSave(buildPatch(done))}
+          aria-label={`Satz ${index + 1} Gewicht`}
+        />
+      )}
+
       <button
         type="button"
-        className={`button compact${set.completed ? '' : ' secondary'}`}
-        onClick={() => commit(!set.completed)}
-        aria-label={set.completed ? 'Satz als offen markieren' : 'Satz abschließen'}
+        className={`button compact${done ? '' : ' secondary'}`}
+        onClick={() => onSave(buildPatch(!done))}
+        aria-label={done ? 'Satz als offen markieren' : 'Satz abschließen'}
       >
         <Check size={16} />
       </button>
@@ -232,6 +278,8 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
 
   const isLast = exerciseIndex === session.exercises.length - 1;
   const suggestion = lastPerformance.get(exercise.exerciseName);
+  // Infer from previous sessions first — an empty new set carries no signal.
+  const setMetric: MetricKind = suggestion?.metric ?? metricForSets(exercise.sets);
   const isCardio = findExercise(exercise.exerciseName)?.type === 'cardio';
 
   async function handleFinish() {
@@ -290,7 +338,14 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
       {!isCardio && suggestion && (
         <div className="panel soft">
           <p className="copy" style={{ margin: 0 }}>
-            Letztes Training: <strong>{suggestion.weightKg} kg</strong> × {suggestion.reps} Wdh.
+            Letztes Training:{' '}
+            {suggestion.metric === 'weight' && suggestion.weightKg !== null ? (
+              <><strong>{suggestion.weightKg} kg</strong> × {suggestion.reps} Wdh.</>
+            ) : suggestion.metric === 'duration' && suggestion.durationSeconds !== null ? (
+              <><strong>{suggestion.durationSeconds} s</strong> längster Halt</>
+            ) : (
+              <><strong>{suggestion.totalReps} Wdh.</strong> gesamt · bester Satz {suggestion.reps}</>
+            )}
           </p>
         </div>
       )}
@@ -312,11 +367,12 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
                 set={set}
                 index={index}
                 suggestion={suggestion}
-                onSave={(reps, weightKg, completed) => {
-                  if (completed && weightKg !== null && suggestion && weightKg > suggestion.weightKg) {
+                metric={setMetric}
+                onSave={(patch) => {
+                  if (patch.completed && isPersonalRecord(patch, suggestion)) {
                     triggerPR(exercise.exerciseName);
                   }
-                  void saveSet(set.id, reps, weightKg, completed);
+                  void saveSet(set.id, patch);
                 }}
               />
             ))}

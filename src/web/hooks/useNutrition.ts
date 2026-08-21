@@ -11,7 +11,7 @@ import {
   type MealEntry,
 } from '@/data/nutrition';
 import { listHabits, listHabitLogsForRange, setHabitLog } from '@/data/habits';
-import { getUserGoals } from '@/data/profile';
+import { GOALS_DEFAULTS, getUserGoals } from '@/data/profile';
 import { errorMessage } from '@/domain/errors';
 import { todayKey } from '@/domain/dates';
 import type { Habit, UserGoals } from '@/domain/types';
@@ -34,7 +34,7 @@ export function useNutrition() {
     meals:        [],
     recentMeals:  [],
     totals:       { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 },
-    goals:        { calorieGoal: 2000, proteinGoal: 150, weightGoal: null, currentWeight: null, heightCm: null, birthYear: null, gender: 'male' as const, activityLevel: 'moderate' as const, goalType: 'maintain' as const, programId: null, fastingProtocol: null, fastingStartHour: null },
+    goals:        GOALS_DEFAULTS,
     water:        { habit: null, todayMl: 0 },
     loading:      true,
     error:        null,
@@ -69,7 +69,7 @@ export function useNutrition() {
         meals,
         recentMeals,
         totals,
-        goals: goals ?? { calorieGoal: 2000, proteinGoal: 150, weightGoal: null, currentWeight: null, heightCm: null, birthYear: null, gender: 'male', activityLevel: 'moderate', goalType: 'maintain' },
+        goals: goals ?? GOALS_DEFAULTS,
         water: { habit: waterHabit, todayMl: waterLog?.value ?? 0 },
         loading: false,
         error:   null,

@@ -27,6 +27,10 @@ export type SetEntry = {
   setIndex: number;
   reps: number | null;
   weightKg: number | null;
+  /** Holds (plank etc.) are measured in seconds, not reps. */
+  durationSeconds: number | null;
+  /** Band colour or level, for resistance-band work. */
+  resistance: string | null;
   completed: boolean;
 };
 
@@ -39,6 +43,9 @@ export type SessionExercise = {
   sets: SetEntry[];
 };
 
+/** A full planned session vs. a short "quick push" that still deserves credit (§19). */
+export type WorkoutKind = 'full' | 'mini';
+
 export type WorkoutSession = {
   id: string;
   planId: string | null;
@@ -47,6 +54,7 @@ export type WorkoutSession = {
   startedAt: string;
   completedAt: string | null;
   durationSeconds: number | null;
+  kind: WorkoutKind;
   exercises: SessionExercise[];
 };
 
@@ -74,13 +82,34 @@ export type BodyMetric = {
   waistCm: number | null;
   chestCm: number | null;
   armsCm: number | null;
+  /** BIA scale readings (§29). Always shown as estimates, never as exact truth. */
+  bia: BiaValues | null;
+  source: 'manual' | 'bia';
 };
+
+/** Body-composition values from a BIA scale. Every one of these is an estimate. */
+export type BiaValues = {
+  bodyFatPct: number | null;
+  fatMassKg: number | null;
+  leanMassKg: number | null;
+  muscleMassKg: number | null;
+  muscleRatePct: number | null;
+  skeletalMusclePct: number | null;
+  bodyWaterPct: number | null;
+  visceralFat: number | null;
+  bmr: number | null;
+  bmi: number | null;
+};
+
+export type PhotoPose = 'front' | 'side' | 'back' | 'front_flexed';
 
 export type ProgressPhoto = {
   id: string;
   takenAt: string;
   storagePath: string;
   url: string | null;
+  pose: PhotoPose;
+  weightKg: number | null;
 };
 
 export type GoalType = 'muscle' | 'fat_loss' | 'maintain';
@@ -100,6 +129,28 @@ export type UserGoals = {
   programId: import('@/domain/programs').ProgramId | null;
   fastingProtocol: import('@/domain/programs').FastingProtocol | null;
   fastingStartHour: number | null;
+
+  // ── Goal phase (§44). Null means "derive it" — see domain/goalPhase.ts.
+  phaseType: import('@/domain/goalPhase').PhaseType | null;
+  phaseStartDate: string | null;
+  phaseEndDate: string | null;
+  caloriesMin: number | null;
+  caloriesMax: number | null;
+  proteinMin: number | null;
+  proteinMax: number | null;
+  stepsGoal: number | null;
+  waterGoalMl: number | null;
+  sleepGoalH: number | null;
+
+  // ── Tracking routine (§26/§27)
+  weighInWeekday: number;      // 0 = Sunday … 6 = Saturday
+  photoIntervalDays: number;
+
+  // ── Feature switches (§41/§70)
+  fastingEnabled: boolean;
+  aiCoachEnabled: boolean;
+  aiParsingEnabled: boolean;
+  units: 'metric' | 'imperial';
 };
 
 export type NutritionLog = {
@@ -111,4 +162,90 @@ export type NutritionLog = {
 export type Profile = {
   id: string;
   displayName: string;
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Nutrition library (§12/§13) and daily check-in (§22)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * How much we trust a nutrition number (§11).
+ *  - verified:  from a barcode, a package, or a value the user confirmed
+ *  - estimated: a plausible guess — shown with a "~" and a range
+ *  - unknown:   not enough information; the app asks instead of inventing
+ */
+export type DataQuality = 'verified' | 'estimated' | 'unknown';
+
+export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+export type EntrySource = 'manual' | 'search' | 'barcode' | 'ai' | 'favorite' | 'recipe' | 'prep';
+
+export type Macros = { kcal: number; proteinG: number; carbsG: number; fatG: number };
+
+export type FoodItem = {
+  id: string;
+  name: string;
+  brand: string;
+  servingLabel: string;
+  servingG: number | null;
+  macros: Macros;
+  dataQuality: DataQuality;
+  barcode: string | null;
+  favorite: boolean;
+  useCount: number;
+  lastUsedAt: string | null;
+};
+
+export type RecipeIngredient = {
+  id: string;
+  foodItemId: string | null;
+  name: string;
+  amountLabel: string;
+  macros: Macros;
+  orderIndex: number;
+};
+
+export type Recipe = {
+  id: string;
+  name: string;
+  totalServings: number;
+  servingLabel: string;
+  isMealPrep: boolean;
+  favorite: boolean;
+  notes: string;
+  useCount: number;
+  ingredients: RecipeIngredient[];
+  /** Sum over all ingredients. */
+  totalMacros: Macros;
+  /** totalMacros / totalServings. */
+  perServing: Macros;
+};
+
+/** A cooked batch of a meal-prep recipe, with portions counted down as eaten. */
+export type MealPrepBatch = {
+  id: string;
+  recipeId: string;
+  recipeName: string;
+  cookedOn: string;
+  totalPortions: number;
+  portionsUsed: number;
+  portionsLeft: number;
+  active: boolean;
+};
+
+export type Soreness = 'none' | 'light' | 'medium' | 'strong';
+
+export type DailyCheckin = {
+  logDate: string;
+  soreness: Soreness | null;
+  sorenessArea: string;
+  energy: number | null;
+  note: string;
+};
+
+export type CoachNote = {
+  id: string;
+  kind: 'fact' | 'preference' | 'constraint';
+  content: string;
+  createdAt: string;
 };

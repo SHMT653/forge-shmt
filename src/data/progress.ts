@@ -1,21 +1,44 @@
 import { getSupabaseClient } from '@/services/supabase/client';
-import type { BodyMetric, ProgressPhoto } from '@/domain/types';
+import type { BiaValues, BodyMetric, PhotoPose, ProgressPhoto } from '@/domain/types';
 
-function toMetric(row: {
-  id: string;
-  log_date: string;
-  weight_kg: number | null;
-  waist_cm: number | null;
-  chest_cm: number | null;
-  arms_cm: number | null;
-}): BodyMetric {
+const METRIC_COLUMNS =
+  'id, log_date, weight_kg, waist_cm, chest_cm, arms_cm, body_fat_pct, fat_mass_kg, lean_mass_kg, ' +
+  'muscle_mass_kg, muscle_rate_pct, skeletal_muscle_pct, body_water_pct, visceral_fat, bmr, bmi, source';
+
+/** Postgres `numeric` comes back as a string — normalise to number | null. */
+function num(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function toBia(row: Record<string, unknown>): BiaValues | null {
+  const bia: BiaValues = {
+    bodyFatPct: num(row.body_fat_pct),
+    fatMassKg: num(row.fat_mass_kg),
+    leanMassKg: num(row.lean_mass_kg),
+    muscleMassKg: num(row.muscle_mass_kg),
+    muscleRatePct: num(row.muscle_rate_pct),
+    skeletalMusclePct: num(row.skeletal_muscle_pct),
+    bodyWaterPct: num(row.body_water_pct),
+    visceralFat: num(row.visceral_fat),
+    bmr: num(row.bmr),
+    bmi: num(row.bmi),
+  };
+  // Nothing measured → no BIA block at all, so the UI can skip the section.
+  return Object.values(bia).some((v) => v !== null) ? bia : null;
+}
+
+function toMetric(row: Record<string, unknown>): BodyMetric {
   return {
-    id: row.id,
-    logDate: row.log_date,
-    weightKg: row.weight_kg !== null ? Number(row.weight_kg) : null,
-    waistCm: row.waist_cm !== null ? Number(row.waist_cm) : null,
-    chestCm: row.chest_cm !== null ? Number(row.chest_cm) : null,
-    armsCm: row.arms_cm !== null ? Number(row.arms_cm) : null,
+    id: row.id as string,
+    logDate: row.log_date as string,
+    weightKg: num(row.weight_kg),
+    waistCm: num(row.waist_cm),
+    chestCm: num(row.chest_cm),
+    armsCm: num(row.arms_cm),
+    bia: toBia(row),
+    source: row.source === 'bia' ? 'bia' : 'manual',
   };
 }
 
@@ -23,20 +46,26 @@ export async function listBodyMetrics(userId: string, limit = 90): Promise<BodyM
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('forge_body_metrics')
-    .select('id, log_date, weight_kg, waist_cm, chest_cm, arms_cm')
+    .select(METRIC_COLUMNS)
     .eq('user_id', userId)
     .order('log_date', { ascending: false })
     .limit(limit);
   if (error) throw error;
-  return (data ?? []).map(toMetric).reverse();
+  return (data ?? []).map((row) => toMetric(row as unknown as Record<string, unknown>)).reverse();
 }
 
-export async function saveBodyMetric(
-  userId: string,
-  logDate: string,
-  values: { weightKg: number | null; waistCm: number | null; chestCm: number | null; armsCm: number | null },
-): Promise<void> {
+export type BodyMetricInput = {
+  weightKg: number | null;
+  waistCm: number | null;
+  chestCm: number | null;
+  armsCm: number | null;
+  bia?: Partial<BiaValues> | null;
+  source?: 'manual' | 'bia';
+};
+
+export async function saveBodyMetric(userId: string, logDate: string, values: BodyMetricInput): Promise<void> {
   const supabase = getSupabaseClient();
+  const bia = values.bia ?? null;
   const { error } = await supabase.from('forge_body_metrics').upsert(
     {
       user_id: userId,
@@ -45,6 +74,17 @@ export async function saveBodyMetric(
       waist_cm: values.waistCm,
       chest_cm: values.chestCm,
       arms_cm: values.armsCm,
+      body_fat_pct: bia?.bodyFatPct ?? null,
+      fat_mass_kg: bia?.fatMassKg ?? null,
+      lean_mass_kg: bia?.leanMassKg ?? null,
+      muscle_mass_kg: bia?.muscleMassKg ?? null,
+      muscle_rate_pct: bia?.muscleRatePct ?? null,
+      skeletal_muscle_pct: bia?.skeletalMusclePct ?? null,
+      body_water_pct: bia?.bodyWaterPct ?? null,
+      visceral_fat: bia?.visceralFat ?? null,
+      bmr: bia?.bmr ?? null,
+      bmi: bia?.bmi ?? null,
+      source: values.source ?? (bia ? 'bia' : 'manual'),
     },
     { onConflict: 'user_id,log_date' },
   );
@@ -57,10 +97,10 @@ export async function listProgressPhotos(userId: string): Promise<ProgressPhoto[
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('forge_progress_photos')
-    .select('id, taken_at, storage_path')
+    .select('id, taken_at, storage_path, pose, weight_kg')
     .eq('user_id', userId)
     .order('taken_at', { ascending: false })
-    .limit(40);
+    .limit(120);
   if (error) throw error;
 
   return (data ?? []).map((row) => {
@@ -70,14 +110,22 @@ export async function listProgressPhotos(userId: string): Promise<ProgressPhoto[
       takenAt: row.taken_at,
       storagePath: row.storage_path,
       url: signed?.publicUrl ?? null,
+      pose: (row.pose ?? 'front') as PhotoPose,
+      weightKg: row.weight_kg !== null && row.weight_kg !== undefined ? Number(row.weight_kg) : null,
     };
   });
 }
 
-export async function uploadProgressPhoto(userId: string, file: File, takenAt: string): Promise<void> {
+export async function uploadProgressPhoto(
+  userId: string,
+  file: File,
+  takenAt: string,
+  pose: PhotoPose = 'front',
+  weightKg: number | null = null,
+): Promise<void> {
   const supabase = getSupabaseClient();
   const extension = file.name.split('.').pop() || 'jpg';
-  const path = `${userId}/${takenAt}-${Date.now()}.${extension}`;
+  const path = `${userId}/${takenAt}-${pose}-${Date.now()}.${extension}`;
 
   const { error: uploadError } = await supabase.storage.from(PHOTO_BUCKET).upload(path, file, {
     contentType: file.type,
@@ -87,7 +135,7 @@ export async function uploadProgressPhoto(userId: string, file: File, takenAt: s
 
   const { error } = await supabase
     .from('forge_progress_photos')
-    .insert({ user_id: userId, taken_at: takenAt, storage_path: path });
+    .insert({ user_id: userId, taken_at: takenAt, storage_path: path, pose, weight_kg: weightKg });
   if (error) throw error;
 }
 

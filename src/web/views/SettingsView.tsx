@@ -6,6 +6,7 @@ import { LogOut, Moon, User, Target, ShieldCheck, Calculator } from 'lucide-reac
 import { useAuth } from '@/web/hooks/useAuth';
 import { useSettings } from '@/web/hooks/useSettings';
 import { signOut } from '@/services/supabase/auth';
+import { GOALS_DEFAULTS } from '@/data/profile';
 import { CardHead } from '@/web/components/CardHead';
 import { formatDuration } from '@/domain/dates';
 import { calculateMacros, GOAL_TYPE_LABELS, ACTIVITY_LABELS } from '@/domain/macroCalculator';
@@ -71,6 +72,9 @@ export function SettingsView() {
 
   function buildGoalsPayload(): UserGoals {
     return {
+      // Spread first so phase ranges, tracking routine and feature switches
+      // survive a save from this form — it only edits a subset of the fields.
+      ...(goals ?? GOALS_DEFAULTS),
       calorieGoal:     Number(calorieGoal) || 2200,
       proteinGoal:     Number(proteinGoal) || 150,
       weightGoal:      weightGoal.trim() ? Number(weightGoal) : null,

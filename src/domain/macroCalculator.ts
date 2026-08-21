@@ -10,17 +10,33 @@ const ACTIVITY_MULTIPLIER: Record<ActivityLevel, number> = {
 
 export type CalculatedMacros = { calories: number; protein: number };
 
-export function calculateMacros(goals: UserGoals): CalculatedMacros | null {
-  const { currentWeight, heightCm, birthYear, gender, activityLevel, goalType } = goals;
-  if (!currentWeight || !heightCm || !birthYear) return null;
-
+/** Age in whole years, or null when the profile has no usable birth year. */
+export function ageFromBirthYear(birthYear: number | null): number | null {
+  if (!birthYear) return null;
   const age = new Date().getFullYear() - birthYear;
-  if (age < 10 || age > 120) return null;
+  return age < 10 || age > 120 ? null : age;
+}
 
-  // Mifflin-St Jeor BMR
+/**
+ * Mifflin-St Jeor BMR scaled by activity level.
+ * Extracted so the goal-phase model can build calorie RANGES off the same
+ * number the legacy single-value calculator uses — one formula, one truth.
+ */
+export function calculateTdee(goals: UserGoals): number | null {
+  const { currentWeight, heightCm, birthYear, gender, activityLevel } = goals;
+  if (!currentWeight || !heightCm) return null;
+  const age = ageFromBirthYear(birthYear);
+  if (age === null) return null;
+
   const base = 10 * currentWeight + 6.25 * heightCm - 5 * age;
   const bmr = gender === 'female' ? base - 161 : base + 5;
-  const tdee = Math.round(bmr * ACTIVITY_MULTIPLIER[activityLevel]);
+  return Math.round(bmr * ACTIVITY_MULTIPLIER[activityLevel]);
+}
+
+export function calculateMacros(goals: UserGoals): CalculatedMacros | null {
+  const { currentWeight, goalType } = goals;
+  const tdee = calculateTdee(goals);
+  if (tdee === null || !currentWeight) return null;
 
   let calories: number;
   let proteinPerKg: number;
