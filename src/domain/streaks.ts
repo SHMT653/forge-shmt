@@ -40,3 +40,20 @@ export function weeklyStreak(dateKeys: Iterable<string>, minPerWeek: number): nu
 
   return streak;
 }
+
+/**
+ * "5 von 7 Tagen" rather than "Streak verloren" (§43).
+ *
+ * A streak counter reduces a good week to zero the moment one day slips, which
+ * misrepresents what actually happened. A hit rate over a rolling window keeps
+ * the motivation of a streak without the cliff edge.
+ */
+export function recentHitRate(dateKeys: Iterable<string>, windowDays = 7): { hits: number; total: number } {
+  const days = new Set(dateKeys);
+  const today = todayKey();
+  let hits = 0;
+  for (let offset = 0; offset < windowDays; offset += 1) {
+    if (days.has(dateKeyAddDays(today, -offset))) hits += 1;
+  }
+  return { hits, total: windowDays };
+}

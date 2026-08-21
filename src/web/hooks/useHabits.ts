@@ -6,7 +6,7 @@ import { ensureDefaultHabits, listHabitLogsForRange, setHabitLog } from '@/data/
 import { getNutritionLog } from '@/data/nutrition';
 import { getUserGoals } from '@/data/profile';
 import { errorMessage } from '@/domain/errors';
-import { consecutiveDayStreak } from '@/domain/streaks';
+import { consecutiveDayStreak, recentHitRate } from '@/domain/streaks';
 import { dateKeyAddDays, todayKey } from '@/domain/dates';
 import type { Habit, HabitLog } from '@/domain/types';
 
@@ -68,6 +68,16 @@ export function useHabits() {
     return map;
   }, [habits, logsByHabit]);
 
+  /** Rolling 7-day hit rate — the gentler counterpart to the streak (§43). */
+  const hitRateByHabit = useMemo(() => {
+    const map = new Map<string, { hits: number; total: number }>();
+    for (const habit of habits) {
+      const dayKeys = [...(logsByHabit.get(habit.id)?.values() ?? [])].filter((l) => l.completed).map((l) => l.logDate);
+      map.set(habit.id, recentHitRate(dayKeys));
+    }
+    return map;
+  }, [habits, logsByHabit]);
+
   const setLog = useCallback(
     async (habit: Habit, logDate: string, value: number, completed: boolean) => {
       if (!user) return;
@@ -89,5 +99,5 @@ export function useHabits() {
     [user, load],
   );
 
-  return { habits, logsByHabit, streaksByHabit, loading, error, setLog, nutritionProteinG, proteinGoal };
+  return { habits, logsByHabit, streaksByHabit, hitRateByHabit, loading, error, setLog, nutritionProteinG, proteinGoal };
 }

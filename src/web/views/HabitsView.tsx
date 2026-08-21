@@ -271,14 +271,17 @@ function BinaryCard({
 }
 
 export function HabitsView() {
-  const { habits, logsByHabit, streaksByHabit, loading, error, setLog, nutritionProteinG, proteinGoal } = useHabits();
+  const { habits, logsByHabit, streaksByHabit, hitRateByHabit, loading, error, setLog, nutritionProteinG, proteinGoal } = useHabits();
 
   return (
     <>
       <section className="panel">
         <p className="eyebrow">Gewohnheiten</p>
         <h1 className="h1" style={{ fontSize: 28 }}>Kleine Schritte, jeden Tag.</h1>
-        <p className="copy">Hake ab, was du heute geschafft hast — der Streak zeigt dir, wie konsequent du bleibst.</p>
+        <p className="copy">
+          Hake ab, was du heute geschafft hast. Ein verpasster Tag setzt nichts auf null —
+          entscheidend ist, wie viele Tage der Woche du triffst.
+        </p>
       </section>
 
       {error && <p className="copy" style={{ color: 'var(--danger)', padding: '0 4px' }}>{error}</p>}
@@ -320,7 +323,15 @@ export function HabitsView() {
                     {allDone ? 'Heute alles geschafft!' : `${done} von ${total} erledigt`}
                   </p>
                   <p className="copy" style={{ margin: 0, fontSize: 12 }}>
-                    {allDone ? 'Fantastisch — Streak läuft weiter 🔥' : `Noch ${total - done} ${total - done === 1 ? 'offen' : 'offen'}`}
+                    {allDone ? 'Heute alles erledigt' : `Noch ${total - done} offen`}
+                  </p>
+                  <p className="muted-sm" style={{ marginTop: 2 }}>
+                    {(() => {
+                      const rates = habits.map((h) => hitRateByHabit.get(h.id)).filter((r): r is { hits: number; total: number } => Boolean(r));
+                      if (rates.length === 0) return null;
+                      const hits = Math.round(rates.reduce((sum, r) => sum + r.hits, 0) / rates.length);
+                      return `${hits} von 7 Tagen diese Woche im Schnitt erreicht`;
+                    })()}
                   </p>
                 </div>
               </div>
@@ -335,6 +346,7 @@ export function HabitsView() {
               [...inner.entries()].map(([date, log]) => [date, { value: log.value, completed: log.completed }])
             );
             const streak = streaksByHabit.get(habit.id) ?? 0;
+            const hitRate = hitRateByHabit.get(habit.id);
             const onLog = (logDate: string, value: number, completed: boolean) =>
               void setLog(habit, logDate, value, completed);
 

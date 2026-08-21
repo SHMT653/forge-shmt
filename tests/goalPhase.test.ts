@@ -113,3 +113,21 @@ describe('formatRange', () => {
     expect(formatRange({ min: 1900, max: 2100 }, 'kcal')).toBe('1.900–2.100 kcal');
   });
 });
+
+describe('recentHitRate (§43)', () => {
+  it('reports hits over the window instead of collapsing to zero', async () => {
+    const { recentHitRate } = await import('@/domain/streaks');
+    const { todayKey, dateKeyAddDays } = await import('@/domain/dates');
+    const today = todayKey();
+    // Missed yesterday, hit the other five of the last six days.
+    const days = [0, 2, 3, 4, 5, 6].map((offset) => dateKeyAddDays(today, -offset));
+    const rate = recentHitRate(days);
+    expect(rate.hits).toBe(6);
+    expect(rate.total).toBe(7);
+  });
+
+  it('is zero for an empty history without throwing', async () => {
+    const { recentHitRate } = await import('@/domain/streaks');
+    expect(recentHitRate([])).toEqual({ hits: 0, total: 7 });
+  });
+});
