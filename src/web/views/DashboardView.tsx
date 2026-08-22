@@ -17,6 +17,7 @@ import { CoachDrawer } from '@/web/components/CoachDrawer';
 import { SorenessPicker } from '@/web/components/SorenessPicker';
 import { GoalCard } from '@/web/components/GoalCard';
 import { SourceBadge } from '@/web/components/SourceBadge';
+import { RestOfDayCard } from '@/web/components/RestOfDayCard';
 import { BarcodeScannerModal } from '@/web/components/BarcodeScannerModal';
 import { OnboardingView } from '@/web/views/OnboardingView';
 import { evaluateRange, TONE_COLOR } from '@/domain/goalPhase';
@@ -263,6 +264,20 @@ export function DashboardView() {
       <CoachCard
         text={headline}
         {...(data.goals.aiCoachEnabled ? { onOpenCoach: () => setCoachOpen(true) } : {})}
+      />
+
+      {/* ── What is still open today ──────────────────────────────────── */}
+      <RestOfDayCard
+        consumed={totals}
+        metrics={{ steps: metrics.steps, waterMl: metrics.waterMl }}
+        targets={targets}
+        entryCount={data.entries.length}
+        candidates={[
+          ...data.allFoods.map((f) => ({ id: f.id, name: f.name, macros: f.macros, kind: 'food' as const })),
+          ...data.allRecipes.map((r) => ({ id: r.id, name: r.name, macros: r.perServing, kind: 'recipe' as const })),
+        ]}
+        onAdd={handleEntry}
+        onAddWater={addWater}
       />
 
       {/* ── Primary action + quick input (§36) ────────────────────────── */}
