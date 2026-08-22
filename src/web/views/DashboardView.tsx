@@ -18,6 +18,7 @@ import { SorenessPicker } from '@/web/components/SorenessPicker';
 import { GoalCard } from '@/web/components/GoalCard';
 import { SourceBadge } from '@/web/components/SourceBadge';
 import { RestOfDayCard } from '@/web/components/RestOfDayCard';
+import { DayStatsCard } from '@/web/components/DayStatsCard';
 import { BarcodeScannerModal } from '@/web/components/BarcodeScannerModal';
 import { OnboardingView } from '@/web/views/OnboardingView';
 import { evaluateRange, TONE_COLOR } from '@/domain/goalPhase';
@@ -396,6 +397,21 @@ export function DashboardView() {
         </div>
         <DailyTimeline events={timeline} />
       </section>
+
+      {/* ── Full day statistics ───────────────────────────────────────── */}
+      <DayStatsCard
+        totals={totals}
+        metrics={{
+          steps: metrics.steps,
+          waterMl: metrics.waterMl,
+          sleepH: metrics.sleepH,
+          activeEnergyKcal: metrics.activeEnergyKcal,
+          walkingDistanceM: metrics.walkingDistanceM,
+        }}
+        targets={targets}
+        weekly={data.weekly}
+        dayInProgress={inProgress}
+      />
 
       {/* ── Insights ──────────────────────────────────────────────────── */}
       {insights.length > 0 && (

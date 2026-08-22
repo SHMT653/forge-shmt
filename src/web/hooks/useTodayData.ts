@@ -115,7 +115,7 @@ export type TodayData = {
 
   // analysis
   weight: WeightSummary;
-  weekly: { avgKcal: number | null; avgProtein: number | null; avgSteps: number | null; daysWithData: number };
+  weekly: { avgKcal: number | null; avgProtein: number | null; avgSteps: number | null; avgSleep: number | null; daysWithData: number };
   dailyStreak: number;
   trainingStreak: number;
 
@@ -222,14 +222,22 @@ export function useTodayData() {
       const loggedDays = weekLogs.filter((l) => l.calories > 0);
       const avg = (values: number[]) =>
         values.length > 0 ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : null;
-      const stepValues = Array.from({ length: 7 }, (_, i) => dateKeyAddDays(today, -i))
+      const lastSevenDays = Array.from({ length: 7 }, (_, i) => dateKeyAddDays(today, -i));
+      const stepValues = lastSevenDays
         .map((d) => metricsForDate(metricsByDate, d).steps)
+        .filter((v) => v > 0);
+      const sleepValues = lastSevenDays
+        .map((d) => metricsForDate(metricsByDate, d).sleepH)
         .filter((v) => v > 0);
 
       const weekly = {
         avgKcal: avg(loggedDays.map((l) => l.calories)),
         avgProtein: avg(loggedDays.map((l) => l.proteinG)),
         avgSteps: avg(stepValues),
+        // Rounded to a tenth — an average sleep of "8" hides a real difference.
+        avgSleep: sleepValues.length > 0
+          ? Math.round((sleepValues.reduce((a, b) => a + b, 0) / sleepValues.length) * 10) / 10
+          : null,
         daysWithData: loggedDays.length,
       };
 
