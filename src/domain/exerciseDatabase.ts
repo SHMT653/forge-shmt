@@ -1,3 +1,5 @@
+import { canPerform, type EquipmentId } from './equipment';
+
 export type ExerciseType = 'strength' | 'cardio';
 
 export type MuscleKey =
@@ -10,7 +12,7 @@ export type MuscleKey =
 export type ExerciseEntry = {
   name: string;
   muscle: string;
-  equipment: 'Langhantel' | 'Kurzhantel' | 'Maschine' | 'Kabel' | 'Körpergewicht' | 'Stange' | 'Ausdauer';
+  equipment: 'Langhantel' | 'Kurzhantel' | 'Maschine' | 'Kabel' | 'Körpergewicht' | 'Stange' | 'Band' | 'Kettlebell' | 'Ausdauer';
   defaultSets: number;
   defaultReps: string;
   muscles: MuscleKey[];
@@ -133,14 +135,190 @@ export const EXERCISES: ExerciseEntry[] = [
   { name: 'Seilspringen',             muscle: 'Cardio',    equipment: 'Körpergewicht', defaultSets: 1, defaultReps: '15 Min', muscles: ['calves', 'quads', 'abs'], type: 'cardio', met: 11.8 },
   { name: 'Schwimmen',                muscle: 'Cardio',    equipment: 'Ausdauer', defaultSets: 1, defaultReps: '30 Min', muscles: ['lats', 'chest', 'quads'], type: 'cardio', met: 6.0, hasDistance: true },
   { name: 'Wandern',                  muscle: 'Cardio',    equipment: 'Ausdauer', defaultSets: 1, defaultReps: '60 Min', muscles: ['quads', 'glutes', 'calves'], type: 'cardio', met: 5.3, hasDistance: true },
+
+  // ══════════════════════════════════════════════════════════════════════
+  // Home training — bodyweight, bands, pull-up bar, kettlebell
+  //
+  // The original table was built around a gym: 74 of 97 entries needed a
+  // machine, cable or loaded bar. Someone training at home with bands and a
+  // bar had four usable exercises for chest, back and legs combined. The
+  // block below closes that, with progressions so the same movement can grow
+  // with the lifter instead of being replaced.
+  // ══════════════════════════════════════════════════════════════════════
+
+  // ── Brust: Körpergewicht, vom Einstieg zur schweren Variante ─────────
+  { name: 'Knie-Liegestütze',          muscle: 'Brust',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '8-15',  muscles: ['chest', 'triceps', 'front-delt'], machineInfo: 'Einstieg: Knie am Boden, Körper von Kopf bis Knie in einer Linie' },
+  { name: 'Liegestütze erhöht',        muscle: 'Brust',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '10-15', muscles: ['chest', 'triceps', 'front-delt'], machineInfo: 'Hände auf Tisch oder Bank — leichter als am Boden' },
+  { name: 'Breite Liegestütze',        muscle: 'Brust',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '10-15', muscles: ['chest', 'front-delt', 'triceps'] },
+  { name: 'Feet Elevated Push-ups',    muscle: 'Brust',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '6-12',  muscles: ['chest', 'front-delt', 'triceps'], machineInfo: 'Füße erhöht auf Stuhl oder Bett — mehr Last auf der oberen Brust' },
+  { name: 'Archer Push-ups',           muscle: 'Brust',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '4-8',   muscles: ['chest', 'triceps', 'front-delt'], machineInfo: 'Gewicht auf eine Seite verlagern, anderer Arm bleibt gestreckt — Vorstufe zum einarmigen' },
+  { name: 'Negative Liegestütze',      muscle: 'Brust',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '5-8',   muscles: ['chest', 'triceps', 'front-delt'], machineInfo: 'Nur die Absenkphase, 4–5 Sekunden langsam' },
+  { name: 'Explosive Liegestütze',     muscle: 'Brust',     equipment: 'Körpergewicht', defaultSets: 4, defaultReps: '5-8',   muscles: ['chest', 'triceps', 'front-delt'] },
+  { name: 'Dips zwischen Stühlen',     muscle: 'Brust',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '6-12',  muscles: ['chest', 'triceps', 'front-delt'], machineInfo: 'Zwei stabile Stühle oder Stuhllehnen' },
+  { name: 'Band-Brustpresse',          muscle: 'Brust',     equipment: 'Band',          defaultSets: 3, defaultReps: '10-15', muscles: ['chest', 'triceps', 'front-delt'], machineInfo: 'Band hinter dem Rücken, Enden in den Händen, nach vorne drücken' },
+  { name: 'Band-Fliegende',            muscle: 'Brust',     equipment: 'Band',          defaultSets: 3, defaultReps: '12-15', muscles: ['chest'], machineInfo: 'Band hinter dem Rücken, Arme fast gestreckt zusammenführen' },
+  { name: 'Liegestütze mit Band',      muscle: 'Brust',     equipment: 'Band',          defaultSets: 3, defaultReps: '8-12',  muscles: ['chest', 'triceps', 'front-delt'], machineInfo: 'Band über den Rücken, Enden unter den Händen — Widerstand steigt nach oben hin' },
+
+  // ── Rücken: Stange und Band ──────────────────────────────────────────
+  { name: 'Klimmzüge Untergriff',      muscle: 'Rücken',    equipment: 'Stange',        defaultSets: 4, defaultReps: '5-10',  muscles: ['lats', 'biceps', 'rhomboids'], machineInfo: 'Handflächen zu dir — mehr Bizeps als beim Obergriff' },
+  { name: 'Klimmzüge Neutralgriff',    muscle: 'Rücken',    equipment: 'Stange',        defaultSets: 4, defaultReps: '5-10',  muscles: ['lats', 'biceps', 'rhomboids'], machineInfo: 'Handflächen zueinander — schulterschonendste Variante' },
+  { name: 'Klimmzüge weiter Griff',    muscle: 'Rücken',    equipment: 'Stange',        defaultSets: 4, defaultReps: '4-8',   muscles: ['lats', 'rhomboids', 'biceps'] },
+  { name: 'Negative Klimmzüge',        muscle: 'Rücken',    equipment: 'Stange',        defaultSets: 3, defaultReps: '3-6',   muscles: ['lats', 'biceps'], machineInfo: 'Oben starten, 5 Sekunden langsam ablassen — der Weg zum ersten Klimmzug' },
+  { name: 'Australian Pull-ups',       muscle: 'Rücken',    equipment: 'Stange',        defaultSets: 3, defaultReps: '8-15',  muscles: ['rhomboids', 'lats', 'biceps'], machineInfo: 'Stange auf Hüfthöhe, Körper schräg darunter — Einstieg ins Ziehen' },
+  { name: 'Scapula Pulls',             muscle: 'Rücken',    equipment: 'Stange',        defaultSets: 3, defaultReps: '8-12',  muscles: ['rhomboids', 'traps', 'lats'], machineInfo: 'Arme gestreckt, nur die Schulterblätter nach unten ziehen' },
+  { name: 'Dead Hang',                 muscle: 'Rücken',    equipment: 'Stange',        defaultSets: 3, defaultReps: '20-45', muscles: ['lats', 'forearms', 'traps'], machineInfo: 'Reines Hängen — Griffkraft und Schultermobilität' },
+  { name: 'Band-Rudern',               muscle: 'Rücken',    equipment: 'Band',          defaultSets: 3, defaultReps: '10-15', muscles: ['rhomboids', 'lats', 'biceps'], machineInfo: 'Band um einen festen Punkt oder um die Füße, zum Bauch ziehen' },
+  { name: 'Band-Latzug',               muscle: 'Rücken',    equipment: 'Band',          defaultSets: 3, defaultReps: '10-15', muscles: ['lats', 'biceps'], machineInfo: 'Band oben befestigen, im Knien zur Brust ziehen' },
+  { name: 'Band Face Pulls',           muscle: 'Rücken',    equipment: 'Band',          defaultSets: 3, defaultReps: '12-20', muscles: ['rear-delt', 'traps', 'rhomboids'], machineInfo: 'Auf Gesichtshöhe zum Kopf ziehen, Ellbogen hoch — Gegenspieler zum vielen Drücken' },
+  { name: 'Band Straight-Arm Pulldown', muscle: 'Rücken',   equipment: 'Band',          defaultSets: 3, defaultReps: '12-15', muscles: ['lats'], machineInfo: 'Arme gestreckt von oben zur Hüfte ziehen' },
+  { name: 'Einarmiges Band-Rudern',    muscle: 'Rücken',    equipment: 'Band',          defaultSets: 3, defaultReps: '10-15', muscles: ['lats', 'rhomboids', 'biceps'] },
+  { name: 'Superman',                  muscle: 'Rücken',    equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '12-20', muscles: ['lower-back', 'glutes'] },
+  { name: 'Reverse Snow Angels',       muscle: 'Rücken',    equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '12-20', muscles: ['rear-delt', 'traps', 'rhomboids'], machineInfo: 'Bauchlage, Arme knapp über dem Boden kreisen' },
+  { name: 'Y-T-W Raises',              muscle: 'Rücken',    equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '8-12',  muscles: ['rear-delt', 'traps', 'rhomboids'], machineInfo: 'Bauchlage, Arme nacheinander in Y-, T- und W-Position heben' },
+
+  // ── Beine: Körpergewicht und Band ────────────────────────────────────
+  { name: 'Ausfallschritte',           muscle: 'Beine',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '10-15', muscles: ['quads', 'glutes', 'hamstrings'] },
+  { name: 'Rückwärts-Ausfallschritte', muscle: 'Beine',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '10-15', muscles: ['glutes', 'quads', 'hamstrings'], machineInfo: 'Knieschonender als der Ausfallschritt nach vorne' },
+  { name: 'Bulgarian Split Squat (KG)', muscle: 'Beine',    equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '8-12',  muscles: ['quads', 'glutes', 'hamstrings'], machineInfo: 'Hinterer Fuß erhöht auf Stuhl oder Sofa' },
+  { name: 'Pistol Squat',              muscle: 'Beine',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '3-8',   muscles: ['quads', 'glutes'], machineInfo: 'Einbeinige Kniebeuge — erst an einer Stütze üben' },
+  { name: 'Step-ups',                  muscle: 'Beine',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '10-15', muscles: ['quads', 'glutes'], machineInfo: 'Stuhl oder Treppenstufe, kontrolliert ablassen' },
+  { name: 'Glute Bridge',              muscle: 'Beine',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '12-20', muscles: ['glutes', 'hamstrings'] },
+  { name: 'Einbeinige Glute Bridge',   muscle: 'Beine',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '8-15',  muscles: ['glutes', 'hamstrings'] },
+  { name: 'Nordic Curl',               muscle: 'Beine',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '4-8',   muscles: ['hamstrings', 'glutes'], machineInfo: 'Füße fixieren, Oberkörper langsam nach vorne ablassen — sehr fordernd' },
+  { name: 'Wall Sit',                  muscle: 'Beine',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '30-60', muscles: ['quads', 'glutes'] },
+  { name: 'Wadenheben (Körpergewicht)', muscle: 'Beine',    equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '15-25', muscles: ['calves'], machineInfo: 'Auf einer Stufe, Ferse tief ablassen' },
+  { name: 'Jump Squats',               muscle: 'Beine',     equipment: 'Körpergewicht', defaultSets: 4, defaultReps: '8-12',  muscles: ['quads', 'glutes', 'calves'] },
+  { name: 'Cossack Squat',             muscle: 'Beine',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '6-10',  muscles: ['quads', 'glutes', 'hamstrings'], machineInfo: 'Seitliche Kniebeuge — auch Mobilität für die Hüfte' },
+  { name: 'Band-Kniebeugen',           muscle: 'Beine',     equipment: 'Band',          defaultSets: 3, defaultReps: '12-20', muscles: ['quads', 'glutes'], machineInfo: 'Band unter den Füßen, Enden auf Schulterhöhe' },
+  { name: 'Band Romanian Deadlift',    muscle: 'Beine',     equipment: 'Band',          defaultSets: 3, defaultReps: '12-15', muscles: ['hamstrings', 'glutes', 'lower-back'] },
+  { name: 'Band Kickbacks',            muscle: 'Beine',     equipment: 'Band',          defaultSets: 3, defaultReps: '12-20', muscles: ['glutes', 'hamstrings'] },
+  { name: 'Band Lateral Walks',        muscle: 'Beine',     equipment: 'Band',          defaultSets: 3, defaultReps: '12-20', muscles: ['glutes'], machineInfo: 'Band um die Oberschenkel, seitliche Schritte in der Hocke' },
+  { name: 'Band-Beincurl',             muscle: 'Beine',     equipment: 'Band',          defaultSets: 3, defaultReps: '12-15', muscles: ['hamstrings'] },
+
+  // ── Schultern ────────────────────────────────────────────────────────
+  { name: 'Pike Push-ups',             muscle: 'Schultern', equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '6-12',  muscles: ['front-delt', 'triceps', 'side-delt'], machineInfo: 'Hüfte hoch, Kopf Richtung Boden — die Schulter-Liegestütze' },
+  { name: 'Pike Push-ups erhöht',      muscle: 'Schultern', equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '5-10',  muscles: ['front-delt', 'triceps'], machineInfo: 'Füße erhöht — Vorstufe zum Handstand-Drücken' },
+  { name: 'Handstand Push-ups (Wand)', muscle: 'Schultern', equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '3-8',   muscles: ['front-delt', 'triceps', 'traps'] },
+  { name: 'Band-Schulterdrücken',      muscle: 'Schultern', equipment: 'Band',          defaultSets: 3, defaultReps: '10-15', muscles: ['front-delt', 'triceps', 'side-delt'] },
+  { name: 'Band-Seitheben',            muscle: 'Schultern', equipment: 'Band',          defaultSets: 3, defaultReps: '12-20', muscles: ['side-delt'] },
+  { name: 'Band-Frontheben',           muscle: 'Schultern', equipment: 'Band',          defaultSets: 3, defaultReps: '12-15', muscles: ['front-delt'] },
+  { name: 'Band Reverse Fly',          muscle: 'Schultern', equipment: 'Band',          defaultSets: 3, defaultReps: '12-20', muscles: ['rear-delt', 'rhomboids'] },
+  { name: 'Band-Aufrechtes Rudern',    muscle: 'Schultern', equipment: 'Band',          defaultSets: 3, defaultReps: '12-15', muscles: ['side-delt', 'traps'] },
+
+  // ── Arme ─────────────────────────────────────────────────────────────
+  { name: 'Diamant-Liegestütze',       muscle: 'Trizeps',   equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '6-12',  muscles: ['triceps', 'chest', 'front-delt'], machineInfo: 'Hände unter der Brust zu einer Raute' },
+  { name: 'Bench Dips',                muscle: 'Trizeps',   equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '10-20', muscles: ['triceps', 'front-delt'], machineInfo: 'Hände auf einer Bank hinter dem Rücken' },
+  { name: 'Band-Trizepsdrücken',       muscle: 'Trizeps',   equipment: 'Band',          defaultSets: 3, defaultReps: '12-20', muscles: ['triceps'] },
+  { name: 'Band Overhead Extension',   muscle: 'Trizeps',   equipment: 'Band',          defaultSets: 3, defaultReps: '12-15', muscles: ['triceps'] },
+  { name: 'Band-Bizepscurls',          muscle: 'Bizeps',    equipment: 'Band',          defaultSets: 3, defaultReps: '12-20', muscles: ['biceps', 'forearms'] },
+  { name: 'Band Hammer Curls',         muscle: 'Bizeps',    equipment: 'Band',          defaultSets: 3, defaultReps: '12-15', muscles: ['biceps', 'forearms'] },
+  { name: 'Band Concentration Curl',   muscle: 'Bizeps',    equipment: 'Band',          defaultSets: 3, defaultReps: '12-15', muscles: ['biceps'] },
+  { name: 'Chin-up Negatives',         muscle: 'Bizeps',    equipment: 'Stange',        defaultSets: 3, defaultReps: '3-6',   muscles: ['biceps', 'lats'], machineInfo: 'Untergriff, langsam ablassen' },
+
+  // ── Rumpf ────────────────────────────────────────────────────────────
+  { name: 'Hollow Body Hold',          muscle: 'Bauch',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '20-45', muscles: ['abs'], machineInfo: 'Unterer Rücken bleibt am Boden gepresst' },
+  { name: 'V-Ups',                     muscle: 'Bauch',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '10-20', muscles: ['abs'] },
+  { name: 'Bicycle Crunches',          muscle: 'Bauch',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '15-30', muscles: ['abs', 'obliques'] },
+  { name: 'Beinheben liegend',         muscle: 'Bauch',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '10-20', muscles: ['abs'] },
+  { name: 'Flutter Kicks',             muscle: 'Bauch',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '20-40', muscles: ['abs'] },
+  { name: 'Dead Bug',                  muscle: 'Bauch',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '10-16', muscles: ['abs'], machineInfo: 'Gegenüberliegende Arm- und Beinseite langsam strecken' },
+  { name: 'Bird Dog',                  muscle: 'Bauch',     equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '10-16', muscles: ['abs', 'lower-back', 'glutes'] },
+  { name: 'Plank mit Schulterberührung', muscle: 'Bauch',   equipment: 'Körpergewicht', defaultSets: 3, defaultReps: '16-24', muscles: ['abs', 'obliques', 'front-delt'] },
+  { name: 'Knieheben hängend',         muscle: 'Bauch',     equipment: 'Stange',        defaultSets: 3, defaultReps: '8-15',  muscles: ['abs'], machineInfo: 'Leichter als gestreckte Beine' },
+  { name: 'Toes to Bar',               muscle: 'Bauch',     equipment: 'Stange',        defaultSets: 3, defaultReps: '5-12',  muscles: ['abs', 'lats'] },
+  { name: 'Pallof Press',              muscle: 'Bauch',     equipment: 'Band',          defaultSets: 3, defaultReps: '10-15', muscles: ['obliques', 'abs'], machineInfo: 'Band seitlich befestigt, vor der Brust nach vorne drücken ohne sich zu drehen' },
+  { name: 'Band Wood Chop',            muscle: 'Bauch',     equipment: 'Band',          defaultSets: 3, defaultReps: '12-15', muscles: ['obliques', 'abs'] },
+
+  // ── Kettlebell ───────────────────────────────────────────────────────
+  { name: 'Kettlebell Swing',          muscle: 'Beine',     equipment: 'Kettlebell',    defaultSets: 4, defaultReps: '12-20', muscles: ['glutes', 'hamstrings', 'lower-back'], machineInfo: 'Hüftstoß, nicht Armheben — die Kugel schwingt von selbst' },
+  { name: 'Goblet Squat (Kettlebell)', muscle: 'Beine',     equipment: 'Kettlebell',    defaultSets: 3, defaultReps: '10-15', muscles: ['quads', 'glutes'] },
+  { name: 'Kettlebell Romanian Deadlift', muscle: 'Beine',  equipment: 'Kettlebell',    defaultSets: 3, defaultReps: '10-15', muscles: ['hamstrings', 'glutes', 'lower-back'] },
+  { name: 'Kettlebell Rudern',         muscle: 'Rücken',    equipment: 'Kettlebell',    defaultSets: 3, defaultReps: '8-12',  muscles: ['lats', 'rhomboids', 'biceps'] },
+  { name: 'Kettlebell Schulterdrücken', muscle: 'Schultern', equipment: 'Kettlebell',   defaultSets: 3, defaultReps: '6-12',  muscles: ['front-delt', 'triceps'] },
+  { name: 'Turkish Get-up',            muscle: 'Bauch',     equipment: 'Kettlebell',    defaultSets: 3, defaultReps: '3-5',   muscles: ['abs', 'front-delt', 'glutes'], machineInfo: 'Vom Liegen zum Stand mit ausgestrecktem Arm — langsam und kontrolliert' },
+  { name: 'Farmers Walk',              muscle: 'Rücken',    equipment: 'Kettlebell',    defaultSets: 3, defaultReps: '30-60', muscles: ['traps', 'forearms', 'abs'] },
+  { name: 'Kettlebell Halo',           muscle: 'Schultern', equipment: 'Kettlebell',    defaultSets: 3, defaultReps: '8-12',  muscles: ['front-delt', 'side-delt', 'traps'] },
+
 ];
 
-export function searchExercises(query: string, limit = 8): ExerciseEntry[] {
-  if (!query.trim()) return [];
-  const q = query.toLowerCase();
-  return EXERCISES.filter(
-    (e) => e.name.toLowerCase().includes(q) || e.muscle.toLowerCase().includes(q) || e.equipment.toLowerCase().includes(q)
-  ).slice(0, limit);
+export type ExerciseSearchOptions = {
+  limit?: number;
+  /**
+   * What the user actually owns. Exercises they can perform rank first —
+   * with 176 entries an unranked list buries the ten push-up variations under
+   * cable and machine work the user has no access to.
+   */
+  available?: readonly EquipmentId[];
+};
+
+/** Maps a table equipment label onto the user's equipment profile. */
+function requiredEquipment(entry: ExerciseEntry): EquipmentId {
+  switch (entry.equipment) {
+    case 'Band': return 'bands';
+    case 'Stange': return 'pullup_bar';
+    case 'Kurzhantel': return 'dumbbells';
+    case 'Langhantel': return 'barbell';
+    case 'Kettlebell': return 'kettlebell';
+    case 'Maschine':
+    case 'Kabel': return 'gym';
+    default: return 'bodyweight';
+  }
+}
+
+/** True when the user's equipment covers this exercise. */
+export function canPerformExercise(entry: ExerciseEntry, available: readonly EquipmentId[]): boolean {
+  return canPerform(available, requiredEquipment(entry));
+}
+
+function matchScore(entry: ExerciseEntry, needle: string): number {
+  const name = entry.name.toLowerCase();
+  if (name === needle) return 100;
+  if (name.startsWith(needle)) return 85;
+  if (name.includes(needle)) return 70;
+  if (entry.muscle.toLowerCase().includes(needle)) return 45;
+  if (entry.equipment.toLowerCase().includes(needle)) return 35;
+  return 0;
+}
+
+export function searchExercises(query: string, options: ExerciseSearchOptions = {}): ExerciseEntry[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [];
+
+  const limit = options.limit ?? 8;
+  const available = options.available;
+
+  const scored: { entry: ExerciseEntry; score: number }[] = [];
+  for (const entry of EXERCISES) {
+    const score = matchScore(entry, needle);
+    if (score === 0) continue;
+    // A doable exercise outranks an equally good match the user cannot do,
+    // without hiding the latter entirely — a gym visit is always possible.
+    const bonus = available && available.length > 0 && canPerformExercise(entry, available) ? 30 : 0;
+    scored.push({ entry, score: score + bonus });
+  }
+
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((item) => item.entry);
+}
+
+/** Browse by muscle group, again preferring what the user can actually do. */
+export function exercisesForMuscle(
+  muscle: string,
+  options: ExerciseSearchOptions = {},
+): ExerciseEntry[] {
+  const limit = options.limit ?? 20;
+  const available = options.available;
+
+  return EXERCISES.filter((entry) => entry.muscle === muscle)
+    .sort((a, b) => {
+      if (!available || available.length === 0) return 0;
+      const doableA = canPerformExercise(a, available) ? 1 : 0;
+      const doableB = canPerformExercise(b, available) ? 1 : 0;
+      return doableB - doableA;
+    })
+    .slice(0, limit);
 }
 
 export function findExercise(name: string): ExerciseEntry | undefined {

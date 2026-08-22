@@ -87,7 +87,8 @@ export function canPerform(available: readonly EquipmentId[], needed: EquipmentI
 export function equipmentFromExerciseLabel(label: string): EquipmentId {
   const needle = label.toLowerCase();
   if (needle.includes('band')) return 'bands';
-  if (needle.includes('klimmzug') || needle.includes('pull-up') || needle.includes('pullup')) return 'pullup_bar';
+  // 'Stange' is what the exercise table calls a pull-up bar.
+  if (needle.includes('stange') || needle.includes('klimmzug') || needle.includes('pull-up') || needle.includes('pullup')) return 'pullup_bar';
   if (needle.includes('kurzhantel') || needle.includes('dumbbell')) return 'dumbbells';
   if (needle.includes('langhantel') || needle.includes('barbell')) return 'barbell';
   if (needle.includes('kettlebell')) return 'kettlebell';

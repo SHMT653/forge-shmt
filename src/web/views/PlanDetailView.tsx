@@ -10,6 +10,8 @@ import { listCustomExercises, type DbExercise } from '@/data/exercises';
 import { ExerciseInfoModal } from '@/web/components/ExerciseInfoModal';
 import { CreateExerciseModal } from '@/web/components/CreateExerciseModal';
 import { useAuth } from '@/web/hooks/useAuth';
+import { getUserGoals } from '@/data/profile';
+import type { EquipmentId } from '@/domain/equipment';
 import type { Exercise, PlanDay, TrainingPlan } from '@/domain/types';
 
 /* ── tiny inline sub-components ─────────────────────────── */
@@ -124,8 +126,21 @@ function AddExerciseRow({ userId, onAdd }: { userId: string; onAdd: (name: strin
   const [showDrop, setShowDrop]     = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [dropPos, setDropPos]       = useState({ top: 0, left: 0, width: 280 });
+  const [equipment, setEquipment]   = useState<EquipmentId[]>([]);
   const wrapRef                     = useRef<HTMLDivElement>(null);
   const searchRef                   = useRef<HTMLInputElement>(null);
+  const { user: searchUser }        = useAuth();
+
+  // The user's equipment ranks doable exercises first — with 176 entries an
+  // unranked list buries push-up variations under cable work.
+  useEffect(() => {
+    if (!searchUser) return;
+    let active = true;
+    void getUserGoals(searchUser.id)
+      .then((goals) => { if (active) setEquipment(goals.equipment); })
+      .catch(() => { /* ranking is an enhancement — search still works */ });
+    return () => { active = false; };
+  }, [searchUser]);
 
   // Fetch custom exercises once when row opens
   useEffect(() => {
@@ -146,7 +161,7 @@ function AddExerciseRow({ userId, onAdd }: { userId: string; onAdd: (name: strin
     setQuery(q);
     setSelected(null);
     if (!q.trim()) { setShowDrop(false); return; }
-    const localHits: SearchResult[] = searchExercises(q).map((e) => ({ name: e.name, muscle: e.muscle, equipment: e.equipment, defaultSets: e.defaultSets, defaultReps: e.defaultReps }));
+    const localHits: SearchResult[] = searchExercises(q, { available: equipment }).map((e) => ({ name: e.name, muscle: e.muscle, equipment: e.equipment, defaultSets: e.defaultSets, defaultReps: e.defaultReps }));
     const qLow = q.toLowerCase();
     const dbHits: SearchResult[] = dbCache.filter((e) => e.name.toLowerCase().includes(qLow) || e.muscleGroup.toLowerCase().includes(qLow)).map(dbToResult);
     const merged = [...localHits];
