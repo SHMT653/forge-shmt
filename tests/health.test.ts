@@ -184,3 +184,29 @@ describe('suggestMiniSession (§19/§33)', () => {
     expect(suggestMiniSession([]).exercises.length).toBeGreaterThan(0);
   });
 });
+
+describe('availability semantics — the dead-button bug', () => {
+  it('a provider that supports nothing must not count as available', async () => {
+    // Regression: the browser fell back to ManualHealthProvider, whose
+    // isAvailable() is true because it exists as a provider. The UI read that
+    // as "Health works here" and rendered a "Verbinden" button that did
+    // nothing when pressed.
+    const { resolveHealthProvider, __setHealthProvider } = await import('@/services/health');
+    __setHealthProvider(null);
+
+    const provider = await resolveHealthProvider();
+    const supported = provider.supportedMetrics();
+    const available = supported.length > 0 && (await provider.isAvailable());
+
+    expect(provider.id).toBe('manual');
+    expect(available).toBe(false);
+  });
+
+  it('the manual provider still reports itself as a working provider', async () => {
+    // The two meanings are genuinely different and both are needed — this
+    // pins the distinction so it does not get collapsed again.
+    const provider = new ManualHealthProvider();
+    expect(await provider.isAvailable()).toBe(true);
+    expect(provider.supportedMetrics()).toHaveLength(0);
+  });
+});

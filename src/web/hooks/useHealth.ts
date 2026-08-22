@@ -49,7 +49,12 @@ export function useHealth(options: { autoSync?: boolean } = {}) {
     if (!user) return;
     try {
       const provider = await resolveHealthProvider();
-      const available = await provider.isAvailable();
+      // "Available" here has to mean "can actually serve health data", not
+      // "a provider object exists". The manual provider reports itself as
+      // available — correctly, as a provider — but supports no metrics, and
+      // conflating the two put a dead "Verbinden" button in the browser.
+      const supported = provider.supportedMetrics();
+      const available = supported.length > 0 && (await provider.isAvailable());
       const [granted, connection] = await Promise.all([
         available ? provider.grantedMetrics() : Promise.resolve([] as HealthMetricKey[]),
         getHealthConnection(user.id),
@@ -58,7 +63,7 @@ export function useHealth(options: { autoSync?: boolean } = {}) {
         ...prev,
         provider,
         available,
-        supported: provider.supportedMetrics(),
+        supported,
         granted,
         connection,
         error: null,
@@ -96,13 +101,16 @@ export function useHealth(options: { autoSync?: boolean } = {}) {
     setState((prev) => ({ ...prev, syncing: true }));
     try {
       const result = await state.provider.requestPermissions(HEALTH_ROLLOUT);
+      const nothingGranted = result.granted.length === 0;
+
       await saveHealthConnection(user.id, {
-        connected: result.granted.length > 0,
+        connected: !nothingGranted,
         grantedTypes: result.granted,
-        lastError: null,
+        // Saying nothing after a refused dialog looks like a broken button.
+        lastError: nothingGranted ? 'Keine Berechtigung erteilt. In der Health-App unter „Datenzugriff und Geräte“ nachträglich freigeben.' : null,
       });
       setState((prev) => ({ ...prev, granted: result.granted, syncing: false }));
-      if (result.granted.length > 0) await syncHealth(state.provider, user.id, { days: 7 });
+      if (!nothingGranted) await syncHealth(state.provider, user.id, { days: 7 });
       await load();
     } catch (err) {
       setState((prev) => ({ ...prev, syncing: false, error: errorMessage(err, 'Verbindung fehlgeschlagen.') }));
