@@ -1,6 +1,6 @@
 'use client';
 
-import { Zap, Footprints, Droplets, Plus } from 'lucide-react';
+import { Sparkles, Footprints, Droplets, Plus } from 'lucide-react';
 import { describeRemaining, remainingBudget, suggestFits, type FitCandidate } from '@/domain/remainingDay';
 import { formatLiters } from '@/domain/coach';
 import { TONE_COLOR } from '@/domain/goalPhase';
@@ -21,16 +21,21 @@ export function RestOfDayCard({
   targets,
   entryCount,
   candidates,
+  headline,
   onAdd,
   onAddWater,
+  onOpenCoach,
 }: {
   consumed: Macros;
   metrics: { steps: number; waterMl: number };
   targets: ResolvedTargets;
   entryCount: number;
   candidates: readonly FitCandidate[];
+  /** The coach's read on the day — merged in rather than shown as its own card. */
+  headline: string;
   onAdd: (entry: MealEntryInput) => void;
   onAddWater: (ml: number) => void;
+  onOpenCoach?: () => void;
 }) {
   const budget = remainingBudget(consumed, metrics, targets, entryCount);
   const fits = suggestFits(candidates, budget);
@@ -42,17 +47,29 @@ export function RestOfDayCard({
     : 'green';
 
   return (
-    <section className="panel">
-      <div className="row-between" style={{ marginBottom: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Zap size={15} color={TONE_COLOR[tone]} />
-          <p className="h3" style={{ fontSize: 15 }}>Rest des Tages</p>
+    <section className="coach-card" style={{ display: 'block' }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <span className="coach-avatar" aria-hidden style={{ color: TONE_COLOR[tone] }}>
+          <Sparkles size={17} />
+        </span>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <p className="coach-label">Coach</p>
+          <p className="coach-text">{headline}</p>
+          <p className="coach-text" style={{ marginTop: 6, color: 'var(--muted)' }}>
+            {describeRemaining(budget, targets)}
+          </p>
+          {onOpenCoach && (
+            <button
+              type="button"
+              className="button ghost compact"
+              style={{ marginTop: 6, padding: 0, minHeight: 0, color: 'var(--violet)' }}
+              onClick={onOpenCoach}
+            >
+              Nachfragen →
+            </button>
+          )}
         </div>
       </div>
-
-      <p className="copy" style={{ marginTop: 0, fontSize: 14 }}>
-        {describeRemaining(budget, targets)}
-      </p>
 
       {/* Open non-food targets, only when they are actually still open. */}
       {(budget.stepsLeft > 0 || budget.waterLeftMl > 0) && (

@@ -3,7 +3,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Timer, X, Plus } from 'lucide-react';
 
-const PRESETS = [60, 90, 120, 180];
+const PRESETS = [45, 60, 90, 120, 180, 240];
+const STORAGE_KEY = 'forge_rest_seconds';
+
+/** The chosen rest length sticks, so it is set once rather than every set. */
+function loadPreferred(fallback: number): number {
+  if (typeof window === 'undefined') return fallback;
+  const stored = Number(window.localStorage.getItem(STORAGE_KEY));
+  return Number.isFinite(stored) && stored >= 15 && stored <= 600 ? stored : fallback;
+}
 
 /**
  * Rest timer between sets.
@@ -13,8 +21,10 @@ const PRESETS = [60, 90, 120, 180];
  * which is exactly when a phone gets put down during a rest.
  */
 export function RestTimer({ defaultSeconds = 90, onClose }: { defaultSeconds?: number; onClose: () => void }) {
-  const [endsAt, setEndsAt] = useState(() => Date.now() + defaultSeconds * 1000);
-  const [remaining, setRemaining] = useState(defaultSeconds);
+  const [preferred, setPreferred] = useState(() => loadPreferred(defaultSeconds));
+  const [endsAt, setEndsAt] = useState(() => Date.now() + loadPreferred(defaultSeconds) * 1000);
+  const [remaining, setRemaining] = useState(preferred);
+  const [custom, setCustom] = useState('');
   const notified = useRef(false);
 
   useEffect(() => {
@@ -34,6 +44,8 @@ export function RestTimer({ defaultSeconds = 90, onClose }: { defaultSeconds?: n
 
   function restart(seconds: number) {
     notified.current = false;
+    setPreferred(seconds);
+    if (typeof window !== 'undefined') window.localStorage.setItem(STORAGE_KEY, String(seconds));
     setEndsAt(Date.now() + seconds * 1000);
   }
 
@@ -67,7 +79,7 @@ export function RestTimer({ defaultSeconds = 90, onClose }: { defaultSeconds?: n
           <button
             key={preset}
             type="button"
-            className="chip"
+            className={`chip${preferred === preset ? ' active' : ''}`}
             style={{ minHeight: 30, fontSize: 12 }}
             onClick={() => restart(preset)}
           >
@@ -83,6 +95,31 @@ export function RestTimer({ defaultSeconds = 90, onClose }: { defaultSeconds?: n
           <Plus size={12} /> 30 s
         </button>
       </div>
+
+      <form
+        style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center' }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          const seconds = Number(custom);
+          if (Number.isFinite(seconds) && seconds >= 15 && seconds <= 600) {
+            restart(seconds);
+            setCustom('');
+          }
+        }}
+      >
+        <input
+          className="input compact"
+          inputMode="numeric"
+          placeholder="eigene Sekunden"
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          aria-label="Eigene Pausenlänge in Sekunden"
+          style={{ maxWidth: 150, textAlign: 'left' }}
+        />
+        <button type="submit" className="button secondary compact" disabled={!custom.trim()}>
+          Setzen
+        </button>
+      </form>
     </div>
   );
 }

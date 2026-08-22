@@ -1914,3 +1914,40 @@ button:disabled {
   .plan-exercise-row > .plan-exercise-sets { grid-column: 2; }
   .plan-exercise-row > .plan-exercise-reps { grid-column: 3; }
 }
+
+/* ── Aufklappbare Details ─────────────────────────────────────────────
+   Reference material that would otherwise add three more cards to a screen
+   already carrying ten.                                                   */
+.detail-fold > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 760;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.detail-fold > summary::-webkit-details-marker { display: none; }
+
+.detail-fold > summary::after {
+  content: '▾';
+  font-size: 11px;
+  transition: transform 0.18s ease;
+}
+
+.detail-fold[open] > summary::after { transform: rotate(180deg); }
+
+.detail-fold > summary:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}

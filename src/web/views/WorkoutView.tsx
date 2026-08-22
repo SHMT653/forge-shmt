@@ -14,6 +14,7 @@ import { ExerciseInfoModal } from '@/web/components/ExerciseInfoModal';
 import { metricForSets, planSession, type LastPerformance, type MetricKind, type SetTarget } from '@/domain/progression';
 import { listExerciseSnapshots } from '@/data/workouts';
 import { RestTimer } from '@/web/components/RestTimer';
+import { HoldTimer } from '@/web/components/HoldTimer';
 import type { SetUpdate } from '@/data/workouts';
 import type { SetEntry } from '@/domain/types';
 
@@ -55,6 +56,7 @@ function SetRow({
   metric,
   target,
   onSave,
+  onStartHold,
 }: {
   set: SetEntry;
   index: number;
@@ -63,6 +65,8 @@ function SetRow({
   /** What to aim for on this set today (§ progressive overload). */
   target: SetTarget | undefined;
   onSave: (patch: SetUpdate) => void;
+  /** Opens the stopwatch for this set — only used by holds. */
+  onStartHold?: (index: number) => void;
 }) {
   const [reps, setReps] = useState(set.reps !== null ? String(set.reps) : '');
   const [weight, setWeight] = useState(set.weightKg !== null ? String(set.weightKg) : '');
@@ -112,7 +116,14 @@ function SetRow({
       )}
 
       {isHold ? (
-        <span style={{ color: 'var(--subtle)', fontSize: 12, textAlign: 'center' }}>Sekunden halten</span>
+        <button
+          type="button"
+          className="button secondary compact"
+          onClick={() => onStartHold?.(index)}
+          style={{ minHeight: 40 }}
+        >
+          <Timer size={14} /> Stoppuhr
+        </button>
       ) : (
         <input
           className="input compact"
@@ -289,6 +300,7 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
   // Today's concrete targets, derived from the last session for this exercise.
   const [plan, setPlan] = useState<ReturnType<typeof planSession> | null>(null);
   const [restOpen, setRestOpen] = useState(false);
+  const [holdingSet, setHoldingSet] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -367,6 +379,21 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
         </div>
       )}
 
+      {!isCardio && holdingSet !== null && (
+        <div className="panel soft" style={{ padding: 12, marginBottom: 12 }}>
+          <p className="section-label" style={{ marginBottom: 8 }}>Satz {holdingSet + 1} halten</p>
+          <HoldTimer
+            targetSeconds={plan?.targets[holdingSet]?.value ?? null}
+            onFinish={(recorded) => {
+              const set = exercise.sets[holdingSet];
+              if (set) void saveSet(set.id, { durationSeconds: recorded, completed: true });
+              setHoldingSet(null);
+              setRestOpen(true);
+            }}
+          />
+        </div>
+      )}
+
       {!isCardio && restOpen && (
         <div style={{ marginBottom: 12 }}>
           <RestTimer onClose={() => setRestOpen(false)} />
@@ -407,6 +434,7 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
                 suggestion={suggestion}
                 metric={setMetric}
                 target={plan?.targets[index]}
+                onStartHold={(i) => setHoldingSet(i)}
                 onSave={(patch) => {
                   // Finishing a set is the moment the rest starts.
                   if (patch.completed && !set.completed) setRestOpen(true);

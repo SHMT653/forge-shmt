@@ -7,8 +7,7 @@ import {
   Flame, Dumbbell, Plus, Trophy, Scale, Camera, ArrowRight, ListChecks, Activity, ScanLine,
 } from 'lucide-react';
 import { useTodayContext } from '@/web/hooks/TodayDataProvider';
-import { StatusStrip } from '@/web/components/StatusStrip';
-import { CoachCard, InsightList } from '@/web/components/CoachCard';
+import { InsightList } from '@/web/components/CoachCard';
 import { DayRings, type RingSpec } from '@/web/components/DayRings';
 import { DailyTimeline, mealToEvent, type TimelineEvent } from '@/web/components/DailyTimeline';
 import { QuickAddSheet } from '@/web/components/QuickAddSheet';
@@ -250,10 +249,6 @@ export function DashboardView() {
           }
         />
 
-        <div style={{ marginTop: 16 }}>
-          <StatusStrip items={dayStatus} />
-        </div>
-
         {(metrics.sources.steps === 'apple_health' || metrics.sources.sleep === 'apple_health') && (
           <p className="muted-sm" style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
             <SourceBadge source="apple_health" />
@@ -262,15 +257,6 @@ export function DashboardView() {
           </p>
         )}
       </section>
-
-      {/* ── Current goal phase (§38) ──────────────────────────────────── */}
-      <GoalCard targets={targets} phase={data.activePhase} />
-
-      {/* ── Coach ─────────────────────────────────────────────────────── */}
-      <CoachCard
-        text={headline}
-        {...(data.goals.aiCoachEnabled ? { onOpenCoach: () => setCoachOpen(true) } : {})}
-      />
 
       {/* ── What is still open today ──────────────────────────────────── */}
       <RestOfDayCard
@@ -282,8 +268,10 @@ export function DashboardView() {
           ...data.allFoods.map((f) => ({ id: f.id, name: f.name, macros: f.macros, kind: 'food' as const })),
           ...data.allRecipes.map((r) => ({ id: r.id, name: r.name, macros: r.perServing, kind: 'recipe' as const })),
         ]}
+        headline={headline}
         onAdd={handleEntry}
         onAddWater={addWater}
+        {...(data.goals.aiCoachEnabled ? { onOpenCoach: () => setCoachOpen(true) } : {})}
       />
 
       {/* ── Primary action + quick input (§36) ────────────────────────── */}
@@ -323,30 +311,23 @@ export function DashboardView() {
         />
       </section>
 
-      {/* ── Reminders (§26/§27) ───────────────────────────────────────── */}
+      {/* ── Reminders (§26/§27) — one line, not two cards ───────────── */}
       {(data.weighInDue || data.photoDue) && (
-        <section className="stack-sm">
-          {data.weighInDue && (
-            <Link href="/progress" className="habit-row" style={{ textDecoration: 'none' }}>
-              <span className="habit-icon"><Scale size={18} /></span>
-              <div className="habit-body">
-                <p className="h3" style={{ fontSize: 14 }}>Wochen-Check-In fällig</p>
-                <p className="muted-sm">Am besten morgens, nach der Toilette, vor dem Essen.</p>
-              </div>
-              <ArrowRight size={16} color="var(--subtle)" />
-            </Link>
-          )}
-          {data.photoDue && (
-            <Link href="/progress" className="habit-row" style={{ textDecoration: 'none' }}>
-              <span className="habit-icon"><Camera size={18} /></span>
-              <div className="habit-body">
-                <p className="h3" style={{ fontSize: 14 }}>Fortschrittsbilder sind dran</p>
-                <p className="muted-sm">Gleiche Position, gleiches Licht — dann sieht man den Unterschied.</p>
-              </div>
-              <ArrowRight size={16} color="var(--subtle)" />
-            </Link>
-          )}
-        </section>
+        <Link href="/progress" className="habit-row" style={{ textDecoration: 'none', padding: '10px 14px' }}>
+          <span className="habit-icon" style={{ width: 32, height: 32 }}>
+            {data.weighInDue ? <Scale size={15} /> : <Camera size={15} />}
+          </span>
+          <div className="habit-body">
+            <p className="h3" style={{ fontSize: 13 }}>
+              {data.weighInDue && data.photoDue
+                ? 'Wiegen und Fortschrittsbilder sind dran'
+                : data.weighInDue
+                  ? 'Wochen-Check-In fällig'
+                  : 'Fortschrittsbilder sind dran'}
+            </p>
+          </div>
+          <ArrowRight size={15} color="var(--subtle)" />
+        </Link>
       )}
 
       {/* ── Training today ────────────────────────────────────────────── */}
@@ -403,33 +384,37 @@ export function DashboardView() {
         <DailyTimeline events={timeline} />
       </section>
 
-      {/* ── Full day statistics ───────────────────────────────────────── */}
-      <DayStatsCard
-        totals={totals}
-        metrics={{
-          steps: metrics.steps,
-          waterMl: metrics.waterMl,
-          sleepH: metrics.sleepH,
-          activeEnergyKcal: metrics.activeEnergyKcal,
-          walkingDistanceM: metrics.walkingDistanceM,
-        }}
-        targets={targets}
-        weekly={data.weekly}
-        dayInProgress={inProgress}
-      />
+      {/* ── Details on demand ────────────────────────────────────────
+          Goal, full statistics and the longer insight list are reference, not
+          things to act on. Ten stacked cards made the screen unreadable; these
+          three now sit one tap away. */}
+      <details className="detail-fold">
+        <summary>Details ansehen</summary>
+        <div className="stack" style={{ marginTop: 12 }}>
+          <GoalCard targets={targets} phase={data.activePhase} />
 
-      {/* ── Insights ──────────────────────────────────────────────────── */}
-      {insights.length > 0 && (
-        <section className="panel soft">
-          <div className="section-head">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Flame size={15} color="var(--violet)" />
-              <p className="h3" style={{ fontSize: 15 }}>Worauf es heute ankommt</p>
-            </div>
-          </div>
-          <InsightList insights={insights} limit={4} />
-        </section>
-      )}
+          <DayStatsCard
+            totals={totals}
+            metrics={{
+              steps: metrics.steps,
+              waterMl: metrics.waterMl,
+              sleepH: metrics.sleepH,
+              activeEnergyKcal: metrics.activeEnergyKcal,
+              walkingDistanceM: metrics.walkingDistanceM,
+            }}
+            targets={targets}
+            weekly={data.weekly}
+            dayInProgress={inProgress}
+          />
+
+          {insights.length > 0 && (
+            <section className="panel soft">
+              <p className="section-label" style={{ marginBottom: 6 }}>Worauf es heute ankommt</p>
+              <InsightList insights={insights} limit={5} />
+            </section>
+          )}
+        </div>
+      </details>
 
       {/* ── Sheets ────────────────────────────────────────────────────── */}
       {sheetOpen && (
