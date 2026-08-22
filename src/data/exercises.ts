@@ -1,4 +1,5 @@
 import { getSupabaseClient as createClient } from '@/services/supabase/client';
+import { normalizeMuscles } from '@/domain/exerciseDatabase';
 import type { MuscleKey } from '@/domain/exerciseDatabase';
 
 export type DbExercise = {
@@ -19,7 +20,9 @@ function toDbExercise(row: Record<string, unknown>): DbExercise {
     name: row.name as string,
     muscleGroup: row.muscle_group as string,
     equipment: row.equipment as string,
-    muscles: (row.muscles as string[] ?? []) as MuscleKey[],
+    // Custom exercises saved before the regions were split still carry coarse
+    // keys like 'chest'; normalising maps them instead of dropping them.
+    muscles: normalizeMuscles((row.muscles as string[]) ?? []),
     machineInfo: (row.machine_info as string) ?? null,
     defaultSets: (row.default_sets as number) ?? 3,
     defaultReps: (row.default_reps as string) ?? '8-12',

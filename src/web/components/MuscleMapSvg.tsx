@@ -1,23 +1,31 @@
 import type { MuscleKey } from '@/domain/exerciseDatabase';
 
-const MUSCLE_LABELS: Record<MuscleKey, string> = {
-  'chest':      'Brust',
-  'front-delt': 'Vordere Schulter',
-  'side-delt':  'Seitliche Schulter',
-  'rear-delt':  'Hintere Schulter',
-  'lats':       'Latissimus',
-  'rhomboids':  'Rhomboiden',
-  'traps':      'Trapezius',
-  'lower-back': 'Unterer Rücken',
-  'biceps':     'Bizeps',
-  'triceps':    'Trizeps',
-  'forearms':   'Unterarme',
-  'quads':      'Quadrizeps',
-  'hamstrings': 'Hamstrings',
-  'glutes':     'Gesäß',
-  'calves':     'Waden',
-  'abs':        'Bauch',
-  'obliques':   'Schrägmuskeln',
+export const MUSCLE_LABELS: Record<MuscleKey, string> = {
+  'chest-upper':     'Obere Brust',
+  'chest-mid':       'Mittlere Brust',
+  'chest-lower':     'Untere Brust',
+  'front-delt':      'Vordere Schulter',
+  'side-delt':       'Seitliche Schulter',
+  'rear-delt':       'Hintere Schulter',
+  'lats':            'Latissimus',
+  'rhomboids':       'Rhomboiden',
+  'traps-upper':     'Oberer Trapez',
+  'traps-mid':       'Mittlerer Trapez',
+  'lower-back':      'Unterer Rücken',
+  'biceps':          'Bizeps',
+  'brachialis':      'Brachialis',
+  'triceps-long':    'Trizeps langer Kopf',
+  'triceps-lateral': 'Trizeps äußerer Kopf',
+  'forearms':        'Unterarme',
+  'quads':           'Quadrizeps',
+  'hamstrings':      'Beinbizeps',
+  'glute-max':       'Gesäß',
+  'glute-med':       'Gesäß seitlich',
+  'adductors':       'Adduktoren',
+  'calves':          'Waden',
+  'abs-upper':       'Oberer Bauch',
+  'abs-lower':       'Unterer Bauch',
+  'obliques':        'Schrägmuskeln',
 };
 
 export function MuscleMapSvg({ muscles }: { muscles: MuscleKey[] }) {
@@ -57,29 +65,45 @@ export function MuscleMapSvg({ muscles }: { muscles: MuscleKey[] }) {
         <rect x="57" y="141" width="20" height="130" rx="10" fill="rgba(255,255,255,0.04)" stroke={bodyOutline} strokeWidth="1" />
 
         {/* ── FRONT MUSCLES ────────────────────────────── */}
-        {/* Chest — two pec ovals */}
-        <ellipse cx="43" cy="67" rx="13" ry="11" fill={f('chest')} />
-        <ellipse cx="63" cy="67" rx="13" ry="11" fill={f('chest')} />
+        {/* Chest — the pec silhouette split into its three functional heads.
+            Clipping keeps the outline intact while each band lights up alone. */}
+        <defs>
+          <clipPath id="pec-l"><ellipse cx="43" cy="67" rx="13" ry="11" /></clipPath>
+          <clipPath id="pec-r"><ellipse cx="63" cy="67" rx="13" ry="11" /></clipPath>
+        </defs>
+        {(['l', 'r'] as const).map((side, i) => (
+          <g key={side} clipPath={`url(#pec-${side})`}>
+            <rect x={30 + i * 20} y="55"   width="26" height="7.5" fill={f('chest-upper')} />
+            <rect x={30 + i * 20} y="62.5" width="26" height="7"   fill={f('chest-mid')} />
+            <rect x={30 + i * 20} y="69.5" width="26" height="9"   fill={f('chest-lower')} />
+          </g>
+        ))}
         {/* Front delts */}
         <ellipse cx="26" cy="58" rx="10" ry="10" fill={f('front-delt')} />
         <ellipse cx="80" cy="58" rx="10" ry="10" fill={f('front-delt')} />
         {/* Side delts */}
         <ellipse cx="15" cy="66" rx="8"  ry="10" fill={f('side-delt')} />
         <ellipse cx="91" cy="66" rx="8"  ry="10" fill={f('side-delt')} />
-        {/* Biceps */}
-        <ellipse cx="15" cy="92" rx="7"  ry="15" fill={f('biceps')} />
-        <ellipse cx="91" cy="92" rx="7"  ry="15" fill={f('biceps')} />
+        {/* Biceps, with the brachialis as the strip underneath it */}
+        <ellipse cx="15" cy="90" rx="7"  ry="13" fill={f('biceps')} />
+        <ellipse cx="91" cy="90" rx="7"  ry="13" fill={f('biceps')} />
+        <rect x="9"  y="103" width="12" height="8" rx="4" fill={f('brachialis')} />
+        <rect x="85" y="103" width="12" height="8" rx="4" fill={f('brachialis')} />
         {/* Forearms */}
         <ellipse cx="13" cy="134" rx="6" ry="12" fill={f('forearms')} />
         <ellipse cx="93" cy="134" rx="6" ry="12" fill={f('forearms')} />
-        {/* Abs */}
-        <rect x="42" y="88" width="22" height="42" rx="5" fill={f('abs')} />
+        {/* Abs — trunk flexion loads the upper half, hip flexion the lower */}
+        <rect x="42" y="88"  width="22" height="20" rx="5" fill={f('abs-upper')} />
+        <rect x="42" y="110" width="22" height="20" rx="5" fill={f('abs-lower')} />
         {/* Obliques */}
         <rect x="30" y="93" width="11" height="30" rx="4" fill={f('obliques')} />
         <rect x="65" y="93" width="11" height="30" rx="4" fill={f('obliques')} />
         {/* Quads */}
         <ellipse cx="39" cy="186" rx="14" ry="27" fill={f('quads')} />
         <ellipse cx="67" cy="186" rx="14" ry="27" fill={f('quads')} />
+        {/* Adductors — inner thigh */}
+        <ellipse cx="50" cy="176" rx="5" ry="20" fill={f('adductors')} />
+        <ellipse cx="56" cy="176" rx="5" ry="20" fill={f('adductors')} />
         {/* Calves front */}
         <ellipse cx="38" cy="247" rx="10" ry="17" fill={f('calves')} />
         <ellipse cx="68" cy="247" rx="10" ry="17" fill={f('calves')} />
@@ -105,27 +129,33 @@ export function MuscleMapSvg({ muscles }: { muscles: MuscleKey[] }) {
         <rect x="175" y="141" width="20" height="130" rx="10" fill="rgba(255,255,255,0.04)" stroke={bodyOutline} strokeWidth="1" />
 
         {/* ── BACK MUSCLES ─────────────────────────────── */}
-        {/* Traps */}
-        <ellipse cx="171" cy="53" rx="19" ry="11" fill={f('traps')} />
+        {/* Traps — shrugs reach the upper, rows and face pulls the middle */}
+        <ellipse cx="171" cy="51" rx="19" ry="8" fill={f('traps-upper')} />
+        <rect x="156" y="60" width="30" height="8" rx="4" fill={f('traps-mid')} />
         {/* Rear delts */}
         <ellipse cx="144" cy="61" rx="12" ry="11" fill={f('rear-delt')} />
         <ellipse cx="198" cy="61" rx="12" ry="11" fill={f('rear-delt')} />
         {/* Rhomboids (center upper back) */}
-        <rect x="158" y="67" width="26" height="22" rx="5" fill={f('rhomboids')} />
+        <rect x="158" y="70" width="26" height="19" rx="5" fill={f('rhomboids')} />
         {/* Lats */}
         <ellipse cx="147" cy="98" rx="13" ry="27" fill={f('lats')} />
         <ellipse cx="195" cy="98" rx="13" ry="27" fill={f('lats')} />
         {/* Lower back */}
         <rect x="159" y="98" width="24" height="18" rx="4" fill={f('lower-back')} />
-        {/* Triceps */}
-        <ellipse cx="131" cy="92" rx="7"  ry="15" fill={f('triceps')} />
-        <ellipse cx="211" cy="92" rx="7"  ry="15" fill={f('triceps')} />
+        {/* Triceps — the long head runs to the shoulder and is only loaded
+            when the arm is overhead or behind the body */}
+        <ellipse cx="133" cy="82" rx="6" ry="10" fill={f('triceps-long')} />
+        <ellipse cx="209" cy="82" rx="6" ry="10" fill={f('triceps-long')} />
+        <ellipse cx="131" cy="100" rx="7" ry="11" fill={f('triceps-lateral')} />
+        <ellipse cx="211" cy="100" rx="7" ry="11" fill={f('triceps-lateral')} />
         {/* Forearms back — same key */}
         <ellipse cx="130" cy="134" rx="6" ry="12" fill={f('forearms')} />
         <ellipse cx="212" cy="134" rx="6" ry="12" fill={f('forearms')} />
-        {/* Glutes */}
-        <ellipse cx="158" cy="163" rx="15" ry="17" fill={f('glutes')} />
-        <ellipse cx="184" cy="163" rx="15" ry="17" fill={f('glutes')} />
+        {/* Glutes — the medius sits high and outside; only abduction reaches it */}
+        <ellipse cx="159" cy="166" rx="14" ry="15" fill={f('glute-max')} />
+        <ellipse cx="183" cy="166" rx="14" ry="15" fill={f('glute-max')} />
+        <ellipse cx="148" cy="151" rx="8" ry="7" fill={f('glute-med')} />
+        <ellipse cx="194" cy="151" rx="8" ry="7" fill={f('glute-med')} />
         {/* Hamstrings */}
         <ellipse cx="157" cy="205" rx="13" ry="23" fill={f('hamstrings')} />
         <ellipse cx="185" cy="205" rx="13" ry="23" fill={f('hamstrings')} />

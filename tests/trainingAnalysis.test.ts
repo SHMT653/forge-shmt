@@ -13,8 +13,8 @@ describe('analyseMuscleLoad', () => {
   it('counts the primary muscle fully and assisting ones at a discount', () => {
     // Bankdrücken is chest primary, front-delt and triceps assisting.
     const loads = analyseMuscleLoad([session('2026-08-20', [['Bankdrücken', 4]])], TODAY);
-    const chest = loads.find((l) => l.muscle === 'chest');
-    const triceps = loads.find((l) => l.muscle === 'triceps');
+    const chest = loads.find((l) => l.muscle === 'chest-mid');
+    const triceps = loads.find((l) => l.muscle === 'triceps-lateral');
     expect(chest?.sets).toBe(4);
     expect(triceps?.sets).toBeLessThan(4);
     expect(triceps?.sets).toBeGreaterThan(0);
@@ -25,7 +25,7 @@ describe('analyseMuscleLoad', () => {
       [session('2026-08-18', [['Bankdrücken', 4]]), session('2026-08-21', [['Liegestütze', 3]])],
       TODAY,
     );
-    expect(loads.find((l) => l.muscle === 'chest')?.sets).toBe(7);
+    expect(loads.find((l) => l.muscle === 'chest-mid')?.sets).toBe(7);
   });
 
   it('ignores exercises with no completed sets', () => {
@@ -35,7 +35,7 @@ describe('analyseMuscleLoad', () => {
 
   it('tracks how long ago each muscle was trained', () => {
     const loads = analyseMuscleLoad([session('2026-08-15', [['Bankdrücken', 3]])], TODAY);
-    expect(loads.find((l) => l.muscle === 'chest')?.daysSince).toBe(7);
+    expect(loads.find((l) => l.muscle === 'chest-mid')?.daysSince).toBe(7);
   });
 
   it('uses the most recent session for recency, not the first', () => {
@@ -43,23 +43,28 @@ describe('analyseMuscleLoad', () => {
       [session('2026-08-10', [['Bankdrücken', 3]]), session('2026-08-21', [['Bankdrücken', 3]])],
       TODAY,
     );
-    expect(loads.find((l) => l.muscle === 'chest')?.daysSince).toBe(1);
+    expect(loads.find((l) => l.muscle === 'chest-mid')?.daysSince).toBe(1);
   });
 
   it('flags too little and too much volume', () => {
     const low = analyseMuscleLoad([session('2026-08-20', [['Bankdrücken', 2]])], TODAY);
-    expect(low.find((l) => l.muscle === 'chest')?.status).toBe('low');
+    expect(low.find((l) => l.muscle === 'chest-mid')?.status).toBe('low');
 
     const high = analyseMuscleLoad([session('2026-08-20', [['Bankdrücken', 30]])], TODAY);
-    expect(high.find((l) => l.muscle === 'chest')?.status).toBe('high');
+    expect(high.find((l) => l.muscle === 'chest-mid')?.status).toBe('high');
   });
 
   it('calls a normal week good', () => {
+    // Two sessions of four sets is eight chest sets a week, which really is at
+    // the low end — a normal week has flat pressing on both days.
     const loads = analyseMuscleLoad(
-      [session('2026-08-18', [['Bankdrücken', 4]]), session('2026-08-21', [['Schrägbankdrücken', 4]])],
+      [
+        session('2026-08-18', [['Bankdrücken', 4], ['Liegestütze', 3]]),
+        session('2026-08-21', [['Schrägbankdrücken', 4], ['Flachbank KH-Drücken', 3]]),
+      ],
       TODAY,
     );
-    expect(loads.find((l) => l.muscle === 'chest')?.status).toBe('good');
+    expect(loads.find((l) => l.muscle === 'chest-mid')?.status).toBe('good');
   });
 
   it('skips exercises it does not know rather than guessing', () => {

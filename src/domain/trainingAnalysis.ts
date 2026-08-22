@@ -18,18 +18,26 @@ export type MuscleRegion = 'push' | 'pull' | 'legs' | 'core';
 
 /** Which region each muscle belongs to, for the balance check. */
 const REGION_OF: Record<MuscleKey, MuscleRegion> = {
-  chest: 'push', 'front-delt': 'push', 'side-delt': 'push', triceps: 'push',
-  lats: 'pull', rhomboids: 'pull', traps: 'pull', 'rear-delt': 'pull', biceps: 'pull', forearms: 'pull',
-  quads: 'legs', hamstrings: 'legs', glutes: 'legs', calves: 'legs',
-  abs: 'core', obliques: 'core', 'lower-back': 'core',
+  'chest-upper': 'push', 'chest-mid': 'push', 'chest-lower': 'push',
+  'front-delt': 'push', 'side-delt': 'push',
+  'triceps-long': 'push', 'triceps-lateral': 'push',
+  lats: 'pull', rhomboids: 'pull', 'traps-upper': 'pull', 'traps-mid': 'pull',
+  'rear-delt': 'pull', biceps: 'pull', brachialis: 'pull', forearms: 'pull',
+  quads: 'legs', hamstrings: 'legs', 'glute-max': 'legs', 'glute-med': 'legs',
+  adductors: 'legs', calves: 'legs',
+  'abs-upper': 'core', 'abs-lower': 'core', obliques: 'core', 'lower-back': 'core',
 };
 
 export const MUSCLE_LABEL: Record<MuscleKey, string> = {
-  chest: 'Brust', 'front-delt': 'Schulter vorne', 'side-delt': 'Schulter seitlich', 'rear-delt': 'Schulter hinten',
-  lats: 'Latissimus', rhomboids: 'obererRücken', traps: 'Trapez', 'lower-back': 'unterer Rücken',
-  biceps: 'Bizeps', triceps: 'Trizeps', forearms: 'Unterarme',
-  quads: 'Quadrizeps', hamstrings: 'Beinbizeps', glutes: 'Gesäß', calves: 'Waden',
-  abs: 'Bauch', obliques: 'seitl. Bauch',
+  'chest-upper': 'Brust oben', 'chest-mid': 'Brust mitte', 'chest-lower': 'Brust unten',
+  'front-delt': 'Schulter vorne', 'side-delt': 'Schulter seitlich', 'rear-delt': 'Schulter hinten',
+  lats: 'Latissimus', rhomboids: 'oberer Rücken', 'traps-upper': 'Trapez oben',
+  'traps-mid': 'Trapez mitte', 'lower-back': 'unterer Rücken',
+  biceps: 'Bizeps', brachialis: 'Brachialis',
+  'triceps-long': 'Trizeps lang', 'triceps-lateral': 'Trizeps außen', forearms: 'Unterarme',
+  quads: 'Quadrizeps', hamstrings: 'Beinbizeps', 'glute-max': 'Gesäß',
+  'glute-med': 'Gesäß seitlich', adductors: 'Adduktoren', calves: 'Waden',
+  'abs-upper': 'Bauch oben', 'abs-lower': 'Bauch unten', obliques: 'seitl. Bauch',
 };
 
 export const REGION_LABEL: Record<MuscleRegion, string> = {
@@ -43,19 +51,29 @@ export const REGION_LABEL: Record<MuscleRegion, string> = {
  * why arms sit lower than chest or back.
  */
 const WEEKLY_SETS: Partial<Record<MuscleKey, { min: number; optimal: number; max: number }>> = {
-  chest: { min: 8, optimal: 14, max: 22 },
+  // Chest regions are lower than a whole-chest figure would be: most presses
+  // load two of the three, so the totals still add up to a normal chest week.
+  'chest-mid': { min: 6, optimal: 10, max: 18 },
+  'chest-upper': { min: 4, optimal: 8, max: 14 },
+  'chest-lower': { min: 3, optimal: 6, max: 12 },
   lats: { min: 8, optimal: 14, max: 22 },
   rhomboids: { min: 6, optimal: 10, max: 18 },
   quads: { min: 8, optimal: 14, max: 20 },
   hamstrings: { min: 6, optimal: 10, max: 16 },
-  glutes: { min: 6, optimal: 10, max: 16 },
+  'glute-max': { min: 6, optimal: 10, max: 16 },
+  'glute-med': { min: 3, optimal: 6, max: 12 },
+  adductors: { min: 2, optimal: 5, max: 10 },
   'side-delt': { min: 6, optimal: 12, max: 20 },
   'front-delt': { min: 4, optimal: 8, max: 16 },
   'rear-delt': { min: 4, optimal: 10, max: 18 },
   biceps: { min: 4, optimal: 10, max: 18 },
-  triceps: { min: 4, optimal: 10, max: 18 },
-  abs: { min: 4, optimal: 8, max: 16 },
-  traps: { min: 3, optimal: 8, max: 14 },
+  brachialis: { min: 2, optimal: 5, max: 12 },
+  'triceps-lateral': { min: 4, optimal: 9, max: 16 },
+  'triceps-long': { min: 3, optimal: 7, max: 14 },
+  'abs-upper': { min: 3, optimal: 7, max: 14 },
+  'abs-lower': { min: 3, optimal: 7, max: 14 },
+  'traps-upper': { min: 3, optimal: 7, max: 14 },
+  'traps-mid': { min: 3, optimal: 8, max: 14 },
   calves: { min: 4, optimal: 8, max: 16 },
 };
 

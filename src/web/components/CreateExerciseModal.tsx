@@ -3,48 +3,33 @@
 import { useState } from 'react';
 import { Check, X } from 'lucide-react';
 import { createCustomExercise } from '@/data/exercises';
-import { MuscleMapSvg } from './MuscleMapSvg';
+import { MuscleMapSvg, MUSCLE_LABELS } from './MuscleMapSvg';
 import type { MuscleKey } from '@/domain/exerciseDatabase';
 
 const MUSCLE_GROUPS: { label: string; keys: MuscleKey[] }[] = [
-  { label: 'Brust',           keys: ['chest'] },
-  { label: 'Schultern',       keys: ['front-delt', 'side-delt', 'rear-delt'] },
-  { label: 'Rücken',          keys: ['traps', 'rhomboids', 'lats', 'lower-back'] },
-  { label: 'Arme',            keys: ['biceps', 'triceps', 'forearms'] },
-  { label: 'Bauch',           keys: ['abs', 'obliques'] },
-  { label: 'Beine / Gesäß',  keys: ['quads', 'hamstrings', 'glutes', 'calves'] },
+  { label: 'Brust',          keys: ['chest-upper', 'chest-mid', 'chest-lower'] },
+  { label: 'Schultern',      keys: ['front-delt', 'side-delt', 'rear-delt'] },
+  { label: 'Rücken',         keys: ['traps-upper', 'traps-mid', 'rhomboids', 'lats', 'lower-back'] },
+  { label: 'Arme',           keys: ['biceps', 'brachialis', 'triceps-long', 'triceps-lateral', 'forearms'] },
+  { label: 'Bauch',          keys: ['abs-upper', 'abs-lower', 'obliques'] },
+  { label: 'Beine / Gesäß', keys: ['quads', 'hamstrings', 'adductors', 'glute-max', 'glute-med', 'calves'] },
 ];
 
-const MUSCLE_LABELS: Record<MuscleKey, string> = {
-  'chest':      'Brust',
-  'front-delt': 'Vordere Schulter',
-  'side-delt':  'Seitl. Schulter',
-  'rear-delt':  'Hintere Schulter',
-  'traps':      'Trapez',
-  'rhomboids':  'Rhomboiden',
-  'lats':       'Latissimus',
-  'lower-back': 'Unterer Rücken',
-  'biceps':     'Bizeps',
-  'triceps':    'Trizeps',
-  'forearms':   'Unterarme',
-  'abs':        'Bauch',
-  'obliques':   'Schrägmuskeln',
-  'quads':      'Quadrizeps',
-  'hamstrings': 'Hamstrings',
-  'glutes':     'Gesäß',
-  'calves':     'Waden',
-};
 
 const MUSCLE_TO_GROUP: Record<MuscleKey, string> = {
-  'chest': 'Brust', 'front-delt': 'Schultern', 'side-delt': 'Schultern', 'rear-delt': 'Schultern',
-  'traps': 'Rücken', 'rhomboids': 'Rücken', 'lats': 'Rücken', 'lower-back': 'Rücken',
-  'biceps': 'Bizeps', 'triceps': 'Trizeps', 'forearms': 'Bizeps',
-  'abs': 'Bauch', 'obliques': 'Bauch',
-  'quads': 'Beine', 'hamstrings': 'Beine', 'glutes': 'Beine', 'calves': 'Beine',
+  'chest-upper': 'Brust', 'chest-mid': 'Brust', 'chest-lower': 'Brust',
+  'front-delt': 'Schultern', 'side-delt': 'Schultern', 'rear-delt': 'Schultern',
+  'traps-upper': 'Rücken', 'traps-mid': 'Rücken', 'rhomboids': 'Rücken',
+  'lats': 'Rücken', 'lower-back': 'Rücken',
+  'biceps': 'Bizeps', 'brachialis': 'Bizeps', 'forearms': 'Bizeps',
+  'triceps-long': 'Trizeps', 'triceps-lateral': 'Trizeps',
+  'abs-upper': 'Bauch', 'abs-lower': 'Bauch', 'obliques': 'Bauch',
+  'quads': 'Beine', 'hamstrings': 'Beine', 'adductors': 'Beine',
+  'glute-max': 'Beine', 'glute-med': 'Beine', 'calves': 'Beine',
 };
 
 const EQUIPMENT_OPTIONS = [
-  'Langhantel', 'Kurzhantel', 'Maschine', 'Kabel', 'Körpergewicht', 'Stange', 'Ausdauer',
+  'Langhantel', 'Kurzhantel', 'Maschine', 'Kabel', 'Körpergewicht', 'Stange', 'Band', 'Kettlebell', 'Ausdauer',
 ] as const;
 
 export function CreateExerciseModal({

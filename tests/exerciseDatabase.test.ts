@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   EQUIPMENT_LABELS, EXERCISES, MUSCLE_GROUPS, canPerformExercise, exercisesForMuscle,
-  filterExercises, findExercise, foldExerciseText, searchExercises,
+  filterExercises, findExercise, foldExerciseText, normalizeMuscles, searchExercises,
 } from '@/domain/exerciseDatabase';
+import { MUSCLE_LABEL } from '@/domain/trainingAnalysis';
 import { equipmentFromExerciseLabel, type EquipmentId } from '@/domain/equipment';
 
 describe('data integrity', () => {
@@ -200,5 +201,95 @@ describe('search survives how German is actually typed', () => {
 
   it('applies the same tolerance when browsing', () => {
     expect(filterExercises({ query: 'klimmzug' }).map((e) => e.name)).toContain('Klimmzüge');
+  });
+});
+
+describe('muscle regions are specific enough to act on', () => {
+  const muscles = (name: string) => findExercise(name)?.muscles ?? [];
+
+  it('distinguishes the chest heads by pressing angle', () => {
+    // Feet elevated tilts the torso head-down: an incline press path.
+    expect(muscles('Feet Elevated Push-ups')).toContain('chest-upper');
+    // Flat push-ups sit in the middle.
+    expect(muscles('Liegestütze')).toContain('chest-mid');
+    expect(muscles('Liegestütze')).not.toContain('chest-upper');
+    // Dips put the arm behind the torso: the lower head.
+    expect(muscles('Dips (Brust)')).toContain('chest-lower');
+  });
+
+  it('reads hands-elevated push-ups as the easier, lower-chest variant', () => {
+    expect(muscles('Liegestütze erhöht')).toContain('chest-lower');
+  });
+
+  it('does not mistake an eccentric rep for a decline angle', () => {
+    // "Negative Liegestütze" is eccentric-only, not a decline.
+    expect(muscles('Negative Liegestütze')).toContain('chest-mid');
+    expect(muscles('Negative Liegestütze')).not.toContain('chest-lower');
+  });
+
+  it('reads the cable fly direction, not the word in the name', () => {
+    // Pulleys high means the hands travel down — that is the lower pec.
+    expect(muscles('Kabelfliegende oben')).toContain('chest-lower');
+    expect(muscles('Kabelfliegende unten')).toContain('chest-upper');
+  });
+
+  it('reserves the triceps long head for overhead and behind-the-body work', () => {
+    expect(muscles('Band Overhead Extension')).toContain('triceps-long');
+    // A close-grip press does not stretch the long head.
+    expect(muscles('Diamant-Liegestütze')).toContain('triceps-lateral');
+    expect(muscles('Diamant-Liegestütze')).not.toContain('triceps-long');
+  });
+
+  it('separates hip flexion from trunk flexion in the abs', () => {
+    expect(muscles('Beinheben hängend')).toContain('abs-lower');
+    expect(muscles('Beinheben hängend')).not.toContain('abs-upper');
+    expect(muscles('Crunches')).toContain('abs-upper');
+  });
+
+  it('reaches gluteus medius only through abduction work', () => {
+    expect(muscles('Band Lateral Walks')).toContain('glute-med');
+    expect(muscles('Kniebeugen')).not.toContain('glute-med');
+  });
+
+  it('credits the brachialis on neutral and reverse grips', () => {
+    expect(muscles('Band Hammer Curls')).toContain('brachialis');
+    expect(muscles('Band-Bizepscurls')).not.toContain('brachialis');
+  });
+
+  it('separates upper and mid trapezius by movement', () => {
+    expect(muscles('Farmers Walk')).toContain('traps-upper');
+    expect(muscles('Band Face Pulls')).toContain('traps-mid');
+  });
+
+  it('uses only valid region keys everywhere', () => {
+    const valid = new Set(Object.keys(MUSCLE_LABEL));
+    const bad = EXERCISES.flatMap((e) => e.muscles.filter((m) => !valid.has(m)));
+    expect(bad).toEqual([]);
+  });
+
+  it('never repeats a region within one exercise', () => {
+    const dupes = EXERCISES.filter((e) => new Set(e.muscles).size !== e.muscles.length);
+    expect(dupes.map((e) => e.name)).toEqual([]);
+  });
+});
+
+describe('normalizeMuscles keeps older records readable', () => {
+  it('maps the coarse keys onto regions', () => {
+    expect(normalizeMuscles(['chest'])).toEqual(['chest-mid']);
+    expect(normalizeMuscles(['abs'])).toEqual(['abs-upper', 'abs-lower']);
+    expect(normalizeMuscles(['glutes'])).toEqual(['glute-max']);
+    expect(normalizeMuscles(['triceps'])).toEqual(['triceps-lateral']);
+  });
+
+  it('passes current keys through untouched', () => {
+    expect(normalizeMuscles(['chest-upper', 'lats'])).toEqual(['chest-upper', 'lats']);
+  });
+
+  it('drops anything unknown instead of rendering a blank region', () => {
+    expect(normalizeMuscles(['nonsense', 'lats'])).toEqual(['lats']);
+  });
+
+  it('does not duplicate when old and new keys overlap', () => {
+    expect(normalizeMuscles(['chest', 'chest-mid'])).toEqual(['chest-mid']);
   });
 });
