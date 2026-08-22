@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  EXERCISES, canPerformExercise, exercisesForMuscle, findExercise, searchExercises,
+  EQUIPMENT_LABELS, EXERCISES, MUSCLE_GROUPS, canPerformExercise, exercisesForMuscle,
+  filterExercises, findExercise, searchExercises,
 } from '@/domain/exerciseDatabase';
-import { equipmentFromExerciseLabel } from '@/domain/equipment';
+import { equipmentFromExerciseLabel, type EquipmentId } from '@/domain/equipment';
 
 describe('data integrity', () => {
   it('has no duplicate names', () => {
@@ -120,5 +121,56 @@ describe('equipmentFromExerciseLabel', () => {
     expect(equipmentFromExerciseLabel('Kettlebell')).toBe('kettlebell');
     expect(equipmentFromExerciseLabel('Maschine')).toBe('gym');
     expect(equipmentFromExerciseLabel('Körpergewicht')).toBe('bodyweight');
+  });
+});
+
+describe('filterExercises — browsing rather than searching', () => {
+  it('narrows to a muscle group', () => {
+    const results = filterExercises({ muscle: 'Brust' });
+    expect(results.length).toBeGreaterThan(10);
+    expect(results.every((e) => e.muscle === 'Brust')).toBe(true);
+  });
+
+  it('narrows to an equipment type', () => {
+    const results = filterExercises({ equipment: 'Band' });
+    expect(results.length).toBeGreaterThan(20);
+    expect(results.every((e) => e.equipment === 'Band')).toBe(true);
+  });
+
+  it('combines both filters', () => {
+    const results = filterExercises({ muscle: 'Rücken', equipment: 'Stange' });
+    expect(results.every((e) => e.muscle === 'Rücken' && e.equipment === 'Stange')).toBe(true);
+    expect(results.length).toBeGreaterThan(0);
+  });
+
+  it('can hide what the user cannot do, rather than just ranking it', () => {
+    const home: EquipmentId[] = ['bodyweight', 'bands', 'pullup_bar'];
+    const results = filterExercises({ onlyAvailable: true, available: home });
+    expect(results.every((e) => canPerformExercise(e, home))).toBe(true);
+    // A home setup must still have a real selection to work with.
+    expect(results.length).toBeGreaterThan(70);
+  });
+
+  it('returns everything when no filter is set', () => {
+    expect(filterExercises({ limit: 500 }).length).toBe(EXERCISES.length);
+  });
+
+  it('applies the free-text query alongside the filters', () => {
+    const results = filterExercises({ muscle: 'Brust', query: 'liegestütze' });
+    expect(results.every((e) => e.muscle === 'Brust')).toBe(true);
+    expect(results[0]?.name.toLowerCase()).toContain('liegestütze');
+  });
+
+  it('returns nothing rather than everything for an impossible combination', () => {
+    expect(filterExercises({ muscle: 'Brust', equipment: 'Ausdauer' })).toEqual([]);
+  });
+
+  it('exposes the filter options that actually exist in the table', () => {
+    expect(MUSCLE_GROUPS).toContain('Brust');
+    expect(EQUIPMENT_LABELS).toContain('Band');
+    expect(EQUIPMENT_LABELS).toContain('Kettlebell');
+    // No duplicates in the chip rows.
+    expect(new Set(MUSCLE_GROUPS).size).toBe(MUSCLE_GROUPS.length);
+    expect(new Set(EQUIPMENT_LABELS).size).toBe(EQUIPMENT_LABELS.length);
   });
 });

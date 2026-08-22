@@ -9,7 +9,7 @@ import {
 import { useTodayContext } from '@/web/hooks/TodayDataProvider';
 import { StatusStrip } from '@/web/components/StatusStrip';
 import { CoachCard, InsightList } from '@/web/components/CoachCard';
-import { RangeBar } from '@/web/components/RangeBar';
+import { DayRings, type RingSpec } from '@/web/components/DayRings';
 import { DailyTimeline, mealToEvent, type TimelineEvent } from '@/web/components/DailyTimeline';
 import { QuickAddSheet } from '@/web/components/QuickAddSheet';
 import { AiQuickInput } from '@/web/components/AiQuickInput';
@@ -127,6 +127,35 @@ export function DashboardView() {
   const proteinEval = evaluateRange(totals.proteinG, targets.protein, { dayInProgress: inProgress, overTolerance: 9999 });
   const proteinLeft = Math.max(0, targets.protein.min - totals.proteinG);
 
+  // Each metric keeps its own colour so a glance says which one is short.
+  const rings: RingSpec[] = [
+    {
+      key: 'calories',
+      label: 'Kalorien',
+      fraction: totals.kcal / Math.max(1, targets.calories.max),
+      color: 'var(--violet)',
+      value: Math.round(totals.kcal).toLocaleString('de-DE'),
+      target: `von ${targets.calories.max.toLocaleString('de-DE')}`,
+      over: kcalEval.status === 'over' || kcalEval.status === 'slightly_over',
+    },
+    {
+      key: 'protein',
+      label: 'Protein',
+      fraction: totals.proteinG / Math.max(1, targets.protein.min),
+      color: 'var(--teal)',
+      value: `${Math.round(totals.proteinG)} g`,
+      target: `von ${targets.protein.min} g`,
+    },
+    {
+      key: 'steps',
+      label: 'Schritte',
+      fraction: metrics.steps / Math.max(1, targets.steps),
+      color: 'var(--gold)',
+      value: Math.round(metrics.steps).toLocaleString('de-DE'),
+      target: `von ${targets.steps.toLocaleString('de-DE')}`,
+    },
+  ];
+
   async function handleStartWorkout() {
     setStarting(true);
     try {
@@ -213,37 +242,13 @@ export function DashboardView() {
           <span className="pill" style={{ flexShrink: 0 }}>{targets.phase.label}</span>
         </div>
 
-        <div className="split" style={{ gap: 14 }}>
-          <div className="stack-sm">
-            <div className="row-between">
-              <span className="readout">
-                <span className="readout-value" style={{ color: TONE_COLOR[kcalEval.tone] }}>
-                  {Math.round(totals.kcal).toLocaleString('de-DE')}
-                </span>
-                <span className="readout-unit">kcal</span>
-              </span>
-              <span className="readout-target">
-                Ziel {targets.calories.min.toLocaleString('de-DE')}–{targets.calories.max.toLocaleString('de-DE')}
-              </span>
-            </div>
-            <RangeBar value={totals.kcal} range={targets.calories} tone={kcalEval.tone} />
-          </div>
-
-          <div className="stack-sm">
-            <div className="row-between">
-              <span className="readout">
-                <span className="readout-value" style={{ color: TONE_COLOR[proteinEval.tone] }}>
-                  {Math.round(totals.proteinG)}
-                </span>
-                <span className="readout-unit">g Protein</span>
-              </span>
-              <span className="readout-target">
-                {proteinLeft > 0 ? `noch ${Math.round(proteinLeft)} g` : 'erreicht'}
-              </span>
-            </div>
-            <RangeBar value={totals.proteinG} range={targets.protein} tone={proteinEval.tone} />
-          </div>
-        </div>
+        <DayRings
+          rings={rings}
+          score={data.dayScore.score}
+          scoreTone={
+            data.dayScore.score >= 7.5 ? 'green' : data.dayScore.score >= 5 ? 'yellow' : 'red'
+          }
+        />
 
         <div style={{ marginTop: 16 }}>
           <StatusStrip items={dayStatus} />

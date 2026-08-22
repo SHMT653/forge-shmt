@@ -303,6 +303,60 @@ export function searchExercises(query: string, options: ExerciseSearchOptions = 
     .map((item) => item.entry);
 }
 
+export type ExerciseFilter = {
+  /** Free text over name, muscle and equipment. */
+  query?: string;
+  /** Muscle group label as used in the table ('Brust', 'Rücken', …). */
+  muscle?: string;
+  /** Equipment label as used in the table ('Band', 'Körpergewicht', …). */
+  equipment?: string;
+  /** Restrict to what the user owns, rather than merely ranking it first. */
+  onlyAvailable?: boolean;
+  available?: readonly EquipmentId[];
+  limit?: number;
+};
+
+/**
+ * Browsing rather than searching: the filters a user reaches for when they do
+ * not already know the exercise name.
+ */
+export function filterExercises(filter: ExerciseFilter = {}): ExerciseEntry[] {
+  const { query, muscle, equipment, onlyAvailable, available, limit = 200 } = filter;
+  const needle = query?.trim().toLowerCase() ?? '';
+
+  const matches = EXERCISES.filter((entry) => {
+    if (muscle && entry.muscle !== muscle) return false;
+    if (equipment && entry.equipment !== equipment) return false;
+    if (onlyAvailable && available && !canPerformExercise(entry, available)) return false;
+    if (needle && matchScore(entry, needle) === 0) return false;
+    return true;
+  });
+
+  // With a query, relevance decides; without one, doable exercises come first
+  // and the rest keeps table order, which groups by muscle.
+  if (needle) {
+    return matches
+      .map((entry) => ({ entry, score: matchScore(entry, needle) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map((item) => item.entry);
+  }
+
+  if (available && available.length > 0 && !onlyAvailable) {
+    return [...matches]
+      .sort((a, b) => Number(canPerformExercise(b, available)) - Number(canPerformExercise(a, available)))
+      .slice(0, limit);
+  }
+
+  return matches.slice(0, limit);
+}
+
+/** Distinct muscle group labels, in table order. */
+export const MUSCLE_GROUPS = [...new Set(EXERCISES.map((entry) => entry.muscle))];
+
+/** Distinct equipment labels, in table order. */
+export const EQUIPMENT_LABELS = [...new Set(EXERCISES.map((entry) => entry.equipment))];
+
 /** Browse by muscle group, again preferring what the user can actually do. */
 export function exercisesForMuscle(
   muscle: string,

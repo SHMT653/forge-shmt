@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Check, Info, Pencil, Play, Plus, Search, Star, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Check, Info, Pencil, Play, Plus, Search, Star, Trash2, X, ListFilter } from 'lucide-react';
 import Link from 'next/link';
 import { usePlans } from '@/web/hooks/usePlans';
 import { searchExercises } from '@/domain/exerciseDatabase';
@@ -11,6 +11,7 @@ import { ExerciseInfoModal } from '@/web/components/ExerciseInfoModal';
 import { CreateExerciseModal } from '@/web/components/CreateExerciseModal';
 import { useAuth } from '@/web/hooks/useAuth';
 import { getUserGoals } from '@/data/profile';
+import { ExercisePickerSheet } from '@/web/components/ExercisePickerSheet';
 import type { EquipmentId } from '@/domain/equipment';
 import type { Exercise, PlanDay, TrainingPlan } from '@/domain/types';
 
@@ -125,6 +126,7 @@ function AddExerciseRow({ userId, onAdd }: { userId: string; onAdd: (name: strin
   const [reps, setReps]             = useState('8-12');
   const [showDrop, setShowDrop]     = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [showBrowser, setShowBrowser] = useState(false);
   const [dropPos, setDropPos]       = useState({ top: 0, left: 0, width: 280 });
   const [equipment, setEquipment]   = useState<EquipmentId[]>([]);
   const wrapRef                     = useRef<HTMLDivElement>(null);
@@ -200,9 +202,27 @@ function AddExerciseRow({ userId, onAdd }: { userId: string; onAdd: (name: strin
 
   if (!open) {
     return (
-      <button type="button" className="button ghost compact" style={{ marginTop: 4 }} onClick={() => { setOpen(true); setTimeout(() => searchRef.current?.focus(), 50); }}>
-        <Plus size={14} /> Übung hinzufügen
-      </button>
+      <>
+        <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+          <button type="button" className="button secondary compact" onClick={() => setShowBrowser(true)}>
+            <ListFilter size={14} /> Übungen durchsuchen
+          </button>
+          <button type="button" className="button ghost compact" onClick={() => { setOpen(true); setTimeout(() => searchRef.current?.focus(), 50); }}>
+            <Plus size={14} /> Direkt eintragen
+          </button>
+        </div>
+
+        {showBrowser && (
+          <ExercisePickerSheet
+            available={equipment}
+            onClose={() => setShowBrowser(false)}
+            onPick={(entry) => {
+              onAdd(entry.name, entry.defaultSets, entry.defaultReps);
+              setShowBrowser(false);
+            }}
+          />
+        )}
+      </>
     );
   }
 
