@@ -5,10 +5,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Flame, Dumbbell, TrendingUp, CheckCircle2, Settings, LogOut, Menu, X, Utensils, Moon, BookOpen, Activity,
+  Flame, Dumbbell, TrendingUp, CheckCircle2, Settings, LogOut, Menu, X, Utensils, Moon, BookOpen, Activity, CalendarDays,
 } from 'lucide-react';
 import { useAuth } from '@/web/hooks/useAuth';
 import { signOut } from '@/services/supabase/auth';
+import { QuickActionBar } from '@/web/components/QuickActionBar';
+import { TodayDataProvider } from '@/web/hooks/TodayDataProvider';
 
 /**
  * One primary navigation, four destinations (§49).
@@ -19,13 +21,14 @@ import { signOut } from '@/services/supabase/auth';
  * you use daily and the drawer holds everything else.
  */
 const PRIMARY_NAV = [
-  { href: '/',          label: 'Heute',       icon: Flame },
-  { href: '/plans',     label: 'Training',    icon: Dumbbell },
-  { href: '/nutrition', label: 'Ernährung',   icon: Utensils },
-  { href: '/progress',  label: 'Fortschritt', icon: TrendingUp },
+  { href: '/',          label: 'Heute',     icon: Flame },
+  { href: '/kalender',  label: 'Kalender',  icon: CalendarDays },
+  { href: '/nutrition', label: 'Ernährung', icon: Utensils },
+  { href: '/plans',     label: 'Training',  icon: Dumbbell },
 ] as const;
 
 const SECONDARY_NAV = [
+  { href: '/progress', label: 'Fortschritt',   icon: TrendingUp },
   { href: '/recipes',  label: 'Rezepte',       icon: BookOpen },
   { href: '/habits',   label: 'Gewohnheiten',  icon: CheckCircle2 },
   { href: '/cardio',   label: 'Cardio',        icon: Activity },
@@ -221,6 +224,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
+    <TodayDataProvider>
     <div className="app-shell">
       {/* Desktop sidebar */}
       <aside className="sidebar">
@@ -267,8 +271,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </div>
 
+      {/* Reachable from every screen: quick add + coach */}
+      <QuickActionBar />
+
       {/* Mobile 4-item bottom nav */}
       <BottomNav pathname={pathname} />
     </div>
+    </TodayDataProvider>
   );
 }

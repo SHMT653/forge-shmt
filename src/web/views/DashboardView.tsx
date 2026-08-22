@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   Flame, Dumbbell, Plus, Trophy, Scale, Camera, ArrowRight, ListChecks, Activity, ScanLine,
 } from 'lucide-react';
-import { useTodayData } from '@/web/hooks/useTodayData';
+import { useTodayContext } from '@/web/hooks/TodayDataProvider';
 import { StatusStrip } from '@/web/components/StatusStrip';
 import { CoachCard, InsightList } from '@/web/components/CoachCard';
 import { RangeBar } from '@/web/components/RangeBar';
@@ -36,7 +36,7 @@ function todayLabel(): string {
 
 export function DashboardView() {
   const { data, loading, error, addEntry, removeEntry, addWater, setMetric, setSoreness, saveFood, startSuggestedWorkout, reload } =
-    useTodayData();
+    useTodayContext();
   const { user } = useAuth();
   const router = useRouter();
   // Pull fresh health data on mount and on app resume (§12). Resolves to a
