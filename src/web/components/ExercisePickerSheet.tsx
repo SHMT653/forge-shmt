@@ -7,6 +7,7 @@ import {
   EQUIPMENT_LABELS, MUSCLE_GROUPS, canPerformExercise, filterExercises, type ExerciseEntry,
 } from '@/domain/exerciseDatabase';
 import { MUSCLE_LABEL } from '@/domain/trainingAnalysis';
+import { MuscleMapSvg } from './MuscleMapSvg';
 import type { EquipmentId } from '@/domain/equipment';
 
 /**
@@ -154,7 +155,15 @@ export function ExercisePickerSheet({
                 </div>
 
                 {isOpen && (
-                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                    {/* Showing WHERE it works beats a list of muscle names —
+                        and the anatomical map covers every exercise for free,
+                        which 176 hand-drawn illustrations never would. */}
+                    {entry.muscles.length > 0 && (
+                      <div style={{ maxWidth: 210, margin: '0 auto 8px' }}>
+                        <MuscleMapSvg muscles={entry.muscles} />
+                      </div>
+                    )}
                     <p className="muted-sm" style={{ marginBottom: 4 }}>
                       <strong style={{ color: 'var(--text)' }}>Trainiert:</strong>{' '}
                       {entry.muscles.map((key) => MUSCLE_LABEL[key]).join(', ') || '—'}
@@ -164,11 +173,9 @@ export function ExercisePickerSheet({
                         <strong style={{ color: 'var(--text)' }}>Ausführung:</strong> {entry.machineInfo}
                       </p>
                     )}
-                    {!entry.machineInfo && (
-                      <p className="muted-sm">
-                        Vorschlag: {entry.defaultSets} Sätze à {entry.defaultReps} Wiederholungen.
-                      </p>
-                    )}
+                    <p className="muted-sm">
+                      Vorschlag: {entry.defaultSets} Sätze à {entry.defaultReps} Wiederholungen.
+                    </p>
                   </div>
                 )}
               </div>

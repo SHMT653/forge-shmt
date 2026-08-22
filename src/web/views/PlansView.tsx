@@ -1,10 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Dumbbell, Plus, Trash2, X, ListTree } from 'lucide-react';
+import { Dumbbell, Plus, Trash2, X, ListTree, ListFilter } from 'lucide-react';
 import { TrainingAnalysisCard } from '@/web/components/TrainingAnalysisCard';
+import { ExercisePickerSheet } from '@/web/components/ExercisePickerSheet';
+import { useAuth } from '@/web/hooks/useAuth';
+import { getUserGoals } from '@/data/profile';
 import { usePlans } from '@/web/hooks/usePlans';
+import type { EquipmentId } from '@/domain/equipment';
 import { CardHead } from '@/web/components/CardHead';
 import { PLAN_TEMPLATES } from '@/domain/planTemplates';
 
@@ -22,6 +26,19 @@ function PlanBuilder({ onCreate, onClose }: { onCreate: (name: string, focus: st
   const [focus, setFocus] = useState('');
   const [days, setDays] = useState<DraftDay[]>([emptyDay(0)]);
   const [saving, setSaving] = useState(false);
+  // Which row is currently choosing from the exercise table.
+  const [picking, setPicking] = useState<{ day: number; exercise: number } | null>(null);
+  const [equipment, setEquipment] = useState<EquipmentId[]>([]);
+  const { user: builderUser } = useAuth();
+
+  useEffect(() => {
+    if (!builderUser) return;
+    let active = true;
+    void getUserGoals(builderUser.id)
+      .then((goals) => { if (active) setEquipment(goals.equipment); })
+      .catch(() => { /* ranking is an enhancement */ });
+    return () => { active = false; };
+  }, [builderUser]);
 
   function updateDay(index: number, patch: Partial<DraftDay>) {
     setDays((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
@@ -98,11 +115,28 @@ function PlanBuilder({ onCreate, onClose }: { onCreate: (name: string, focus: st
 
             <div className="list">
               {day.exercises.map((ex, exIndex) => (
-                <div key={exIndex} className="set-row">
+                <div key={exIndex} className="plan-exercise-row">
                   <span className="set-row-label">{exIndex + 1}</span>
-                  <input className="input compact" placeholder="Übung" value={ex.name} onChange={(e) => updateExercise(dayIndex, exIndex, { name: e.target.value })} />
-                  <input className="input compact" placeholder="Sätze" inputMode="numeric" value={ex.targetSets} onChange={(e) => updateExercise(dayIndex, exIndex, { targetSets: e.target.value })} />
-                  <input className="input compact" placeholder="Wdh." value={ex.targetReps} onChange={(e) => updateExercise(dayIndex, exIndex, { targetReps: e.target.value })} />
+                  <div className="plan-exercise-name" style={{ display: 'flex', gap: 6, minWidth: 0 }}>
+                    <input
+                      className="input compact"
+                      style={{ textAlign: 'left', minWidth: 0 }}
+                      placeholder="Übung"
+                      value={ex.name}
+                      onChange={(e) => updateExercise(dayIndex, exIndex, { name: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      className="icon-button"
+                      style={{ flexShrink: 0 }}
+                      onClick={() => setPicking({ day: dayIndex, exercise: exIndex })}
+                      aria-label="Übung aus der Datenbank wählen"
+                    >
+                      <ListFilter size={16} />
+                    </button>
+                  </div>
+                  <input className="input compact plan-exercise-sets" placeholder="Sätze" inputMode="numeric" value={ex.targetSets} onChange={(e) => updateExercise(dayIndex, exIndex, { targetSets: e.target.value })} />
+                  <input className="input compact plan-exercise-reps" placeholder="Wdh." value={ex.targetReps} onChange={(e) => updateExercise(dayIndex, exIndex, { targetReps: e.target.value })} />
                 </div>
               ))}
             </div>
@@ -128,6 +162,21 @@ function PlanBuilder({ onCreate, onClose }: { onCreate: (name: string, focus: st
           <button type="button" className="button secondary" onClick={onClose}>Abbrechen</button>
         </div>
       </form>
+
+      {picking && (
+        <ExercisePickerSheet
+          available={equipment}
+          onClose={() => setPicking(null)}
+          onPick={(entry) => {
+            updateExercise(picking.day, picking.exercise, {
+              name: entry.name,
+              targetSets: String(entry.defaultSets),
+              targetReps: entry.defaultReps,
+            });
+            setPicking(null);
+          }}
+        />
+      )}
     </div>
   );
 }

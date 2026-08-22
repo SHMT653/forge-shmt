@@ -1892,3 +1892,25 @@ button:disabled {
   .cal-grid { gap: 4px; }
   .cal-day { border-radius: 8px; font-size: 11px; }
 }
+
+/* ── Übungszeile im Plan-Builder ──────────────────────────────────────
+   Not the same shape as .set-row: that grid ends in an `auto` column sized
+   for a small button, and putting a text input there let it eat the row while
+   the name and set fields collapsed to nothing.                            */
+.plan-exercise-row {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) 70px 92px;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Narrow screens: the name gets its own line, the numbers sit underneath. */
+@media (max-width: 540px) {
+  .plan-exercise-row {
+    grid-template-columns: 26px minmax(0, 1fr) minmax(0, 1fr);
+    row-gap: 6px;
+  }
+  .plan-exercise-row > .plan-exercise-name { grid-column: 2 / -1; }
+  .plan-exercise-row > .plan-exercise-sets { grid-column: 2; }
+  .plan-exercise-row > .plan-exercise-reps { grid-column: 3; }
+}
