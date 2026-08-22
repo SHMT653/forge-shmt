@@ -189,3 +189,134 @@ export function targetRepsUpperBound(targetReps: string): number {
 export function formatRepsPerSet(repsPerSet: readonly number[]): string {
   return repsPerSet.filter((r) => r > 0).join(' / ');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Targets for the session you are in right now
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type SetTarget = {
+  setIndex: number;
+  /** Reps to aim for, or seconds when the exercise is a hold. */
+  value: number;
+  weightKg: number | null;
+  /** Why this number — shown so the target is never a mystery. */
+  hint: string;
+};
+
+export type SessionPlan = {
+  targets: SetTarget[];
+  /** One line above the sets explaining the plan for this exercise. */
+  summary: string;
+  /** True when the last session cleared the range and it is time to add load. */
+  progressLoad: boolean;
+};
+
+/**
+ * Turns "what did I do last time" into "what should I do now".
+ *
+ * Double progression: work up within the rep range first, and only once every
+ * set clears the top of the range does the load go up. It is the least
+ * fiddly scheme that still guarantees the stimulus keeps rising, and it works
+ * unchanged for bodyweight, bands and barbells — which matters when the same
+ * plan mixes all three.
+ */
+export function planSession(
+  previous: ExerciseSnapshot | null,
+  targetSets: number,
+  targetReps: string,
+  metric: MetricKind,
+): SessionPlan {
+  const top = targetRepsUpperBound(targetReps);
+  const bottom = targetRepsLowerBound(targetReps);
+  const sets = Math.max(1, targetSets);
+
+  if (!previous || previous.completedSets === 0) {
+    return {
+      targets: Array.from({ length: sets }, (_, index) => ({
+        setIndex: index,
+        value: bottom || top || 8,
+        weightKg: null,
+        hint: 'Einstieg — finde ein Gewicht, bei dem der Satz sauber bleibt',
+      })),
+      summary: 'Erste Einheit für diese Übung. Setz eine Basis, an der sich die nächsten messen.',
+      progressLoad: false,
+    };
+  }
+
+  const lastReps = previous.repsPerSet;
+  const clearedTop = top > 0 && lastReps.length >= sets && lastReps.every((reps) => reps >= top);
+
+  if (metric === 'duration') {
+    const last = previous.bestSetSeconds || bottom || 30;
+    return {
+      targets: Array.from({ length: sets }, (_, index) => ({
+        setIndex: index,
+        value: last + 5,
+        weightKg: null,
+        hint: `letztes Mal ${last} s`,
+      })),
+      summary: `Zuletzt ${previous.totalSeconds} s gesamt. Heute jeweils fünf Sekunden länger halten.`,
+      progressLoad: false,
+    };
+  }
+
+  // Every set cleared the top → same reps, more load (or a harder variation).
+  if (clearedTop) {
+    const nextWeight = previous.maxWeightKg !== null ? roundLoad(previous.maxWeightKg) : null;
+    return {
+      targets: Array.from({ length: sets }, (_, index) => ({
+        setIndex: index,
+        value: bottom || top,
+        weightKg: nextWeight,
+        hint: nextWeight !== null ? `${nextWeight} kg — erhöht` : 'schwerere Variante',
+      })),
+      summary:
+        previous.maxWeightKg !== null
+          ? `Du hast ${sets}×${top} sauber geschafft. Heute mehr Gewicht und zurück ans untere Ende der Spanne.`
+          : `Du hast ${sets}×${top} geschafft. Zeit für eine schwerere Variante — sonst bleibt der Reiz stehen.`,
+      progressLoad: true,
+    };
+  }
+
+  // Otherwise: same load, one more rep on each set that fell short.
+  const targets: SetTarget[] = Array.from({ length: sets }, (_, index) => {
+    const last = lastReps[index];
+    if (last === undefined) {
+      return {
+        setIndex: index,
+        value: bottom || top || 8,
+        weightKg: previous.maxWeightKg,
+        hint: 'zusätzlicher Satz',
+      };
+    }
+    const goal = top > 0 ? Math.min(top, last + 1) : last + 1;
+    return {
+      setIndex: index,
+      value: goal,
+      weightKg: previous.maxWeightKg,
+      hint: goal > last ? `letztes Mal ${last} — eine mehr` : `letztes Mal ${last} — halten`,
+    };
+  });
+
+  return {
+    targets,
+    summary: `Zuletzt ${formatRepsPerSet(lastReps)}${previous.maxWeightKg !== null ? ` bei ${previous.maxWeightKg} kg` : ''}. Heute jeweils eine Wiederholung drauflegen.`,
+    progressLoad: false,
+  };
+}
+
+/** Parses "8-12" / "45-60" / "10" into its lower bound. */
+export function targetRepsLowerBound(targetReps: string): number {
+  const numbers = targetReps.match(/\d+/g);
+  if (!numbers || numbers.length === 0) return 0;
+  return Number(numbers[0]);
+}
+
+/**
+ * Next load step. Smaller jumps on light weights, where a 2.5 kg increase can
+ * be a 25% change and simply will not happen.
+ */
+function roundLoad(current: number): number {
+  const step = current < 20 ? 1 : current < 40 ? 2.5 : 5;
+  return Math.round((current + step) * 2) / 2;
+}

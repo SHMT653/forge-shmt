@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  computeTrend, formatRepsPerSet, metricForSets, overloadAdvice,
-  primaryScore, snapshotExercise, targetRepsUpperBound,
+  computeTrend, formatRepsPerSet, metricForSets, overloadAdvice, planSession,
+  primaryScore, snapshotExercise, targetRepsLowerBound, targetRepsUpperBound,
 } from '@/domain/progression';
 import type { SessionExercise, SetEntry } from '@/domain/types';
 
@@ -147,5 +147,72 @@ describe('targetRepsUpperBound', () => {
     expect(targetRepsUpperBound('45-60')).toBe(60);
     expect(targetRepsUpperBound('10')).toBe(10);
     expect(targetRepsUpperBound('AMRAP')).toBe(0);
+  });
+});
+
+describe('planSession — targets for the session you are in (double progression)', () => {
+  const snap = (reps: number[], weight: number | null = null) => {
+    const sets: SetEntry[] = reps.map((r, i) => set({ reps: r, setIndex: i, ...(weight !== null ? { weightKg: weight } : {}) }));
+    return snapshotExercise(exercise(sets), '2026-08-20');
+  };
+
+  it('gives a starting point when the exercise is new', () => {
+    const plan = planSession(null, 3, '8-12', 'reps');
+    expect(plan.targets).toHaveLength(3);
+    expect(plan.targets[0]?.value).toBe(8);
+    expect(plan.summary).toContain('Erste Einheit');
+    expect(plan.progressLoad).toBe(false);
+  });
+
+  it('adds one rep to each set that fell short', () => {
+    const plan = planSession(snap([10, 9, 8]), 3, '8-12', 'reps');
+    expect(plan.targets.map((t) => t.value)).toEqual([11, 10, 9]);
+    expect(plan.summary).toContain('10 / 9 / 8');
+  });
+
+  it('raises the load once every set cleared the top of the range', () => {
+    const plan = planSession(snap([12, 12, 12], 40), 3, '8-12', 'reps');
+    expect(plan.progressLoad).toBe(true);
+    // Back to the bottom of the range at the heavier weight.
+    expect(plan.targets[0]?.value).toBe(8);
+    expect(plan.targets[0]?.weightKg).toBe(45);
+  });
+
+  it('asks for a harder variation when there is no weight to add', () => {
+    const plan = planSession(snap([12, 12, 12]), 3, '8-12', 'reps');
+    expect(plan.progressLoad).toBe(true);
+    expect(plan.summary).toContain('schwerere Variante');
+  });
+
+  it('does not progress the load when only some sets cleared the top', () => {
+    const plan = planSession(snap([12, 12, 9], 40), 3, '8-12', 'reps');
+    expect(plan.progressLoad).toBe(false);
+    expect(plan.targets[2]?.value).toBe(10);
+  });
+
+  it('never targets beyond the top of the range', () => {
+    const plan = planSession(snap([12, 11, 11], 40), 3, '8-12', 'reps');
+    expect(Math.max(...plan.targets.map((t) => t.value))).toBeLessThanOrEqual(12);
+  });
+
+  it('uses smaller load jumps on light weights', () => {
+    // A 5 kg jump on 10 kg is 50% and simply will not happen.
+    const light = planSession(snap([12, 12, 12], 10), 3, '8-12', 'reps');
+    expect(light.targets[0]?.weightKg).toBe(11);
+    const heavy = planSession(snap([12, 12, 12], 80), 3, '8-12', 'reps');
+    expect(heavy.targets[0]?.weightKg).toBe(85);
+  });
+
+  it('extends holds by seconds rather than reps', () => {
+    const held = snapshotExercise(exercise([set({ durationSeconds: 45 }), set({ durationSeconds: 40 })]), '2026-08-20');
+    const plan = planSession(held, 2, '45-60', 'duration');
+    expect(plan.targets[0]?.value).toBe(50);
+    expect(plan.summary).toContain('Sekunden');
+  });
+
+  it('covers a set the user added beyond the previous session', () => {
+    const plan = planSession(snap([10, 9]), 3, '8-12', 'reps');
+    expect(plan.targets).toHaveLength(3);
+    expect(plan.targets[2]?.hint).toContain('zusätzlicher Satz');
   });
 });

@@ -11,7 +11,9 @@ import { calcKcalBurned } from '@/domain/cardioActivities';
 import { getUserGoals } from '@/data/profile';
 import { todayKey } from '@/domain/dates';
 import { ExerciseInfoModal } from '@/web/components/ExerciseInfoModal';
-import { metricForSets, type LastPerformance, type MetricKind } from '@/domain/progression';
+import { metricForSets, planSession, type LastPerformance, type MetricKind, type SetTarget } from '@/domain/progression';
+import { listExerciseSnapshots } from '@/data/workouts';
+import { RestTimer } from '@/web/components/RestTimer';
 import type { SetUpdate } from '@/data/workouts';
 import type { SetEntry } from '@/domain/types';
 
@@ -51,12 +53,15 @@ function SetRow({
   index,
   suggestion,
   metric,
+  target,
   onSave,
 }: {
   set: SetEntry;
   index: number;
   suggestion: LastPerformance | undefined;
   metric: MetricKind;
+  /** What to aim for on this set today (§ progressive overload). */
+  target: SetTarget | undefined;
   onSave: (patch: SetUpdate) => void;
 }) {
   const [reps, setReps] = useState(set.reps !== null ? String(set.reps) : '');
@@ -88,7 +93,7 @@ function SetRow({
         <input
           className="input compact"
           inputMode="numeric"
-          placeholder={suggestion?.durationSeconds ? `${suggestion.durationSeconds} s` : 'Sek.'}
+          placeholder={target ? `${target.value} s` : suggestion?.durationSeconds ? `${suggestion.durationSeconds} s` : 'Sek.'}
           value={seconds}
           onChange={(e) => setSeconds(e.target.value)}
           onBlur={() => onSave(buildPatch(done))}
@@ -98,7 +103,7 @@ function SetRow({
         <input
           className="input compact"
           inputMode="numeric"
-          placeholder={suggestion?.reps ? `${suggestion.reps}` : 'Wdh.'}
+          placeholder={target ? String(target.value) : suggestion?.reps ? `${suggestion.reps}` : 'Wdh.'}
           value={reps}
           onChange={(e) => setReps(e.target.value)}
           onBlur={() => onSave(buildPatch(done))}
@@ -112,7 +117,7 @@ function SetRow({
         <input
           className="input compact"
           inputMode="decimal"
-          placeholder={suggestion?.weightKg ? `${suggestion.weightKg} kg` : 'kg / optional'}
+          placeholder={target?.weightKg ? `${target.weightKg} kg` : suggestion?.weightKg ? `${suggestion.weightKg} kg` : 'kg / optional'}
           value={weight}
           onChange={(e) => setWeight(e.target.value)}
           onBlur={() => onSave(buildPatch(done))}
@@ -280,6 +285,23 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
   const suggestion = lastPerformance.get(exercise.exerciseName);
   // Infer from previous sessions first — an empty new set carries no signal.
   const setMetric: MetricKind = suggestion?.metric ?? metricForSets(exercise.sets);
+
+  // Today's concrete targets, derived from the last session for this exercise.
+  const [plan, setPlan] = useState<ReturnType<typeof planSession> | null>(null);
+  const [restOpen, setRestOpen] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    if (!user) return;
+    void listExerciseSnapshots(user.id, exercise.exerciseName)
+      .then((history) => {
+        if (!active) return;
+        const previous = history[history.length - 1] ?? null;
+        setPlan(planSession(previous, exercise.targetSets, exercise.targetReps, setMetric));
+      })
+      .catch(() => { if (active) setPlan(null); });
+    return () => { active = false; };
+  }, [user, exercise.exerciseName, exercise.targetSets, exercise.targetReps, setMetric]);
   const isCardio = findExercise(exercise.exerciseName)?.type === 'cardio';
 
   async function handleFinish() {
@@ -335,7 +357,23 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
         )}
       </div>
 
-      {!isCardio && suggestion && (
+      {!isCardio && plan && (
+        <div className="coach-card" style={{ marginBottom: 12 }}>
+          <span className="coach-avatar" aria-hidden><Zap size={16} /></span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <p className="coach-label">Ziel heute</p>
+            <p className="coach-text">{plan.summary}</p>
+          </div>
+        </div>
+      )}
+
+      {!isCardio && restOpen && (
+        <div style={{ marginBottom: 12 }}>
+          <RestTimer onClose={() => setRestOpen(false)} />
+        </div>
+      )}
+
+      {!isCardio && !plan && suggestion && (
         <div className="panel soft">
           <p className="copy" style={{ margin: 0 }}>
             Letztes Training:{' '}
@@ -368,7 +406,10 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
                 index={index}
                 suggestion={suggestion}
                 metric={setMetric}
+                target={plan?.targets[index]}
                 onSave={(patch) => {
+                  // Finishing a set is the moment the rest starts.
+                  if (patch.completed && !set.completed) setRestOpen(true);
                   if (patch.completed && isPersonalRecord(patch, suggestion)) {
                     triggerPR(exercise.exerciseName);
                   }

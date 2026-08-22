@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Dumbbell, Plus, Trash2, X, ListTree } from 'lucide-react';
+import { TrainingAnalysisCard } from '@/web/components/TrainingAnalysisCard';
 import { usePlans } from '@/web/hooks/usePlans';
 import { CardHead } from '@/web/components/CardHead';
 import { PLAN_TEMPLATES } from '@/domain/planTemplates';
@@ -149,6 +150,8 @@ export function PlansView() {
 
   return (
     <>
+      <TrainingAnalysisCard />
+
       <section className="panel">
         <div className="section-head">
           <div>
