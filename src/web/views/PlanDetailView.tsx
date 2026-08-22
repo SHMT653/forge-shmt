@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check, Info, Pencil, Play, Plus, Search, Star, Trash2, X, ListFilter } from 'lucide-react';
 import Link from 'next/link';
 import { usePlans } from '@/web/hooks/usePlans';
-import { searchExercises } from '@/domain/exerciseDatabase';
+import { foldExerciseText, searchExercises } from '@/domain/exerciseDatabase';
 import { listCustomExercises, type DbExercise } from '@/data/exercises';
 import { ExerciseInfoModal } from '@/web/components/ExerciseInfoModal';
 import { CreateExerciseModal } from '@/web/components/CreateExerciseModal';
@@ -164,8 +164,11 @@ function AddExerciseRow({ userId, onAdd }: { userId: string; onAdd: (name: strin
     setSelected(null);
     if (!q.trim()) { setShowDrop(false); return; }
     const localHits: SearchResult[] = searchExercises(q, { available: equipment }).map((e) => ({ name: e.name, muscle: e.muscle, equipment: e.equipment, defaultSets: e.defaultSets, defaultReps: e.defaultReps }));
-    const qLow = q.toLowerCase();
-    const dbHits: SearchResult[] = dbCache.filter((e) => e.name.toLowerCase().includes(qLow) || e.muscleGroup.toLowerCase().includes(qLow)).map(dbToResult);
+    // Custom exercises need the same umlaut tolerance as the built-in table.
+    const qLow = foldExerciseText(q);
+    const dbHits: SearchResult[] = dbCache
+      .filter((e) => foldExerciseText(e.name).includes(qLow) || foldExerciseText(e.muscleGroup).includes(qLow))
+      .map(dbToResult);
     const merged = [...localHits];
     for (const d of dbHits) {
       if (!merged.find((r) => r.name.toLowerCase() === d.name.toLowerCase())) merged.push(d);
@@ -403,9 +406,7 @@ function DayCard({
         ))}
       </div>
 
-      {editMode && (
-        <AddExerciseRow userId={userId} onAdd={onAddExercise} />
-      )}
+      <AddExerciseRow userId={userId} onAdd={onAddExercise} />
     </div>
   );
 }

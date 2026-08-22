@@ -270,13 +270,36 @@ export function canPerformExercise(entry: ExerciseEntry, available: readonly Equ
   return canPerform(available, requiredEquipment(entry));
 }
 
+/**
+ * Folds case, umlauts and the ue/oe/ae digraphs to one form.
+ *
+ * Without this, "klimmzug" does not find "Klimmzüge" — the umlaut breaks the
+ * comparison at the seventh character. Typing German exercise names without
+ * umlauts, or in the singular, is the normal case on a phone, so the search
+ * has to survive it. Both sides are folded identically; the intermediate form
+ * does not need to be a real word, only consistent.
+ */
+export function foldExerciseText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ß/g, 'ss')
+    .replace(/ae/g, 'a')
+    .replace(/oe/g, 'o')
+    .replace(/ue/g, 'u');
+}
+
 function matchScore(entry: ExerciseEntry, needle: string): number {
-  const name = entry.name.toLowerCase();
-  if (name === needle) return 100;
-  if (name.startsWith(needle)) return 85;
-  if (name.includes(needle)) return 70;
-  if (entry.muscle.toLowerCase().includes(needle)) return 45;
-  if (entry.equipment.toLowerCase().includes(needle)) return 35;
+  const folded = foldExerciseText(needle);
+  if (!folded) return 0;
+
+  const name = foldExerciseText(entry.name);
+  if (name === folded) return 100;
+  if (name.startsWith(folded)) return 85;
+  if (name.includes(folded)) return 70;
+  if (foldExerciseText(entry.muscle).includes(folded)) return 45;
+  if (foldExerciseText(entry.equipment).includes(folded)) return 35;
   return 0;
 }
 

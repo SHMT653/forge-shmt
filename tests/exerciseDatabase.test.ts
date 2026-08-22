@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   EQUIPMENT_LABELS, EXERCISES, MUSCLE_GROUPS, canPerformExercise, exercisesForMuscle,
-  filterExercises, findExercise, searchExercises,
+  filterExercises, findExercise, foldExerciseText, searchExercises,
 } from '@/domain/exerciseDatabase';
 import { equipmentFromExerciseLabel, type EquipmentId } from '@/domain/equipment';
 
@@ -172,5 +172,33 @@ describe('filterExercises — browsing rather than searching', () => {
     // No duplicates in the chip rows.
     expect(new Set(MUSCLE_GROUPS).size).toBe(MUSCLE_GROUPS.length);
     expect(new Set(EQUIPMENT_LABELS).size).toBe(EQUIPMENT_LABELS.length);
+  });
+});
+
+describe('search survives how German is actually typed', () => {
+  it('finds an umlaut name typed without the umlaut', () => {
+    // Regression: "klimmzug" scored zero against "Klimmzüge" because the
+    // comparison broke at the umlaut, so the search looked broken.
+    expect(searchExercises('klimmzug').map((e) => e.name)).toContain('Klimmzüge');
+    expect(searchExercises('ruecken').length).toBeGreaterThan(0);
+    expect(searchExercises('rucken').length).toBeGreaterThan(0);
+  });
+
+  it('finds a singular when the entry is plural', () => {
+    expect(searchExercises('liegestutz').map((e) => e.name)).toContain('Liegestütze');
+  });
+
+  it('still finds the correctly spelled name', () => {
+    expect(searchExercises('Klimmzüge')[0]?.name).toBe('Klimmzüge');
+    expect(searchExercises('Rücken').length).toBeGreaterThan(0);
+  });
+
+  it('folds both sides identically so nothing is lost', () => {
+    expect(foldExerciseText('Klimmzüge')).toBe(foldExerciseText('klimmzuege'));
+    expect(foldExerciseText('Schrägbankdrücken')).toBe(foldExerciseText('schragbankdrucken'));
+  });
+
+  it('applies the same tolerance when browsing', () => {
+    expect(filterExercises({ query: 'klimmzug' }).map((e) => e.name)).toContain('Klimmzüge');
   });
 });
