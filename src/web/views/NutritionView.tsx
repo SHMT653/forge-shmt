@@ -357,8 +357,11 @@ export function NutritionView() {
       {sheetOpen && (
         <QuickAddSheet
           onClose={() => setSheetOpen(false)}
-          favoriteFoods={state.foods}
+          favoriteFoods={favorites}
           favoriteRecipes={state.recipes}
+          allFoods={state.foods}
+          allRecipes={state.recipes}
+          recentMeals={state.recentMeals}
           batches={state.batches}
           currentWater={state.water.todayMl}
           currentSteps={0}
@@ -367,6 +370,7 @@ export function NutritionView() {
           aiEnabled={state.goals.aiParsingEnabled}
           handlers={{
             onAddEntry: handleEntry,
+            onSaveFood: saveAsFood,
             onAddWater: addWater,
             onSetSteps: () => {},
             onSetSleep: () => {},

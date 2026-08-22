@@ -10,11 +10,12 @@ import {
   deleteMealEntry,
   listMealEntries,
   listNutritionLogs,
+  listRecentUniqueMeals,
   syncNutritionTotals,
   type MealEntry,
   type MealEntryInput,
 } from '@/data/nutrition';
-import { listActiveBatches, listFoodItems, listRecipes, markFoodUsed, consumeBatchPortions } from '@/data/foodLibrary';
+import { createFoodItem, listActiveBatches, listFoodItems, listRecipes, markFoodUsed, consumeBatchPortions, type FoodItemInput } from '@/data/foodLibrary';
 import { getCheckin, saveCheckin } from '@/data/checkins';
 import { getTodayCardioKcal } from '@/data/cardio';
 import { getUserGoals } from '@/data/profile';
@@ -104,9 +105,12 @@ export type TodayData = {
   totals: Macros;
   caloriesBurned: { steps: number; workout: number; cardio: number; total: number };
 
-  // library
+  // library — the favourites drive the one-tap chips, the full lists drive search
   favoriteFoods: FoodItem[];
   favoriteRecipes: Recipe[];
+  allFoods: FoodItem[];
+  allRecipes: Recipe[];
+  recentMeals: MealEntry[];
   batches: MealPrepBatch[];
 
   // analysis
@@ -144,7 +148,7 @@ export function useTodayData() {
       const [
         plans, activeSession, habits, habitLogs, entries, goals, metrics, completedDates,
         recentSessions, cardioKcal, foods, recipes, batches, checkin, photos, weekLogs,
-        healthDays, activePhase,
+        healthDays, activePhase, recentMeals,
       ] = await Promise.all([
         listPlans(user.id),
         getActiveSession(user.id),
@@ -164,6 +168,7 @@ export function useTodayData() {
         listNutritionLogs(user.id, dateKeyAddDays(today, -6), today),
         listDailyHealth(user.id, since, today),
         getActivePhase(user.id),
+        listRecentUniqueMeals(user.id, 12),
       ]);
 
       // The active phase, when there is one, overrides the profile defaults —
@@ -285,6 +290,9 @@ export function useTodayData() {
         },
         favoriteFoods: foods.filter((f) => f.favorite || f.useCount > 0).slice(0, 12),
         favoriteRecipes: recipes.filter((r) => r.favorite).slice(0, 8),
+        allFoods: foods,
+        allRecipes: recipes,
+        recentMeals,
         batches,
         weight,
         weekly,
@@ -377,7 +385,7 @@ export function useTodayData() {
 
       await addMealEntry(user.id, today, withSlot);
       if (entry.foodItemId) {
-        const food = data?.favoriteFoods.find((f) => f.id === entry.foodItemId);
+        const food = data?.allFoods.find((f) => f.id === entry.foodItemId);
         await markFoodUsed(user.id, entry.foodItemId, food?.useCount ?? 0);
       }
       if (entry.batchId) {
@@ -386,7 +394,7 @@ export function useTodayData() {
       await syncNutritionTotals(user.id, today);
       await load();
     },
-    [user, data?.favoriteFoods, load],
+    [user, data?.allFoods, load],
   );
 
   const removeEntry = useCallback(
@@ -410,6 +418,19 @@ export function useTodayData() {
     [user, load],
   );
 
+  /** Files a product discovered through search into the user's own library. */
+  const saveFood = useCallback(
+    async (input: FoodItemInput) => {
+      if (!user) return;
+      // Never store the same product twice under the same name.
+      const exists = data?.allFoods.some((f) => f.name.toLowerCase() === input.name.toLowerCase());
+      if (exists) return;
+      await createFoodItem(user.id, input);
+      void load();
+    },
+    [user, data?.allFoods, load],
+  );
+
   const startSuggestedWorkout = useCallback(async (): Promise<string | null> => {
     if (!user || !data?.activePlan || !data.suggestedDay) return null;
     return startWorkoutSession(user.id, data.activePlan.id, data.activePlan.name, data.suggestedDay);
@@ -426,6 +447,7 @@ export function useTodayData() {
     setMetric,
     setSoreness,
     toggleHabit,
+    saveFood,
     startSuggestedWorkout,
   };
 }

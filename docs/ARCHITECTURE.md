@@ -87,3 +87,41 @@ npm run typecheck
 Getestet wird die Domain-Schicht: Zielbereiche, Rezept- und Meal-Prep-Portionen,
 Progression über Wiederholungen und Sekunden, Gewichtstrend, Wochenschnitte,
 Datumsgrenzen, AI-Validierung und die Tonalität des Coaches.
+
+## Lebensmittel-Erkennung
+
+Vier Quellen, ein Ranking. Die Reihenfolge ist die Vertrauenswürdigkeit der
+Zahlen, nicht die Trefferqualität — beides fließt getrennt in den Score ein:
+
+| Quelle | Datei | Qualität | Bonus |
+|---|---|---|---|
+| Eigene Produkte + Rezepte | `forge_food_items`, `forge_recipes` | `verified` | +26 |
+| Zuletzt gegessen | `forge_meal_entries` | wie gespeichert | +16 |
+| Kuratierte Gerichte (613) | `domain/foodDatabase.ts` | `estimated` | +6 |
+| Open Food Facts (~3 Mio.) | `data/foodSearch.ts` | `estimated` | 0–8 nach Scans |
+
+`domain/foodResolver.ts` bewertet jeden Kandidaten gegen die Eingabe
+(exakt 100, Präfix 88, enthalten 74, Token-Überlappung mit Tippfehler-Toleranz
+über eine begrenzte Levenshtein-Distanz), addiert den Quellen-Bonus und wirft
+alles unter 30 weg. Auf echten OFF-Daten filtert das rund die Hälfte der
+Treffer als Rauschen heraus — OFF matcht auch über Zutatenlisten, weshalb bei
+„skyr" Dinge wie „MUSCLY FROMAGE 24" zurückkommen.
+
+**Lerneffekt:** Wird ein OFF-Produkt eingetragen, landet es in
+`forge_food_items`. Beim nächsten Mal ist es lokal, sofort, offline verfügbar
+und wird vom Textparser erkannt. Die eigene Datenbank wächst durch Benutzung.
+
+**Kein Netz nötig für den Normalfall.** Bibliothek, kürzlich Gegessenes und die
+kuratierte Tabelle antworten lokal. Open Food Facts wird nur angefragt, wenn
+lokal nichts überzeugend passt — und dann entprellt, gecacht und mit einem
+Wiederholungsversuch, weil der Endpunkt gelegentlich Anfragen fallen lässt.
+
+### Warum kein eigenes Sprachmodell
+
+Ein selbst trainiertes Modell wäre für „2 Isoclear → Eintrag" um Größenordnungen
+zu teuer und zu langsam, und es hätte kein Produktwissen, das OFF nicht schon
+kostenlos bereitstellt. Die Kombination aus Regelparser
+(`domain/localParse.ts`), Ranking (`domain/foodResolver.ts`) und offener
+Produktdatenbank löst dieselbe Aufgabe deterministisch, nachvollziehbar und
+ohne laufende Kosten. Das Sprachmodell bleibt optional und nur für wirklich
+unstrukturierte Eingaben zuständig.

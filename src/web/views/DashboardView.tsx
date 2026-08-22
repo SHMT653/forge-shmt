@@ -35,7 +35,7 @@ function todayLabel(): string {
 }
 
 export function DashboardView() {
-  const { data, loading, error, addEntry, removeEntry, addWater, setMetric, setSoreness, startSuggestedWorkout, reload } =
+  const { data, loading, error, addEntry, removeEntry, addWater, setMetric, setSoreness, saveFood, startSuggestedWorkout, reload } =
     useTodayData();
   const { user } = useAuth();
   const router = useRouter();
@@ -156,14 +156,14 @@ export function DashboardView() {
   /** Resolves an AI/quick-add proposal against real stored macros where possible. */
   function handleEntry(entry: MealEntryInput) {
     if (entry.recipeId) {
-      const recipe = data?.favoriteRecipes.find((r) => r.id === entry.recipeId);
+      const recipe = data?.allRecipes.find((r) => r.id === entry.recipeId);
       if (recipe) {
         void addEntry({ ...entry, macros: macrosForServings(recipe, entry.servings ?? 1), dataQuality: 'verified' });
         return;
       }
     }
     if (entry.foodItemId) {
-      const food = data?.favoriteFoods.find((f) => f.id === entry.foodItemId);
+      const food = data?.allFoods.find((f) => f.id === entry.foodItemId);
       if (food) {
         const servings = entry.servings ?? 1;
         void addEntry({
@@ -296,8 +296,8 @@ export function DashboardView() {
           onMetric={handleMetric}
           aiEnabled={data.goals.aiParsingEnabled}
           library={[
-            ...data.favoriteFoods.map((f) => ({ id: f.id, kind: 'food' as const, name: f.name })),
-            ...data.favoriteRecipes.map((r) => ({ id: r.id, kind: 'recipe' as const, name: r.name })),
+            ...data.allFoods.map((f) => ({ id: f.id, kind: 'food' as const, name: f.name })),
+            ...data.allRecipes.map((r) => ({ id: r.id, kind: 'recipe' as const, name: r.name })),
           ]}
         />
       </section>
@@ -401,6 +401,9 @@ export function DashboardView() {
           onClose={() => setSheetOpen(false)}
           favoriteFoods={data.favoriteFoods}
           favoriteRecipes={data.favoriteRecipes}
+          allFoods={data.allFoods}
+          allRecipes={data.allRecipes}
+          recentMeals={data.recentMeals}
           batches={data.batches}
           currentWater={metrics.waterMl}
           currentSteps={metrics.steps}
@@ -409,6 +412,7 @@ export function DashboardView() {
           aiEnabled={data.goals.aiParsingEnabled}
           handlers={{
             onAddEntry: handleEntry,
+            onSaveFood: saveFood,
             onAddWater: addWater,
             onSetSteps: (steps) => setMetric('steps', steps),
             onSetSleep: (hours) => setMetric('sleep', hours),

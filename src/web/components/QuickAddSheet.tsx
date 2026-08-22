@@ -1,13 +1,15 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Utensils, Droplets, Footprints, Moon, Scale, Dumbbell, Search, Sparkles, Box, Plus, Check } from 'lucide-react';
+import { Utensils, Droplets, Footprints, Moon, Scale, Dumbbell, Search, Sparkles, Box, Plus, Check, X, Star } from 'lucide-react';
 import { Sheet } from './Sheet';
 import { AiQuickInput } from './AiQuickInput';
-import { searchFood, estimateMacros, type FoodItem as StaticFood } from '@/domain/foodDatabase';
+import { useFoodSearch } from '@/web/hooks/useFoodSearch';
+import { scaleCandidate, type ScoredCandidate } from '@/domain/foodResolver';
 import { macrosForServings, MEAL_SLOT_ICON, roundMacros, scaleMacros, slotForHour } from '@/domain/nutritionMath';
 import { formatLiters, formatHours } from '@/domain/coach';
-import type { MealEntryInput } from '@/data/nutrition';
+import type { MealEntry, MealEntryInput } from '@/data/nutrition';
+import type { FoodItemInput } from '@/data/foodLibrary';
 import type { FoodItem, MealPrepBatch, Recipe } from '@/domain/types';
 
 type Mode = 'food' | 'water' | 'steps' | 'sleep' | 'weight' | 'training';
@@ -17,6 +19,8 @@ const SLEEP_OPTIONS = [7, 7.5, 8, 8.5, 9, 9.5, 10];
 
 export type QuickAddHandlers = {
   onAddEntry: (entry: MealEntryInput) => Promise<void> | void;
+  /** Saves a discovered product into the user's own library (§12/§35). */
+  onSaveFood?: (input: FoodItemInput) => Promise<void> | void;
   onAddWater: (ml: number) => Promise<void> | void;
   onSetSteps: (steps: number) => Promise<void> | void;
   onSetSleep: (hours: number) => Promise<void> | void;
@@ -35,12 +39,19 @@ export function QuickAddSheet({
   currentSleep,
   currentWeight,
   aiEnabled,
+  recentMeals = [],
+  allFoods,
+  allRecipes,
   handlers,
 }: {
   onClose: () => void;
   favoriteFoods: readonly FoodItem[];
   favoriteRecipes: readonly Recipe[];
   batches: readonly MealPrepBatch[];
+  recentMeals?: readonly MealEntry[];
+  /** Full library for searching; the favourites above are only the chips. */
+  allFoods?: readonly FoodItem[];
+  allRecipes?: readonly Recipe[];
   currentWater: number;
   currentSteps: number;
   currentSleep: number;
@@ -78,9 +89,13 @@ export function QuickAddSheet({
           favoriteFoods={favoriteFoods}
           favoriteRecipes={favoriteRecipes}
           batches={batches}
+          recentMeals={recentMeals}
+          allFoods={allFoods ?? favoriteFoods}
+          allRecipes={allRecipes ?? favoriteRecipes}
           aiEnabled={aiEnabled}
           busy={busy}
           onAdd={(entry, keepOpen) => run(() => handlers.onAddEntry(entry), keepOpen)}
+          {...(handlers.onSaveFood ? { onSaveFood: handlers.onSaveFood } : {})}
         />
       )}
 
@@ -185,34 +200,31 @@ function FoodPanel({
   favoriteFoods,
   favoriteRecipes,
   batches,
+  recentMeals,
+  allFoods,
+  allRecipes,
   aiEnabled,
   busy,
   onAdd,
+  onSaveFood,
 }: {
   favoriteFoods: readonly FoodItem[];
   favoriteRecipes: readonly Recipe[];
   batches: readonly MealPrepBatch[];
+  recentMeals: readonly MealEntry[];
+  allFoods: readonly FoodItem[];
+  allRecipes: readonly Recipe[];
   aiEnabled: boolean;
   busy: boolean;
   onAdd: (entry: MealEntryInput, keepOpen?: boolean) => void;
+  onSaveFood?: (input: FoodItemInput) => Promise<void> | void;
 }) {
-  const [query, setQuery] = useState('');
   const [manualKcal, setManualKcal] = useState('');
   const [manualProtein, setManualProtein] = useState('');
   const [manualName, setManualName] = useState('');
+  const [selected, setSelected] = useState<ScoredCandidate | null>(null);
 
-  const staticResults = useMemo(() => (query.trim().length >= 2 ? searchFood(query).slice(0, 8) : []), [query]);
-  const ownResults = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (needle.length < 2) return [];
-    return favoriteFoods.filter((f) => f.name.toLowerCase().includes(needle)).slice(0, 6);
-  }, [query, favoriteFoods]);
-  const recipeResults = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (needle.length < 2) return favoriteRecipes.slice(0, 4);
-    return favoriteRecipes.filter((r) => r.name.toLowerCase().includes(needle)).slice(0, 5);
-  }, [query, favoriteRecipes]);
-
+  const search = useFoodSearch({ foods: allFoods, recipes: allRecipes, recentMeals });
   const slot = slotForHour(new Date().getHours());
 
   function addOwnFood(food: FoodItem) {
@@ -222,18 +234,6 @@ function FoodPanel({
       dataQuality: food.dataQuality,
       foodItemId: food.id,
       source: 'favorite',
-      slot,
-    }, true);
-  }
-
-  function addStaticFood(food: StaticFood) {
-    const { carbsG, fatG } = estimateMacros(food);
-    onAdd({
-      name: food.name,
-      macros: { kcal: food.kcal, proteinG: food.proteinG, carbsG, fatG },
-      // The built-in table is a reference average, not a measured value.
-      dataQuality: 'estimated',
-      source: 'search',
       slot,
     }, true);
   }
@@ -264,6 +264,39 @@ function FoodPanel({
     }, true);
   }
 
+  /** Logs a search hit, and quietly files a discovered product for next time. */
+  function addCandidate(candidate: ScoredCandidate, factor: number) {
+    const macros = scaleCandidate(candidate, factor);
+
+    onAdd({
+      name: factor === 1 ? candidate.name : `${formatFactor(factor, candidate)} ${candidate.name}`,
+      macros,
+      dataQuality: candidate.dataQuality,
+      servings: factor,
+      source: candidate.source === 'library' ? 'favorite' : candidate.source === 'off' ? 'search' : 'search',
+      ...(candidate.libraryKind === 'food' && candidate.libraryId ? { foodItemId: candidate.libraryId } : {}),
+      ...(candidate.libraryKind === 'recipe' && candidate.libraryId ? { recipeId: candidate.libraryId } : {}),
+      slot,
+    }, true);
+
+    // Anything found externally becomes part of the user's own library, so the
+    // second time it is instant, offline, and matchable by the text parser.
+    if (candidate.source === 'off' && onSaveFood) {
+      void onSaveFood({
+        name: candidate.name,
+        brand: candidate.brand,
+        servingLabel: candidate.portionLabel,
+        servingG: candidate.portionG,
+        macros: candidate.macros,
+        dataQuality: candidate.dataQuality,
+        favorite: false,
+      });
+    }
+
+    setSelected(null);
+    search.reset();
+  }
+
   function submitManual() {
     const kcal = Number(manualKcal) || 0;
     const proteinG = Number(manualProtein) || 0;
@@ -286,7 +319,7 @@ function FoodPanel({
   }
 
   return (
-    <div className="stack">
+    <div className="stack-sm">
       {aiEnabled && <AiQuickInput onAdd={(entry) => onAdd(entry, true)} />}
 
       {/* Meal prep batches first — they are time-sensitive */}
@@ -295,7 +328,7 @@ function FoodPanel({
           <p className="section-label">Meal Prep</p>
           <div className="chip-row">
             {batches.map((batch) => {
-              const recipe = favoriteRecipes.find((r) => r.id === batch.recipeId);
+              const recipe = allRecipes.find((r) => r.id === batch.recipeId);
               return (
                 <button
                   key={batch.id}
@@ -303,7 +336,6 @@ function FoodPanel({
                   className="chip"
                   disabled={busy || !recipe}
                   onClick={() => addBatch(batch, recipe)}
-                  title={recipe ? undefined : 'Rezept nicht in den Favoriten geladen'}
                 >
                   <Box size={14} />
                   {batch.recipeName}
@@ -315,8 +347,8 @@ function FoodPanel({
         </div>
       )}
 
-      {/* Favorites — one tap (§37) */}
-      {favoriteFoods.length > 0 && (
+      {/* Favourites — one tap (§37) */}
+      {favoriteFoods.length > 0 && !search.query && (
         <div className="stack-sm">
           <p className="section-label">Favoriten</p>
           <div className="chip-row">
@@ -330,44 +362,71 @@ function FoodPanel({
         </div>
       )}
 
-      {/* Search */}
+      {/* Search across library, recents, the curated table and Open Food Facts */}
       <div className="field">
         <div className="search-field" style={{ width: '100%' }}>
           <Search size={15} />
           <input
             type="text"
-            placeholder="Lebensmittel oder Rezept suchen …"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Lebensmittel, Marke oder Rezept suchen …"
+            value={search.query}
+            onChange={(e) => { search.setQuery(e.target.value); setSelected(null); }}
             aria-label="Lebensmittel suchen"
             autoComplete="off"
           />
         </div>
       </div>
 
-      {(ownResults.length > 0 || recipeResults.length > 0 || staticResults.length > 0) && (
+      {selected ? (
+        <PortionPicker
+          candidate={selected}
+          busy={busy}
+          onPick={(factor) => addCandidate(selected, factor)}
+          onCancel={() => setSelected(null)}
+        />
+      ) : (
+        <>
+          {search.results.length > 0 && (
+            <div className="stack-sm">
+              {search.results.map((candidate) => (
+                <ResultRow
+                  key={candidate.id}
+                  title={candidate.name}
+                  meta={describeCandidate(candidate)}
+                  estimated={candidate.dataQuality !== 'verified'}
+                  own={candidate.source === 'library'}
+                  onClick={() => {
+                    // Recipes offer portions; everything else offers grams.
+                    if (candidate.libraryKind === 'recipe') {
+                      const recipe = allRecipes.find((r) => r.id === candidate.libraryId);
+                      if (recipe) { setSelected(candidate); return; }
+                    }
+                    setSelected(candidate);
+                  }}
+                  disabled={busy}
+                />
+              ))}
+            </div>
+          )}
+
+          {search.searchingOff && (
+            <p className="muted-sm">Suche in der Produktdatenbank …</p>
+          )}
+
+          {search.query.trim().length >= 3 && search.results.length === 0 && !search.searchingOff && (
+            <p className="muted-sm">
+              Nichts gefunden. Trag es unten manuell ein — beim nächsten Mal kennt FORGE es.
+            </p>
+          )}
+        </>
+      )}
+
+      {/* Recipes shown when the box is empty */}
+      {!search.query && favoriteRecipes.length > 0 && (
         <div className="stack-sm">
-          {ownResults.map((food) => (
-            <ResultRow
-              key={food.id}
-              title={food.name}
-              meta={`${Math.round(food.macros.kcal)} kcal · ${Math.round(food.macros.proteinG)} g P · eigenes Produkt`}
-              onClick={() => addOwnFood(food)}
-              disabled={busy}
-            />
-          ))}
-          {recipeResults.map((recipe) => (
+          <p className="section-label">Rezepte</p>
+          {favoriteRecipes.slice(0, 4).map((recipe) => (
             <RecipeRow key={recipe.id} recipe={recipe} disabled={busy} onAdd={(servings) => addRecipe(recipe, servings)} />
-          ))}
-          {staticResults.map((food) => (
-            <ResultRow
-              key={food.name}
-              title={food.name}
-              meta={`~${food.kcal} kcal · ${food.proteinG} g P · ${food.portionLabel}`}
-              estimated
-              onClick={() => addStaticFood(food)}
-              disabled={busy}
-            />
           ))}
         </div>
       )}
@@ -398,16 +457,108 @@ function FoodPanel({
   );
 }
 
+const SOURCE_NOTE: Record<ScoredCandidate['source'], string> = {
+  library: 'aus deiner Bibliothek',
+  recent: 'zuletzt gegessen',
+  static: 'Richtwert',
+  off: 'Produktdatenbank',
+};
+
+function describeCandidate(candidate: ScoredCandidate): string {
+  const kcal = Math.round(candidate.macros.kcal);
+  const protein = Math.round(candidate.macros.proteinG);
+  const brand = candidate.brand ? `${candidate.brand} · ` : '';
+  return `${brand}${kcal} kcal · ${protein} g P · ${candidate.portionLabel} · ${SOURCE_NOTE[candidate.source]}`;
+}
+
+function formatFactor(factor: number, candidate: ScoredCandidate): string {
+  if (candidate.portionG) return `${Math.round(candidate.portionG * factor)} g`;
+  return `${factor.toLocaleString('de-DE')}×`;
+}
+
+/** Lets the user say how much of the found item they actually had. */
+function PortionPicker({
+  candidate,
+  busy,
+  onPick,
+  onCancel,
+}: {
+  candidate: ScoredCandidate;
+  busy: boolean;
+  onPick: (factor: number) => void;
+  onCancel: () => void;
+}) {
+  const [custom, setCustom] = useState('');
+  const base = candidate.portionG;
+  const factors = base ? [0.5, 1, 1.5, 2] : [0.5, 1, 1.5, 2];
+
+  const customFactor = (() => {
+    const value = Number(custom.replace(',', '.'));
+    if (!Number.isFinite(value) || value <= 0) return null;
+    return base ? value / base : value;
+  })();
+
+  return (
+    <div className="panel soft" style={{ padding: 12 }}>
+      <div className="row-between" style={{ marginBottom: 8 }}>
+        <div style={{ minWidth: 0 }}>
+          <p className="h3" style={{ fontSize: 14 }}>{candidate.name}</p>
+          <p className="muted-sm">{describeCandidate(candidate)}</p>
+        </div>
+        <button type="button" className="icon-button" onClick={onCancel} aria-label="Zurück">
+          <X size={16} />
+        </button>
+      </div>
+
+      <div className="chip-row">
+        {factors.map((factor) => {
+          const macros = scaleCandidate(candidate, factor);
+          return (
+            <button key={factor} type="button" className="chip" disabled={busy} onClick={() => onPick(factor)}>
+              {formatFactor(factor, candidate)}
+              <span className="chip-meta">{macros.kcal} kcal</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'flex-end' }}>
+        <div className="field" style={{ flex: 1 }}>
+          <label className="field-label">{base ? 'Eigene Menge (g)' : 'Portionen'}</label>
+          <input
+            className="input compact"
+            inputMode="decimal"
+            value={custom}
+            onChange={(e) => setCustom(e.target.value)}
+            placeholder={base ? String(base) : '1'}
+          />
+        </div>
+        <button
+          type="button"
+          className="button compact"
+          disabled={busy || customFactor === null}
+          onClick={() => customFactor !== null && onPick(customFactor)}
+        >
+          <Check size={15} /> Eintragen
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ResultRow({
   title,
   meta,
   estimated,
+  own,
   onClick,
   disabled,
 }: {
   title: string;
   meta: string;
   estimated?: boolean;
+  /** A hit from the user's own library — their numbers, not a guess. */
+  own?: boolean;
   onClick: () => void;
   disabled?: boolean;
 }) {
@@ -421,6 +572,7 @@ function ResultRow({
     >
       <div className="habit-body">
         <p className="h3" style={{ fontSize: 14 }}>
+          {own && <Star size={11} color="var(--gold)" style={{ marginRight: 4 }} />}
           {title}
           {estimated && <span className="quality-badge estimated" style={{ marginLeft: 6 }}>geschätzt</span>}
         </p>
