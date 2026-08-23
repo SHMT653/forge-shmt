@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
+vi.mock('@/data/exercises', () => ({ listCustomExercises: async () => [] }));
+
 import { ExercisePickerSheet } from '@/web/components/ExercisePickerSheet';
 
 afterEach(cleanup);
@@ -50,13 +52,43 @@ describe('ExercisePickerSheet renders and works', () => {
     expect(onPick.mock.calls[0]?.[0]).toMatchObject({ name: 'Liegestütze', defaultSets: 3 });
   });
 
-  it('expands an exercise to explain what it trains', () => {
+  it('expands an exercise into a full explanation', () => {
     open();
     fireEvent.change(screen.getByLabelText('Übung suchen'), { target: { value: 'Pike Push-ups' } });
-    const rows = screen.getAllByRole('button', { name: 'Details' });
-    fireEvent.click(rows[0]!);
-    expect(screen.getByText(/Trainiert:/)).toBeTruthy();
-    expect(screen.getByText(/Ausführung:/)).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('button', { name: /Pike Push-ups/, expanded: false })[0]!);
+
+    expect(screen.getByText('Überkopf-Drücken')).toBeTruthy();
+    expect(screen.getByText('Hauptsächlich')).toBeTruthy();
+    expect(screen.getByText('Ausführung')).toBeTruthy();
+    expect(screen.getByText('Häufige Fehler')).toBeTruthy();
+    expect(screen.getByText(/Tempo/)).toBeTruthy();
+  });
+
+  it('separates the main target from the assisting muscles', () => {
+    open();
+    fireEvent.change(screen.getByLabelText('Übung suchen'), { target: { value: 'Bankdrücken' } });
+    fireEvent.click(screen.getAllByRole('button', { name: /^Bankdrücken/, expanded: false })[0]!);
+    expect(screen.getByText('Mitbeansprucht')).toBeTruthy();
+  });
+
+  it('keeps the sheet open while several exercises are added', () => {
+    const onPick = vi.fn();
+    const onClose = vi.fn();
+    render(<ExercisePickerSheet available={[]} onPick={onPick} onClose={onClose} multiple />);
+    fireEvent.change(screen.getAllByLabelText('Übung suchen')[0]!, { target: { value: 'Plank' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Plank hinzufügen' })[0]!);
+    expect(onPick).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('offers to create an exercise that is not in the table', () => {
+    const onCreateCustom = vi.fn();
+    render(
+      <ExercisePickerSheet available={[]} onPick={vi.fn()} onClose={vi.fn()} onCreateCustom={onCreateCustom} />,
+    );
+    fireEvent.change(screen.getAllByLabelText('Übung suchen')[0]!, { target: { value: 'Sandsack-Wurf' } });
+    fireEvent.click(screen.getByRole('button', { name: /als eigene Übung anlegen/ }));
+    expect(onCreateCustom).toHaveBeenCalledWith('Sandsack-Wurf');
   });
 
   it('restricts to the user’s own equipment when asked', () => {

@@ -16,7 +16,7 @@ type DraftExercise = { name: string; targetSets: string; targetReps: string };
 type DraftDay = { name: string; exercises: DraftExercise[] };
 
 function emptyDay(index: number): DraftDay {
-  return { name: `Tag ${index + 1}`, exercises: [{ name: '', targetSets: '3', targetReps: '8-12' }] };
+  return { name: `Tag ${index + 1}`, exercises: [] };
 }
 
 type CleanDay = { name: string; exercises: { name: string; targetSets: number; targetReps: string }[] };
@@ -27,7 +27,9 @@ function PlanBuilder({ onCreate, onClose }: { onCreate: (name: string, focus: st
   const [days, setDays] = useState<DraftDay[]>([emptyDay(0)]);
   const [saving, setSaving] = useState(false);
   // Which row is currently choosing from the exercise table.
-  const [picking, setPicking] = useState<{ day: number; exercise: number } | null>(null);
+  // `exercise: null` means "append" — the picker then stays open so a whole
+  // day can be filled without reopening it per exercise.
+  const [picking, setPicking] = useState<{ day: number; exercise: number | null } | null>(null);
   const [equipment, setEquipment] = useState<EquipmentId[]>([]);
   const { user: builderUser } = useAuth();
 
@@ -49,6 +51,16 @@ function PlanBuilder({ onCreate, onClose }: { onCreate: (name: string, focus: st
       prev.map((d, i) =>
         i === dayIndex ? { ...d, exercises: d.exercises.map((ex, j) => (j === exIndex ? { ...ex, ...patch } : ex)) } : d,
       ),
+    );
+  }
+
+  function appendExercise(dayIndex: number, ex: DraftExercise) {
+    setDays((prev) => prev.map((d, i) => (i === dayIndex ? { ...d, exercises: [...d.exercises, ex] } : d)));
+  }
+
+  function removeExercise(dayIndex: number, exIndex: number) {
+    setDays((prev) =>
+      prev.map((d, i) => (i === dayIndex ? { ...d, exercises: d.exercises.filter((_, j) => j !== exIndex) } : d)),
     );
   }
 
@@ -105,6 +117,7 @@ function PlanBuilder({ onCreate, onClose }: { onCreate: (name: string, focus: st
                 value={day.name}
                 onChange={(e) => updateDay(dayIndex, { name: e.target.value })}
                 placeholder="Tagesname"
+                aria-label={`Name für Trainingstag ${dayIndex + 1}`}
               />
               {days.length > 1 && (
                 <button type="button" className="button ghost compact" onClick={() => setDays((prev) => prev.filter((_, i) => i !== dayIndex))}>
@@ -115,44 +128,60 @@ function PlanBuilder({ onCreate, onClose }: { onCreate: (name: string, focus: st
 
             <div className="list">
               {day.exercises.map((ex, exIndex) => (
-                <div key={exIndex} className="plan-exercise-row">
-                  <span className="set-row-label">{exIndex + 1}</span>
-                  <div className="plan-exercise-name" style={{ display: 'flex', gap: 6, minWidth: 0 }}>
+                <div key={exIndex} className="plan-slot">
+                  {/* The exercise IS the choice, so it gets the full-width
+                      control. It used to be a free-text field with the
+                      database hidden behind an unlabelled 16px icon, which
+                      read as "type the name yourself or nothing". */}
+                  <button
+                    type="button"
+                    className={`plan-pick${ex.name ? ' filled' : ''}`}
+                    onClick={() => setPicking({ day: dayIndex, exercise: exIndex })}
+                  >
+                    <span>{ex.name || `${exIndex + 1}. Übung wählen …`}</span>
+                    <ListFilter size={15} style={{ flexShrink: 0 }} />
+                  </button>
+                  <div className="plan-slot-meta">
                     <input
                       className="input compact"
-                      style={{ textAlign: 'left', minWidth: 0 }}
-                      placeholder="Übung"
-                      value={ex.name}
-                      onChange={(e) => updateExercise(dayIndex, exIndex, { name: e.target.value })}
+                      placeholder="Sätze"
+                      aria-label="Sätze"
+                      inputMode="numeric"
+                      value={ex.targetSets}
+                      onChange={(e) => updateExercise(dayIndex, exIndex, { targetSets: e.target.value })}
+                    />
+                    <input
+                      className="input compact"
+                      placeholder="Wdh."
+                      aria-label="Wiederholungen"
+                      value={ex.targetReps}
+                      onChange={(e) => updateExercise(dayIndex, exIndex, { targetReps: e.target.value })}
                     />
                     <button
                       type="button"
                       className="icon-button"
-                      style={{ flexShrink: 0 }}
-                      onClick={() => setPicking({ day: dayIndex, exercise: exIndex })}
-                      aria-label="Übung aus der Datenbank wählen"
+                      onClick={() => removeExercise(dayIndex, exIndex)}
+                      aria-label={`Übung ${exIndex + 1} entfernen`}
                     >
-                      <ListFilter size={16} />
+                      <Trash2 size={15} />
                     </button>
                   </div>
-                  <input className="input compact plan-exercise-sets" placeholder="Sätze" inputMode="numeric" value={ex.targetSets} onChange={(e) => updateExercise(dayIndex, exIndex, { targetSets: e.target.value })} />
-                  <input className="input compact plan-exercise-reps" placeholder="Wdh." value={ex.targetReps} onChange={(e) => updateExercise(dayIndex, exIndex, { targetReps: e.target.value })} />
                 </div>
               ))}
             </div>
 
             <button
               type="button"
-              className="button ghost compact"
-              onClick={() => updateDay(dayIndex, { exercises: [...day.exercises, { name: '', targetSets: '3', targetReps: '8-12' }] })}
+              className="button secondary compact"
+              onClick={() => setPicking({ day: dayIndex, exercise: null })}
             >
-              <Plus size={14} /> Übung hinzufügen
+              <Plus size={14} /> Übungen hinzufügen
             </button>
           </div>
         ))}
 
         <div className="button-row">
-          <button type="button" className="button secondary compact" onClick={() => setDays((prev) => [...prev, emptyDay(prev.length)])}>
+          <button type="button" className="button ghost compact" onClick={() => setDays((prev) => [...prev, emptyDay(prev.length)])}>
             <Plus size={14} /> Trainingstag hinzufügen
           </button>
         </div>
@@ -166,14 +195,17 @@ function PlanBuilder({ onCreate, onClose }: { onCreate: (name: string, focus: st
       {picking && (
         <ExercisePickerSheet
           available={equipment}
+          multiple={picking.exercise === null}
+          chosen={(days[picking.day]?.exercises ?? []).map((ex) => ex.name).filter(Boolean)}
           onClose={() => setPicking(null)}
           onPick={(entry) => {
-            updateExercise(picking.day, picking.exercise, {
+            const patch = {
               name: entry.name,
               targetSets: String(entry.defaultSets),
               targetReps: entry.defaultReps,
-            });
-            setPicking(null);
+            };
+            if (picking.exercise === null) appendExercise(picking.day, patch);
+            else updateExercise(picking.day, picking.exercise, patch);
           }}
         />
       )}

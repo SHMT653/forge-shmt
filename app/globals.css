@@ -1951,3 +1951,146 @@ button:disabled {
   color: var(--text);
   border-color: var(--border-strong);
 }
+
+/* ── Exercise picker ─────────────────────────────────────────────────────
+   The row title is the tap target for the detail view; a 15px info icon was
+   not reachable on a phone. */
+.picker-row {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-soft, rgba(255, 255, 255, 0.03));
+  overflow: hidden;
+}
+.picker-row-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16px 40px;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 12px;
+}
+.picker-row-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 10px 0;
+  min-height: 44px;
+  min-width: 0;
+}
+.picker-row-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.picker-chevron {
+  color: var(--subtle);
+  transition: transform 0.15s ease;
+}
+.picker-chevron.open { transform: rotate(180deg); }
+.picker-add {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(107, 83, 217, 0.14);
+  color: var(--violet);
+  cursor: pointer;
+}
+.picker-add.added {
+  background: rgba(45, 168, 138, 0.18);
+  color: var(--teal);
+  border-color: rgba(45, 168, 138, 0.35);
+}
+.picker-detail {
+  border-top: 1px solid var(--border);
+  padding: 12px;
+}
+.picker-summary {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.picker-facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 12px;
+}
+.picker-facts dt {
+  color: var(--subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10px;
+  font-weight: 700;
+  padding-top: 2px;
+}
+.picker-facts dd { margin: 0; color: var(--text); }
+.picker-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 5px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.picker-list.mistakes li::marker { color: var(--danger); }
+.picker-tempo {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(107, 83, 217, 0.1);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+/* ── Plan builder rows ───────────────────────────────────────────────── */
+.plan-pick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--subtle);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.plan-pick.filled {
+  border-style: solid;
+  color: var(--text);
+  font-weight: 600;
+  background: rgba(107, 83, 217, 0.08);
+}
+.plan-slot {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-soft, rgba(255, 255, 255, 0.03));
+}
+.plan-slot-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
+  gap: 8px;
+  align-items: center;
+}
