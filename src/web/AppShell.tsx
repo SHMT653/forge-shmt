@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Flame, Dumbbell, TrendingUp, CheckCircle2, Settings, LogOut, Menu, X, Utensils, Moon, BookOpen, Activity, CalendarDays,
+  Flame, Dumbbell, TrendingUp, CheckCircle2, Settings, LogOut, Menu, X, Utensils, BookOpen, Activity, CalendarDays,
 } from 'lucide-react';
 import { useAuth } from '@/web/hooks/useAuth';
 import { signOut } from '@/services/supabase/auth';
@@ -32,7 +32,6 @@ const SECONDARY_NAV = [
   { href: '/recipes',  label: 'Rezepte',       icon: BookOpen },
   { href: '/habits',   label: 'Gewohnheiten',  icon: CheckCircle2 },
   { href: '/cardio',   label: 'Cardio',        icon: Activity },
-  { href: '/sleep',    label: 'Essensfenster', icon: Moon },
   { href: '/settings', label: 'Einstellungen', icon: Settings },
 ] as const;
 

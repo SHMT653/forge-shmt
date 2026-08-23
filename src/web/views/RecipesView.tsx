@@ -145,7 +145,7 @@ export function RecipesView() {
         {state.foods.length === 0 ? (
           <div className="empty-state">
             <p className="copy" style={{ margin: 0 }}>Noch keine gespeicherten Produkte.</p>
-            <p className="muted-sm">Barcode-Scans und Mahlzeiten lassen sich mit einem Tap hierher übernehmen.</p>
+            <p className="muted-sm">Mahlzeiten lassen sich mit einem Tap hierher übernehmen.</p>
           </div>
         ) : (
           <div className="stack-sm">
