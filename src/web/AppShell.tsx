@@ -11,6 +11,7 @@ import { useAuth } from '@/web/hooks/useAuth';
 import { signOut } from '@/services/supabase/auth';
 import { QuickActionBar } from '@/web/components/QuickActionBar';
 import { TodayDataProvider } from '@/web/hooks/TodayDataProvider';
+import { OfflineBanner } from '@/web/components/OfflineBanner';
 
 /**
  * One primary navigation, four destinations (§49).
@@ -263,6 +264,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Menu size={20} />
           </button>
         </header>
+
+        <OfflineBanner />
 
         <div className="page">
           <AppHeader user={user} />

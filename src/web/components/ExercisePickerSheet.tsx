@@ -10,6 +10,7 @@ import {
 import { guideFor } from '@/domain/exerciseGuide';
 import { listCustomExercises, type DbExercise } from '@/data/exercises';
 import { MuscleMapSvg } from './MuscleMapSvg';
+import { ExerciseFormSvg } from './ExerciseFormSvg';
 import type { EquipmentId } from '@/domain/equipment';
 
 /**
@@ -244,6 +245,8 @@ function ExerciseRow({
 
       {open && (
         <div className="picker-detail">
+          <ExerciseFormSvg pattern={guide.pattern} patternLabel={guide.patternLabel} />
+
           {entry.muscles.length > 0 && (
             <div style={{ maxWidth: 210, margin: '0 auto 10px' }}>
               <MuscleMapSvg muscles={entry.muscles} />

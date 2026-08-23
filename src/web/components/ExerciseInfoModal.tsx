@@ -6,6 +6,7 @@ import { findExercise, type ExerciseEntry } from '@/domain/exerciseDatabase';
 import { guideFor } from '@/domain/exerciseGuide';
 import { findCustomExerciseByName } from '@/data/exercises';
 import { MuscleMapSvg } from './MuscleMapSvg';
+import { ExerciseFormSvg } from './ExerciseFormSvg';
 
 /**
  * The exercise detail reachable mid-workout from the ⓘ button.
@@ -72,6 +73,8 @@ export function ExerciseInfoModal({ name, onClose }: { name: string; onClose: ()
 
         {guide && entry && (
           <div className="picker-detail" style={{ border: 'none', padding: 0 }}>
+            <ExerciseFormSvg pattern={guide.pattern} patternLabel={guide.patternLabel} />
+
             {entry.muscles.length > 0 && (
               <div style={{ maxWidth: 230, margin: '0 auto 10px' }}>
                 <MuscleMapSvg muscles={entry.muscles} />
