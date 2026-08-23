@@ -1,6 +1,7 @@
 import { getSupabaseClient } from '@/services/supabase/client';
 import type { DataQuality, FoodItem, Macros, MealPrepBatch, Recipe, RecipeIngredient } from '@/domain/types';
 import { sumMacros, scaleMacros, EMPTY_MACROS } from '@/domain/nutritionMath';
+import { foodKey, perPortion, shouldRemember, type RememberCandidate } from '@/domain/foodMemory';
 
 const FOOD_COLUMNS =
   'id, name, brand, serving_label, serving_g, kcal, protein_g, carbs_g, fat_g, ' +
@@ -384,3 +385,37 @@ export async function closeBatch(userId: string, batchId: string): Promise<void>
 }
 
 export { EMPTY_MACROS };
+
+/**
+ * Files a hand-typed meal into the user's own food library.
+ *
+ * Lives here rather than in a hook because a meal can be logged from two
+ * places — today's screen and back-dating a past day in the calendar — and a
+ * food the user typed in should be remembered either way. Doing it in one hook
+ * meant the calendar quietly skipped it.
+ *
+ * Only the names are fetched for the duplicate check, so this costs one small
+ * query and never blocks the log itself: any failure is swallowed, because
+ * remembering the food is a convenience and losing the meal entry is not.
+ */
+export async function rememberFoodFromEntry(userId: string, entry: RememberCandidate): Promise<void> {
+  try {
+    // Cheap pre-check before touching the network at all.
+    if (!shouldRemember(entry, [])) return;
+
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('forge_food_items').select('name').eq('user_id', userId);
+    if (error) return;
+
+    const existing = (data ?? []).map((row) => foodKey((row as { name: string }).name));
+    if (!shouldRemember(entry, existing)) return;
+
+    await createFoodItem(userId, {
+      name: entry.name.trim(),
+      macros: perPortion(entry.macros, entry.servings),
+      ...(entry.dataQuality ? { dataQuality: entry.dataQuality } : {}),
+    });
+  } catch {
+    // Never let filing a food fail the meal that was actually logged.
+  }
+}

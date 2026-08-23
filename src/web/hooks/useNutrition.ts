@@ -21,6 +21,7 @@ import {
   listFoodItems,
   listRecipes,
   markFoodUsed,
+  rememberFoodFromEntry,
   toggleFoodFavorite,
   type FoodItemInput,
 } from '@/data/foodLibrary';
@@ -158,6 +159,8 @@ export function useNutrition() {
       });
 
       await addMealEntry(user.id, today, withSlot);
+      // Typed by hand once is enough; next time it is a tap (§12).
+      await rememberFoodFromEntry(user.id, withSlot);
       if (withSlot.foodItemId) {
         const food = state.foods.find((f) => f.id === withSlot.foodItemId);
         await markFoodUsed(user.id, withSlot.foodItemId, food?.useCount ?? 0);

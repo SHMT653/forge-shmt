@@ -6,6 +6,7 @@ import { loadDayAggregates, loadDayDetail, type DayDetail } from '@/data/overvie
 import { getUserGoals } from '@/data/profile';
 import { getActivePhase } from '@/data/goalPhases';
 import { addMealEntry, deleteMealEntry, syncNutritionTotals, type MealEntryInput } from '@/data/nutrition';
+import { rememberFoodFromEntry } from '@/data/foodLibrary';
 import { setHealthMetric } from '@/data/dailyHealth';
 import { saveBodyMetric } from '@/data/progress';
 import { saveCheckin } from '@/data/checkins';
@@ -111,6 +112,9 @@ export function useCalendar() {
     async (date: string, entry: MealEntryInput) => {
       if (!user) return;
       await addMealEntry(user.id, date, entry);
+      // A meal typed while back-filling last Tuesday is just as worth
+      // remembering as one typed today.
+      await rememberFoodFromEntry(user.id, entry);
       await syncNutritionTotals(user.id, date);
       await load();
     },

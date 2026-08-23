@@ -15,7 +15,7 @@ import {
   type MealEntry,
   type MealEntryInput,
 } from '@/data/nutrition';
-import { createFoodItem, listActiveBatches, listFoodItems, listRecipes, markFoodUsed, consumeBatchPortions, type FoodItemInput } from '@/data/foodLibrary';
+import { createFoodItem, listActiveBatches, listFoodItems, listRecipes, markFoodUsed, consumeBatchPortions, rememberFoodFromEntry, type FoodItemInput } from '@/data/foodLibrary';
 import { getCheckin, saveCheckin } from '@/data/checkins';
 import { getTodayCardioKcal } from '@/data/cardio';
 import { getUserGoals } from '@/data/profile';
@@ -392,6 +392,11 @@ export function useTodayData() {
       const withSlot: MealEntryInput = { slot: slotForHour(new Date().getHours()), ...entry };
 
       await addMealEntry(user.id, today, withSlot);
+
+      // Anything typed by hand is worth remembering: the next time the user
+      // eats it, it is one tap instead of four numbers (§12).
+      await rememberFoodFromEntry(user.id, entry);
+
       if (entry.foodItemId) {
         const food = data?.allFoods.find((f) => f.id === entry.foodItemId);
         await markFoodUsed(user.id, entry.foodItemId, food?.useCount ?? 0);
