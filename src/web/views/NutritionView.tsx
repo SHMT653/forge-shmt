@@ -3,13 +3,12 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  Utensils, Droplets, Plus, ScanLine, Star, Box, ArrowRight, ChefHat,
+  Utensils, Droplets, Plus, Star, Box, ArrowRight, ChefHat,
 } from 'lucide-react';
 import { useNutrition } from '@/web/hooks/useNutrition';
 import { RangeBar, GoalBar } from '@/web/components/RangeBar';
 import { AiQuickInput } from '@/web/components/AiQuickInput';
 import { QuickAddSheet } from '@/web/components/QuickAddSheet';
-import { BarcodeScannerModal } from '@/web/components/BarcodeScannerModal';
 import { DailyTimeline, mealToEvent, type TimelineEvent } from '@/web/components/DailyTimeline';
 import { evaluateRange, evaluateGoal, TONE_COLOR } from '@/domain/goalPhase';
 import { isDayInProgress, formatLiters } from '@/domain/coach';
@@ -24,7 +23,6 @@ const WATER_STEPS = [250, 500, 750];
 export function NutritionView() {
   const { state, favorites, addMeal, removeMeal, addWater, saveAsFood, cookBatch } = useNutrition();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [scannerOpen, setScannerOpen] = useState(false);
 
   const bySlot = useMemo(() => {
     const map = new Map<MealSlot | 'other', typeof state.meals>();
@@ -162,9 +160,6 @@ export function NutritionView() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" className="button" style={{ flex: 1 }} onClick={() => setSheetOpen(true)}>
             <Plus size={17} /> Mahlzeit eintragen
-          </button>
-          <button type="button" className="button secondary" onClick={() => setScannerOpen(true)} aria-label="Barcode scannen">
-            <ScanLine size={17} />
           </button>
         </div>
         <AiQuickInput
@@ -379,19 +374,6 @@ export function NutritionView() {
         />
       )}
 
-      {scannerOpen && (
-        <BarcodeScannerModal
-          onLog={async (kcal, proteinG, name, carbsG, fatG) => {
-            await addMeal({
-              name: name ?? 'Gescanntes Produkt',
-              macros: { kcal, proteinG, carbsG: carbsG ?? 0, fatG: fatG ?? 0 },
-              dataQuality: 'verified',
-              source: 'barcode',
-            });
-          }}
-          onClose={() => setScannerOpen(false)}
-        />
-      )}
     </>
   );
 }

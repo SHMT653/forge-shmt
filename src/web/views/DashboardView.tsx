@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  Flame, Dumbbell, Plus, Trophy, Scale, Camera, ArrowRight, ListChecks, Activity, ScanLine,
+  Flame, Dumbbell, Plus, Trophy, Scale, Camera, ArrowRight, ListChecks, Activity,
 } from 'lucide-react';
 import { useTodayContext } from '@/web/hooks/TodayDataProvider';
 import { InsightList } from '@/web/components/CoachCard';
@@ -18,7 +18,6 @@ import { GoalCard } from '@/web/components/GoalCard';
 import { SourceBadge } from '@/web/components/SourceBadge';
 import { RestOfDayCard } from '@/web/components/RestOfDayCard';
 import { DayStatsCard } from '@/web/components/DayStatsCard';
-import { BarcodeScannerModal } from '@/web/components/BarcodeScannerModal';
 import { OnboardingView } from '@/web/views/OnboardingView';
 import { evaluateRange, TONE_COLOR } from '@/domain/goalPhase';
 import { isDayInProgress } from '@/domain/coach';
@@ -46,7 +45,6 @@ export function DashboardView() {
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
-  const [scannerOpen, setScannerOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const [doneBanner, setDoneBanner] = useState<{ exercises: number } | null>(null);
 
@@ -280,9 +278,6 @@ export function DashboardView() {
           <button type="button" className="button" style={{ flex: 1 }} onClick={() => setSheetOpen(true)}>
             <Plus size={17} /> Eintragen
           </button>
-          <button type="button" className="button secondary" onClick={() => setScannerOpen(true)} aria-label="Barcode scannen">
-            <ScanLine size={17} />
-          </button>
           {data.activeSession ? (
             <Link href={`/workout/${data.activeSession.id}`} className="button secondary">
               <Activity size={17} /> Weiter
@@ -446,20 +441,6 @@ export function DashboardView() {
 
       {coachOpen && <CoachDrawer onClose={() => setCoachOpen(false)} />}
 
-      {scannerOpen && (
-        <BarcodeScannerModal
-          onLog={async (kcal, proteinG, name, carbsG, fatG) => {
-            await addEntry({
-              name: name ?? 'Gescanntes Produkt',
-              macros: { kcal, proteinG, carbsG: carbsG ?? 0, fatG: fatG ?? 0 },
-              // A barcode read is a packaged product's own declared values.
-              dataQuality: 'verified',
-              source: 'barcode',
-            });
-          }}
-          onClose={() => setScannerOpen(false)}
-        />
-      )}
     </>
   );
 }

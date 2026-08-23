@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Timer, X, Plus } from 'lucide-react';
+import { Timer, X, Plus, Play, RotateCcw } from 'lucide-react';
 
 const PRESETS = [45, 60, 90, 120, 180, 240];
 const STORAGE_KEY = 'forge_rest_seconds';
 
 /** The chosen rest length sticks, so it is set once rather than every set. */
-function loadPreferred(fallback: number): number {
+export function loadPreferredRest(fallback: number): number {
   if (typeof window === 'undefined') return fallback;
   const stored = Number(window.localStorage.getItem(STORAGE_KEY));
   return Number.isFinite(stored) && stored >= 15 && stored <= 600 ? stored : fallback;
@@ -19,15 +19,39 @@ function loadPreferred(fallback: number): number {
  * Counts against a wall-clock end time rather than decrementing a counter, so
  * it stays correct when the screen sleeps or the tab is backgrounded mid-set —
  * which is exactly when a phone gets put down during a rest.
+ *
+ * It starts idle and is always on screen during a workout. Previously it only
+ * appeared after a set was ticked off, so there was no way to start a rest at
+ * any other moment — including the one people actually want, right after the
+ * last rep, before touching the phone.
  */
-export function RestTimer({ defaultSeconds = 90, onClose }: { defaultSeconds?: number; onClose: () => void }) {
-  const [preferred, setPreferred] = useState(() => loadPreferred(defaultSeconds));
-  const [endsAt, setEndsAt] = useState(() => Date.now() + loadPreferred(defaultSeconds) * 1000);
-  const [remaining, setRemaining] = useState(preferred);
+export function RestTimer({
+  defaultSeconds = 90,
+  startSignal = 0,
+  onClose,
+}: {
+  defaultSeconds?: number;
+  /** Increment to start the countdown from outside — e.g. a set was completed. */
+  startSignal?: number;
+  onClose?: () => void;
+}) {
+  const [preferred, setPreferred] = useState(() => loadPreferredRest(defaultSeconds));
+  const [endsAt, setEndsAt] = useState<number | null>(null);
+  const [remaining, setRemaining] = useState(0);
   const [custom, setCustom] = useState('');
   const notified = useRef(false);
+  const lastSignal = useRef(startSignal);
 
   useEffect(() => {
+    if (startSignal === lastSignal.current) return;
+    lastSignal.current = startSignal;
+    notified.current = false;
+    setEndsAt(Date.now() + loadPreferredRest(defaultSeconds) * 1000);
+    setPreferred(loadPreferredRest(defaultSeconds));
+  }, [startSignal, defaultSeconds]);
+
+  useEffect(() => {
+    if (endsAt === null) return;
     const tick = () => {
       const left = Math.max(0, Math.round((endsAt - Date.now()) / 1000));
       setRemaining(left);
@@ -49,7 +73,8 @@ export function RestTimer({ defaultSeconds = 90, onClose }: { defaultSeconds?: n
     setEndsAt(Date.now() + seconds * 1000);
   }
 
-  const done = remaining === 0;
+  const running = endsAt !== null;
+  const done = running && remaining === 0;
   const minutes = Math.floor(remaining / 60);
   const seconds = remaining % 60;
 
@@ -58,20 +83,35 @@ export function RestTimer({ defaultSeconds = 90, onClose }: { defaultSeconds?: n
       <div className="row-between">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <Timer size={16} color={done ? 'var(--teal)' : 'var(--violet)'} />
-          <span
-            style={{
-              fontSize: 22,
-              fontWeight: 900,
-              fontVariantNumeric: 'tabular-nums',
-              color: done ? 'var(--teal)' : 'var(--text)',
-            }}
-          >
-            {done ? 'Bereit' : `${minutes}:${String(seconds).padStart(2, '0')}`}
-          </span>
+          {running ? (
+            <span
+              style={{
+                fontSize: 22,
+                fontWeight: 900,
+                fontVariantNumeric: 'tabular-nums',
+                color: done ? 'var(--teal)' : 'var(--text)',
+              }}
+            >
+              {done ? 'Bereit' : `${minutes}:${String(seconds).padStart(2, '0')}`}
+            </span>
+          ) : (
+            <button type="button" className="button compact" onClick={() => restart(preferred)}>
+              <Play size={14} /> Pause starten ({preferred < 120 ? `${preferred} s` : `${preferred / 60} min`})
+            </button>
+          )}
         </div>
-        <button type="button" className="icon-button" onClick={onClose} aria-label="Timer schließen">
-          <X size={16} />
-        </button>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {running && (
+            <button type="button" className="icon-button" onClick={() => setEndsAt(null)} aria-label="Timer zurücksetzen">
+              <RotateCcw size={16} />
+            </button>
+          )}
+          {onClose && (
+            <button type="button" className="icon-button" onClick={onClose} aria-label="Timer schließen">
+              <X size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="chip-row" style={{ marginTop: 10 }}>
@@ -86,23 +126,25 @@ export function RestTimer({ defaultSeconds = 90, onClose }: { defaultSeconds?: n
             {preset < 120 ? `${preset} s` : `${preset / 60} min`}
           </button>
         ))}
-        <button
-          type="button"
-          className="chip"
-          style={{ minHeight: 30, fontSize: 12 }}
-          onClick={() => setEndsAt((current) => current + 30_000)}
-        >
-          <Plus size={12} /> 30 s
-        </button>
+        {running && (
+          <button
+            type="button"
+            className="chip"
+            style={{ minHeight: 30, fontSize: 12 }}
+            onClick={() => setEndsAt((current) => (current === null ? null : current + 30_000))}
+          >
+            <Plus size={12} /> 30 s
+          </button>
+        )}
       </div>
 
       <form
         style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center' }}
         onSubmit={(e) => {
           e.preventDefault();
-          const seconds = Number(custom);
-          if (Number.isFinite(seconds) && seconds >= 15 && seconds <= 600) {
-            restart(seconds);
+          const value = Number(custom);
+          if (Number.isFinite(value) && value >= 15 && value <= 600) {
+            restart(value);
             setCustom('');
           }
         }}

@@ -7,9 +7,9 @@ import { useProgress } from '@/web/hooks/useProgress';
 import { WeightTrendChart } from '@/web/components/WeightTrendChart';
 import { PhotoCompare } from '@/web/components/PhotoCompare';
 import { Sheet } from '@/web/components/Sheet';
-import { formatKg } from '@/domain/weightTrend';
+import { formatKg, weightOnOrBefore } from '@/domain/weightTrend';
 import { formatRepsPerSet, formatScore } from '@/domain/progression';
-import { todayKey } from '@/domain/dates';
+import { toDateKey, todayKey } from '@/domain/dates';
 import type { BiaValues, PhotoPose } from '@/domain/types';
 
 const POSES: { value: PhotoPose; label: string }[] = [
@@ -20,13 +20,15 @@ const POSES: { value: PhotoPose; label: string }[] = [
 ];
 
 export function ProgressView() {
-  const { photos, goals, targets, weight, review, exercises, loading, error, addMetric, addPhoto, removePhoto } =
+  const { metrics, photos, goals, targets, weight, review, exercises, loading, error, addMetric, addPhoto, removePhoto } =
     useProgress();
 
   const [weightInput, setWeightInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [pose, setPose] = useState<PhotoPose>('front');
+  // A picked-but-not-yet-saved photo, so the date can be corrected first.
+  const [pending, setPending] = useState<{ file: File; date: string } | null>(null);
   const [biaOpen, setBiaOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -47,15 +49,25 @@ export function ProgressView() {
     }
   }
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    if (fileInputRef.current) fileInputRef.current.value = '';
     if (!file) return;
+    // A photo picked from the gallery was taken when it was taken. Its file
+    // date is the right default — the user only has to correct it when it is
+    // wrong, instead of typing it every time.
+    setPending({ file, date: toDateKey(new Date(file.lastModified)) });
+  }
+
+  async function savePending() {
+    if (!pending) return;
     setUploading(true);
     try {
-      await addPhoto(file, todayKey(), pose, weight?.latest ?? null);
+      // The weight that belongs to the photo's own day, not to today (§25).
+      await addPhoto(pending.file, pending.date, pose, weightOnOrBefore(metrics, pending.date));
+      setPending(null);
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
 
@@ -243,23 +255,54 @@ export function ProgressView() {
 
         <PhotoCompare photos={posePhotos} />
 
+        {/* No `capture` attribute: forcing the camera made it impossible to add
+            a photo from last week, which is most of what back-filling is. */}
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          capture="environment"
           onChange={handleFile}
           style={{ display: 'none' }}
         />
-        <button
-          type="button"
-          className="button secondary block"
-          style={{ marginTop: 12 }}
-          disabled={uploading}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <Camera size={16} /> {uploading ? 'Wird hochgeladen …' : `Bild aufnehmen (${POSES.find((p) => p.value === pose)?.label})`}
-        </button>
+
+        {pending ? (
+          <div className="panel soft" style={{ marginTop: 12, padding: 12, display: 'grid', gap: 10 }}>
+            <p className="section-label" style={{ margin: 0 }}>Bild eintragen</p>
+            <div className="field">
+              <label className="field-label" htmlFor="photo-date">Aufnahmedatum</label>
+              <input
+                id="photo-date"
+                className="input"
+                type="date"
+                value={pending.date}
+                max={todayKey()}
+                onChange={(e) => setPending((prev) => (prev ? { ...prev, date: e.target.value } : prev))}
+              />
+            </div>
+            <p className="muted-sm" style={{ margin: 0 }}>
+              Pose: {POSES.find((p) => p.value === pose)?.label}
+              {weightOnOrBefore(metrics, pending.date) !== null && ` · ${weightOnOrBefore(metrics, pending.date)} kg an diesem Tag`}
+            </p>
+            <div className="button-row">
+              <button type="button" className="button" disabled={uploading || !pending.date} onClick={() => void savePending()}>
+                {uploading ? 'Wird hochgeladen …' : 'Speichern'}
+              </button>
+              <button type="button" className="button ghost compact" disabled={uploading} onClick={() => setPending(null)}>
+                Verwerfen
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="button secondary block"
+            style={{ marginTop: 12 }}
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Camera size={16} /> Bild hinzufügen ({POSES.find((p) => p.value === pose)?.label})
+          </button>
+        )}
 
         {posePhotos.length > 0 && (
           <div className="metric-thumb-grid" style={{ marginTop: 12 }}>

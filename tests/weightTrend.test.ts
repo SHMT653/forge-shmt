@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildWeightSeries, daysSinceLastWeighIn, formatKg, isPhotoDue, isWeighInDue, summarizeWeight } from '@/domain/weightTrend';
+import { buildWeightSeries, daysSinceLastWeighIn, formatKg, isPhotoDue, isWeighInDue, summarizeWeight, weightOnOrBefore } from '@/domain/weightTrend';
 import type { BodyMetric } from '@/domain/types';
 
 function metric(logDate: string, weightKg: number | null): BodyMetric {
@@ -107,5 +107,32 @@ describe('reminders (§26/§27)', () => {
     expect(isPhotoDue(null, '2026-01-01', 14)).toBe(true);
     expect(isPhotoDue('2026-01-01', '2026-01-15', 14)).toBe(true);
     expect(isPhotoDue('2026-01-01', '2026-01-10', 14)).toBe(false);
+  });
+});
+
+describe('weightOnOrBefore', () => {
+  const metric = (logDate: string, weightKg: number | null) => ({
+    id: logDate, logDate, weightKg, waistCm: null, chestCm: null, armsCm: null,
+    bia: null, source: 'manual' as const,
+  });
+
+  it('stamps a back-dated photo with the weight of its own day', () => {
+    const metrics = [metric('2026-08-01', 82), metric('2026-08-10', 80), metric('2026-08-20', 78)];
+    expect(weightOnOrBefore(metrics, '2026-08-10')).toBe(80);
+  });
+
+  it('falls back to the most recent earlier reading', () => {
+    const metrics = [metric('2026-08-01', 82), metric('2026-08-20', 78)];
+    expect(weightOnOrBefore(metrics, '2026-08-10')).toBe(82);
+  });
+
+  it('never reaches forward in time', () => {
+    // Otherwise a photo from June would be labelled with August's weight.
+    expect(weightOnOrBefore([metric('2026-08-20', 78)], '2026-06-01')).toBeNull();
+  });
+
+  it('ignores rows without a weight', () => {
+    const metrics = [metric('2026-08-01', 82), metric('2026-08-15', null)];
+    expect(weightOnOrBefore(metrics, '2026-08-20')).toBe(82);
   });
 });

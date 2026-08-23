@@ -73,31 +73,54 @@ describe('HoldTimer — for planks and hangs', () => {
 });
 
 describe('RestTimer — adjustable pauses', () => {
+  /** The timer now starts idle, so every test has to start it the way a user does. */
+  function start(defaultSeconds = 90) {
+    const view = render(<RestTimer defaultSeconds={defaultSeconds} />);
+    fireEvent.click(screen.getByRole('button', { name: /Pause starten/ }));
+    return view;
+  }
+
+  it('waits to be started instead of running the moment the screen opens', () => {
+    render(<RestTimer defaultSeconds={90} />);
+    // Regression: the timer used to auto-start, which meant it could only ever
+    // be reached by ticking off a set.
+    expect(screen.getByRole('button', { name: /Pause starten/ })).toBeTruthy();
+    advance(10_000);
+    expect(screen.queryByText('1:20')).toBeNull();
+  });
+
+  it('starts from outside when a set is completed', () => {
+    const { rerender } = render(<RestTimer defaultSeconds={90} startSignal={0} />);
+    rerender(<RestTimer defaultSeconds={90} startSignal={1} />);
+    advance(10_000);
+    expect(screen.getByText('1:20')).toBeTruthy();
+  });
+
   it('counts down from the default', () => {
-    render(<RestTimer defaultSeconds={90} onClose={vi.fn()} />);
+    start(90);
     advance(10_000);
     expect(screen.getByText('1:20')).toBeTruthy();
   });
 
   it('restarts at a preset when one is chosen', () => {
-    render(<RestTimer defaultSeconds={90} onClose={vi.fn()} />);
+    render(<RestTimer defaultSeconds={90} />);
     fireEvent.click(screen.getByRole('button', { name: '3 min' }));
     advance(1000);
     expect(screen.getByText('2:59')).toBeTruthy();
   });
 
   it('remembers the chosen length for the next set', () => {
-    const { unmount } = render(<RestTimer defaultSeconds={90} onClose={vi.fn()} />);
+    const { unmount } = render(<RestTimer defaultSeconds={90} />);
     fireEvent.click(screen.getByRole('button', { name: '2 min' }));
     unmount();
 
-    render(<RestTimer defaultSeconds={90} onClose={vi.fn()} />);
+    start(90);
     advance(1000);
     expect(screen.getByText('1:59')).toBeTruthy();
   });
 
   it('accepts a custom length', () => {
-    render(<RestTimer defaultSeconds={90} onClose={vi.fn()} />);
+    render(<RestTimer defaultSeconds={90} />);
     fireEvent.change(screen.getByLabelText(/Eigene Pausenlänge/), { target: { value: '75' } });
     fireEvent.click(screen.getByRole('button', { name: 'Setzen' }));
     advance(1000);
@@ -105,7 +128,7 @@ describe('RestTimer — adjustable pauses', () => {
   });
 
   it('rejects an implausible custom length rather than starting a 9-hour rest', () => {
-    render(<RestTimer defaultSeconds={90} onClose={vi.fn()} />);
+    start(90);
     fireEvent.change(screen.getByLabelText(/Eigene Pausenlänge/), { target: { value: '99999' } });
     fireEvent.click(screen.getByRole('button', { name: 'Setzen' }));
     advance(1000);
@@ -113,15 +136,21 @@ describe('RestTimer — adjustable pauses', () => {
   });
 
   it('adds thirty seconds on demand', () => {
-    render(<RestTimer defaultSeconds={60} onClose={vi.fn()} />);
+    start(60);
     fireEvent.click(screen.getByRole('button', { name: /30 s/ }));
     advance(1000);
     expect(screen.getByText('1:29')).toBeTruthy();
   });
 
   it('says when the rest is over', () => {
-    render(<RestTimer defaultSeconds={60} onClose={vi.fn()} />);
+    start(60);
     advance(61_000);
     expect(screen.getByText('Bereit')).toBeTruthy();
+  });
+
+  it('can be reset back to idle', () => {
+    start(60);
+    fireEvent.click(screen.getByRole('button', { name: 'Timer zurücksetzen' }));
+    expect(screen.getByRole('button', { name: /Pause starten/ })).toBeTruthy();
   });
 });

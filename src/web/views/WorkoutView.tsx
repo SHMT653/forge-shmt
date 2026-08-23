@@ -299,7 +299,8 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
 
   // Today's concrete targets, derived from the last session for this exercise.
   const [plan, setPlan] = useState<ReturnType<typeof planSession> | null>(null);
-  const [restOpen, setRestOpen] = useState(false);
+  // Bumped whenever a set is finished, which starts the rest countdown.
+  const [restSignal, setRestSignal] = useState(0);
   const [holdingSet, setHoldingSet] = useState<number | null>(null);
 
   useEffect(() => {
@@ -388,15 +389,17 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
               const set = exercise.sets[holdingSet];
               if (set) void saveSet(set.id, { durationSeconds: recorded, completed: true });
               setHoldingSet(null);
-              setRestOpen(true);
+              setRestSignal((n) => n + 1);
             }}
           />
         </div>
       )}
 
-      {!isCardio && restOpen && (
+      {/* Always on screen during a workout: a rest you can only start by
+          ticking off a set is a rest you cannot start when you need it. */}
+      {!isCardio && (
         <div style={{ marginBottom: 12 }}>
-          <RestTimer onClose={() => setRestOpen(false)} />
+          <RestTimer startSignal={restSignal} />
         </div>
       )}
 
@@ -437,7 +440,7 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
                 onStartHold={(i) => setHoldingSet(i)}
                 onSave={(patch) => {
                   // Finishing a set is the moment the rest starts.
-                  if (patch.completed && !set.completed) setRestOpen(true);
+                  if (patch.completed && !set.completed) setRestSignal((n) => n + 1);
                   if (patch.completed && isPersonalRecord(patch, suggestion)) {
                     triggerPR(exercise.exerciseName);
                   }

@@ -181,3 +181,20 @@ export function isPhotoDue(lastPhotoDate: string | null, today: string, interval
   const since = daysSinceLastWeighIn(lastPhotoDate, today);
   return since !== null && since >= intervalDays;
 }
+
+/**
+ * The weight recorded on `date`, or the most recent one before it.
+ *
+ * A progress photo carries the weight it was taken at, so a photo added
+ * afterwards must not be stamped with today's weight — that would make the
+ * before/after comparison lie about exactly the number it exists to show.
+ * Returns null when nothing was recorded on or before that day.
+ */
+export function weightOnOrBefore(metrics: readonly BodyMetric[], date: string): number | null {
+  let best: { date: string; kg: number } | null = null;
+  for (const metric of metrics) {
+    if (metric.weightKg === null || metric.logDate > date) continue;
+    if (!best || metric.logDate > best.date) best = { date: metric.logDate, kg: metric.weightKg };
+  }
+  return best?.kg ?? null;
+}
