@@ -7,11 +7,11 @@ import {
 } from 'lucide-react';
 import { useNutrition } from '@/web/hooks/useNutrition';
 import { RangeBar, GoalBar } from '@/web/components/RangeBar';
-import { AiQuickInput } from '@/web/components/AiQuickInput';
+import { QuickTextInput } from '@/web/components/QuickTextInput';
 import { QuickAddSheet } from '@/web/components/QuickAddSheet';
 import { DailyTimeline, mealToEvent, type TimelineEvent } from '@/web/components/DailyTimeline';
 import { evaluateRange, evaluateGoal, TONE_COLOR } from '@/domain/goalPhase';
-import { isDayInProgress, formatLiters } from '@/domain/coach';
+import { isDayInProgress, formatLiters } from '@/domain/dayEvaluation';
 import {
   MEAL_SLOTS, MEAL_SLOT_LABEL, MEAL_SLOT_ICON, macrosForServings, sumMacros,
 } from '@/domain/nutritionMath';
@@ -138,11 +138,11 @@ export function NutritionView() {
       </section>
 
       {/* ── What still fits today (§14) ───────────────────────────────── */}
-      <section className="coach-card">
-        <span className="coach-avatar" aria-hidden><Utensils size={17} /></span>
+      <section className="note-card">
+        <span className="note-icon" aria-hidden><Utensils size={17} /></span>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <p className="coach-label">Heute sinnvoll</p>
-          <p className="coach-text">
+          <p className="note-label">Heute sinnvoll</p>
+          <p className="note-text">
             {state.meals.length === 0
               ? 'Noch nichts eingetragen. Trag deine erste Mahlzeit ein, dann rechne ich dir den Rest aus.'
               : proteinLeft > 5 && kcalLeft > 150
@@ -163,10 +163,9 @@ export function NutritionView() {
             <Plus size={17} /> Mahlzeit eintragen
           </button>
         </div>
-        <AiQuickInput
+        <QuickTextInput
           onAdd={handleEntry}
           compact
-          aiEnabled={state.goals.aiParsingEnabled}
           library={[
             ...state.foods.map((f) => ({ id: f.id, kind: 'food' as const, name: f.name })),
             ...state.recipes.map((r) => ({ id: r.id, kind: 'recipe' as const, name: r.name })),
@@ -363,7 +362,6 @@ export function NutritionView() {
           currentSteps={0}
           currentSleep={0}
           currentWeight={state.goals.currentWeight}
-          aiEnabled={state.goals.aiParsingEnabled}
           handlers={{
             onAddEntry: handleEntry,
             onSaveFood: saveAsFood,

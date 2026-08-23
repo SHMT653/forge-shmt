@@ -149,8 +149,6 @@ export type UserGoals = {
 
   // ── Feature switches (§41/§70)
   fastingEnabled: boolean;
-  aiCoachEnabled: boolean;
-  aiParsingEnabled: boolean;
   units: 'metric' | 'imperial';
 
   // ── Training setup (§32/§33). Empty means "not configured yet", which the

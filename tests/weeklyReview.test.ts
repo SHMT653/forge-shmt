@@ -79,7 +79,7 @@ describe('buildWeeklyReview (§30/§58)', () => {
 
   it('refuses to draw conclusions from too little data', () => {
     const result = review({ days: [day('2026-08-17', 2000, 140), day('2026-08-18', 0, 0)] });
-    expect(result.coachText).toContain('zu wenig Daten');
+    expect(result.summaryText).toContain('zu wenig Daten');
   });
 
   it('celebrates weight and strength moving together (§45)', () => {
@@ -90,7 +90,7 @@ describe('buildWeeklyReview (§30/§58)', () => {
       ]),
       exerciseHistories: [{ name: 'Liegestütze', snapshots: [pushups('2026-08-17', [7, 10, 7]), pushups('2026-08-21', [10, 9, 8])] }],
     });
-    expect(result.coachText).toContain('gleichzeitig positiv');
+    expect(result.summaryText).toContain('gleichzeitig positiv');
     expect(result.highlight?.name).toBe('Liegestütze');
     expect(result.highlight?.summary).toBe('24 → 27 Wiederholungen');
   });
@@ -102,7 +102,7 @@ describe('buildWeeklyReview (§30/§58)', () => {
         metric('2026-08-20', 73.8), metric('2026-08-21', 73.4),
       ]),
     });
-    expect(result.coachText).toContain('schneller runter');
+    expect(result.summaryText).toContain('schneller runter');
   });
 
   it('names protein as the lever when the average falls short', () => {
@@ -112,12 +112,12 @@ describe('buildWeeklyReview (§30/§58)', () => {
         day('2026-08-19', 2000, 95), day('2026-08-20', 2000, 88),
       ],
     });
-    expect(result.coachText).toContain('Protein');
+    expect(result.summaryText).toContain('Protein');
   });
 
   it('flags a week without any training', () => {
     const result = review({ fullWorkouts: 0, miniSessions: 0 });
-    expect(result.coachText).toContain('kein Training');
+    expect(result.summaryText).toContain('kein Training');
   });
 
   it('does not tell the user to cut further when averages are on target', () => {
@@ -127,6 +127,6 @@ describe('buildWeeklyReview (§30/§58)', () => {
         day('2026-08-19', 2020, 148), day('2026-08-20', 1990, 142),
       ],
     });
-    expect(result.coachText).toContain('nicht weiter anpassen');
+    expect(result.summaryText).toContain('nicht weiter anpassen');
   });
 });

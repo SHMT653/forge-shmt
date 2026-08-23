@@ -13,6 +13,7 @@ import { saveCheckin } from '@/data/checkins';
 import { errorMessage } from '@/domain/errors';
 import { dateKeyAddDays, toDateKey, todayKey } from '@/domain/dates';
 import { resolveTargets, type ResolvedTargets } from '@/domain/goalPhase';
+import { isDayInProgress } from '@/domain/dayEvaluation';
 import { rateDay, summarizeRatings, type DayRating } from '@/domain/dayRating';
 import type { Soreness, UserGoals } from '@/domain/types';
 
@@ -75,9 +76,13 @@ export function useCalendar() {
         // Future days stay blank rather than showing as a failed day.
         if (date > today) continue;
         const aggregate = aggregates.get(date) ?? {
-          date, kcal: null, proteinG: null, steps: null, sleepH: null, trained: false, miniSession: false,
+          date, kcal: null, proteinG: null, steps: null, sleepH: null, waterMl: null,
+          trained: false, miniSession: false,
         };
-        rated.set(date, rateDay(aggregate, resolved));
+        // Today is scored as a day still running; every past day is finished.
+        rated.set(date, rateDay(aggregate, resolved, {
+          dayInProgress: date === today && isDayInProgress(new Date().getHours()),
+        }));
       }
 
       setGoals(userGoals);

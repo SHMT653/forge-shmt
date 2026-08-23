@@ -16,7 +16,7 @@ const EMPTY_INGREDIENT: IngredientDraft = { name: '', amountLabel: '', kcal: '',
 
 /**
  * The user's own library: saved products and recipes (§12/§35).
- * This is the database the AI searches before it estimates anything.
+ * This is the database the text parser searches before anything is estimated.
  */
 export function RecipesView() {
   const { state, saveAsFood, setFavorite, cookBatch, reload } = useNutrition();
@@ -37,7 +37,7 @@ export function RecipesView() {
         </div>
         <p className="copy" style={{ marginTop: 0 }}>
           Was du hier speicherst, kennt FORGE exakt — beim Eintragen, in den Favoriten und für die
-          AI-Eingabe. Alles andere muss geschätzt werden.
+          Schnelleingabe. Alles andere muss geschätzt werden.
         </p>
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
           <button type="button" className="button" style={{ flex: 1 }} onClick={() => setRecipeSheet(true)}>

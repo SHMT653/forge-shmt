@@ -10,7 +10,7 @@ import { evaluateRange, type ResolvedTargets } from './goalPhase';
 import type { ExerciseSnapshot } from './progression';
 import { computeTrend } from './progression';
 import type { WeightSummary } from './weightTrend';
-import { formatSignedKg } from './coach';
+import { formatSignedKg } from './dayEvaluation';
 
 export type WeekBounds = { start: string; end: string; label: string };
 
@@ -65,7 +65,7 @@ export type WeeklyReview = {
   weightDelta: number | null;
   /** Best progression story of the week, if there is one. */
   highlight: { name: string; summary: string; percent: number | null } | null;
-  coachText: string;
+  summaryText: string;
 };
 
 function average(values: readonly number[]): number | null {
@@ -122,7 +122,7 @@ export function buildWeeklyReview(input: WeeklyInput): WeeklyReview {
     weightEnd,
     weightDelta,
     highlight,
-    coachText: buildWeeklyCoachText({
+    summaryText: buildWeeklyCoachText({
       targets,
       avgKcal,
       avgProtein,

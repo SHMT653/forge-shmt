@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Check, ChevronLeft, ChevronRight, Flag, Flame, Info, Timer, Trophy, X, Dumbbell, Zap, Activity, PersonStanding } from 'lucide-react';
 import { useActiveWorkout } from '@/web/hooks/useActiveWorkout';
 import { useAuth } from '@/web/hooks/useAuth';
+import { useTodayContextOptional } from '@/web/hooks/TodayDataProvider';
 import { addCardioLog } from '@/data/cardio';
 import { findExercise } from '@/domain/exerciseDatabase';
 import { calcKcalBurned } from '@/domain/cardioActivities';
@@ -252,6 +253,7 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
   const { session, loading, error, lastPerformance, saveSet, addSet, finish, abandon } = useActiveWorkout(sessionId);
   const { user } = useAuth();
   const router = useRouter();
+  const today = useTodayContextOptional();
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [finishing, setFinishing] = useState(false);
   const [confirmAbandon, setConfirmAbandon] = useState(false);
@@ -341,6 +343,7 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
     setFinishing(true);
     try {
       await finish();
+      await today?.reload();
       router.push(`/?done=1&exercises=${session?.exercises.length ?? 0}`);
     } finally {
       setFinishing(false);
@@ -355,6 +358,10 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
 
   async function handleAbandon() {
     await abandon();
+    // The provider sits above the router, so navigating back to the dashboard
+    // does not remount it. Without this the abandoned session — already
+    // deleted from the database — stays in today's timeline until a reload.
+    await today?.reload();
     router.push('/');
   }
 
@@ -391,11 +398,11 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
       </div>
 
       {!isCardio && plan && (
-        <div className="coach-card" style={{ marginBottom: 12 }}>
-          <span className="coach-avatar" aria-hidden><Zap size={16} /></span>
+        <div className="note-card" style={{ marginBottom: 12 }}>
+          <span className="note-icon" aria-hidden><Zap size={16} /></span>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <p className="coach-label">Ziel heute</p>
-            <p className="coach-text">{plan.summary}</p>
+            <p className="note-label">Ziel heute</p>
+            <p className="note-text">{plan.summary}</p>
           </div>
         </div>
       )}

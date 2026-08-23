@@ -4,9 +4,13 @@ import type { DayAggregate } from '@/domain/dayRating';
 /**
  * Loads a date range as one aggregate per day.
  *
- * Three queries for a whole month, all against tables that already hold one
- * row per day (§51 — nothing is stored twice, and nothing is recomputed from
+ * Four queries for a whole month, all against tables that already hold one row
+ * per day (§51 — nothing is stored twice, and nothing is recomputed from
  * individual meal rows just to colour a square).
+ *
+ * Water costs the fourth query. It is loaded because the calendar square and
+ * today's score have to be the same number, and today's score counts water —
+ * feeding the two views different inputs is how they came to disagree.
  */
 export async function loadDayAggregates(
   userId: string,
@@ -15,7 +19,14 @@ export async function loadDayAggregates(
 ): Promise<Map<string, DayAggregate>> {
   const supabase = getSupabaseClient();
 
-  const [nutrition, health, sessions] = await Promise.all([
+  const { data: waterHabit } = await supabase
+    .from('forge_habits')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('key', 'water')
+    .maybeSingle();
+
+  const [nutrition, health, sessions, water] = await Promise.all([
     supabase
       .from('forge_nutrition_logs')
       .select('log_date, calories, protein_g')
@@ -35,6 +46,15 @@ export async function loadDayAggregates(
       .not('completed_at', 'is', null)
       .gte('completed_at', `${fromDate}T00:00:00`)
       .lte('completed_at', `${toDate}T23:59:59`),
+    waterHabit?.id
+      ? supabase
+          .from('forge_habit_logs')
+          .select('log_date, value')
+          .eq('user_id', userId)
+          .eq('habit_id', waterHabit.id)
+          .gte('log_date', fromDate)
+          .lte('log_date', toDate)
+      : Promise.resolve({ data: [] as { log_date: string; value: number }[] }),
   ]);
 
   const days = new Map<string, DayAggregate>();
@@ -48,6 +68,7 @@ export async function loadDayAggregates(
       proteinG: null,
       steps: null,
       sleepH: null,
+      waterMl: null,
       trained: false,
       miniSession: false,
     };
@@ -69,6 +90,12 @@ export async function loadDayAggregates(
     const minutes = row.sleep_minutes === null ? null : Number(row.sleep_minutes);
     if (steps !== null && Number.isFinite(steps) && steps > 0) day.steps = steps;
     if (minutes !== null && Number.isFinite(minutes) && minutes > 0) day.sleepH = minutes / 60;
+  }
+
+  for (const row of water.data ?? []) {
+    const day = ensure(row.log_date as string);
+    const ml = Number(row.value);
+    if (Number.isFinite(ml) && ml > 0) day.waterMl = ml;
   }
 
   for (const row of sessions.data ?? []) {

@@ -165,11 +165,11 @@ export function ProgressView() {
             )}
           </div>
 
-          <div className="coach-card">
-            <span className="coach-avatar" aria-hidden><TrendingUp size={17} /></span>
+          <div className="note-card">
+            <span className="note-icon" aria-hidden><TrendingUp size={17} /></span>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <p className="coach-label">Coach</p>
-              <p className="coach-text">{review.coachText}</p>
+              <p className="note-label">Deine Woche</p>
+              <p className="note-text">{review.summaryText}</p>
             </div>
           </div>
         </section>

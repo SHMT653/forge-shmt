@@ -1,37 +1,37 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles, Check, X, CornerDownLeft } from 'lucide-react';
-import { useAuth } from '@/web/hooks/useAuth';
+import { PenLine, Check, X, CornerDownLeft } from 'lucide-react';
 import { formatKcalRange } from '@/domain/nutritionMath';
 import { parseLocally, type LibraryItem } from '@/domain/localParse';
-import type { ValidatedEntry, ValidatedParseResult } from '@/domain/aiSchema';
+import type { ValidatedEntry, ValidatedParseResult } from '@/domain/parsedEntry';
 import type { MealEntryInput } from '@/data/nutrition';
 
 const EXAMPLES = ['2 Isoclear', '450 g Skyr mit Himbeeren', '7000 Schritte', 'Liegestütze 10 9 8'];
 
 /**
- * Natural-language entry (§10).
+ * Type a line, get a proposal, confirm it.
  *
- * The flow is deliberately: text → parsed proposal → user confirms → save.
- * Nothing the model returns is written until the user taps "Hinzufügen" (§53).
+ * Runs entirely on the device against a rule parser and the user's own saved
+ * foods. There was a model-backed fallback for anything the rules missed; it
+ * needed an API key that was never configured, so in practice it only ever
+ * produced an error message. Removed — what is left is the part that worked.
+ *
+ * The flow stays: text → parsed proposal → user confirms → save. Nothing is
+ * written until the user taps "Hinzufügen" (§53).
  */
-export function AiQuickInput({
+export function QuickTextInput({
   onAdd,
   onMetric,
   compact,
   library = [],
-  aiEnabled = true,
 }: {
   onAdd: (entry: MealEntryInput) => void;
   onMetric?: (metric: 'steps' | 'water_ml' | 'sleep_h' | 'weight_kg', value: number) => void;
   compact?: boolean;
-  /** The user's saved foods and recipes, so the local parser can match them. */
+  /** The user's saved foods and recipes, so the parser can match them. */
   library?: readonly LibraryItem[];
-  /** When false, only the local rules run — no request is ever sent. */
-  aiEnabled?: boolean;
 }) {
-  const { session } = useAuth();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ValidatedParseResult | null>(null);
@@ -55,62 +55,20 @@ export function AiQuickInput({
       return;
     }
 
-    // Nothing left to try: without the model, say what was not understood
-    // rather than failing silently.
-    if (!aiEnabled) {
-      if (local.entries.length > 0) {
-        setResult({
-          entries: local.entries,
-          question: null,
-          note: `Nicht erkannt: ${local.unresolved.join(', ')}. Trag das über „Eintragen“ ein.`,
-          rejected: 0,
-        });
-      } else {
-        setError('Das konnte ich nicht zuordnen. Nutze „Eintragen“ oder aktiviere die AI-Eingabe.');
-      }
-      setBusy(false);
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/ai/parse', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
-        body: JSON.stringify({ text: value }),
+    // Say what was not understood rather than failing silently.
+    if (local.entries.length > 0) {
+      setResult({
+        entries: local.entries,
+        question: null,
+        note: local.unresolved.length > 0
+          ? `Nicht erkannt: ${local.unresolved.join(', ')}. Trag das über „Eintragen“ ein.`
+          : null,
+        rejected: 0,
       });
-      const data = await response.json();
-      if (!response.ok) {
-        // The model is unavailable — keep whatever the rules did manage.
-        if (local.entries.length > 0) {
-          setResult({
-            entries: local.entries,
-            question: null,
-            note: `Nicht erkannt: ${local.unresolved.join(', ')}.`,
-            rejected: 0,
-          });
-        } else {
-          setError(typeof data.error === 'string' ? data.error : 'Das hat nicht geklappt.');
-        }
-        return;
-      }
-      const parsed = data as ValidatedParseResult;
-      if (parsed.entries.length === 0 && !parsed.question) {
-        setError('Daraus konnte ich nichts erkennen. Versuch es etwas konkreter.');
-        return;
-      }
-      setResult(parsed);
-    } catch {
-      if (local.entries.length > 0) {
-        setResult({ entries: local.entries, question: null, note: null, rejected: 0 });
-      } else {
-        setError('Keine Verbindung zum Server.');
-      }
-    } finally {
-      setBusy(false);
+    } else {
+      setError('Das konnte ich nicht zuordnen. Nutze „Eintragen“ und trag die Werte direkt ein.');
     }
+    setBusy(false);
   }
 
   function acceptEntry(entry: ValidatedEntry) {
@@ -157,7 +115,7 @@ export function AiQuickInput({
     <div className="stack-sm">
       <form onSubmit={submit}>
         <div className="search-field" style={{ width: '100%', borderColor: 'rgba(139,92,246,0.35)' }}>
-          <Sparkles size={15} color="var(--violet)" />
+          <PenLine size={15} color="var(--violet)" />
           <input
             type="text"
             placeholder={compact ? 'Was hast du gegessen?' : 'Was hast du gegessen oder gemacht?'}

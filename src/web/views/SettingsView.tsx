@@ -98,8 +98,6 @@ export function SettingsView() {
   const [weighInWeekday, setWeighInWeekday] = useState(0);
   const [photoIntervalDays, setPhotoIntervalDays] = useState(14);
   const [fastingEnabled, setFastingEnabled] = useState(false);
-  const [aiCoachEnabled, setAiCoachEnabled] = useState(true);
-  const [aiParsingEnabled, setAiParsingEnabled] = useState(true);
   const [equipment, setEquipment] = useState<EquipmentId[]>([]);
   const [trainingFocus, setTrainingFocus] = useState<TrainingFocusId[]>([]);
   const [weeklyTrainingGoal, setWeeklyTrainingGoal] = useState('3');
@@ -144,8 +142,6 @@ export function SettingsView() {
     setWeighInWeekday(goals.weighInWeekday);
     setPhotoIntervalDays(goals.photoIntervalDays);
     setFastingEnabled(goals.fastingEnabled);
-    setAiCoachEnabled(goals.aiCoachEnabled);
-    setAiParsingEnabled(goals.aiParsingEnabled);
     setEquipment(goals.equipment);
     setTrainingFocus(goals.trainingFocus);
     setWeeklyTrainingGoal(String(resolved.weeklyTrainingGoal));
@@ -186,8 +182,6 @@ export function SettingsView() {
       weighInWeekday,
       photoIntervalDays,
       fastingEnabled,
-      aiCoachEnabled,
-      aiParsingEnabled,
       equipment,
       trainingFocus,
       weeklyTrainingGoal: numberOrNull(weeklyTrainingGoal),
@@ -488,7 +482,7 @@ export function SettingsView() {
             <CardHead icon={Target} tone="violet" title="Training" />
             <p className="copy" style={{ marginTop: 4, fontSize: 13 }}>
               Womit trainierst du und worauf willst du hinaus? Danach richten sich Mini-Sessions,
-              Planvorschläge und die Antworten des Coaches.
+              Planvorschläge und die Übungsauswahl.
             </p>
 
             <p className="section-label" style={{ marginTop: 12 }}>Equipment</p>
@@ -530,18 +524,6 @@ export function SettingsView() {
           <div style={{ marginTop: 18 }}>
             <CardHead icon={ShieldCheck} tone="violet" title="Funktionen" />
             <div className="stack-sm" style={{ marginTop: 10 }}>
-              <ToggleRow
-                label="AI Coach"
-                hint="Chat mit Zugriff auf deine FORGE-Daten."
-                checked={aiCoachEnabled}
-                onChange={setAiCoachEnabled}
-              />
-              <ToggleRow
-                label="AI Eingabe"
-                hint="Freitext wie „2 Isoclear“ in Einträge umwandeln."
-                checked={aiParsingEnabled}
-                onChange={setAiParsingEnabled}
-              />
               <ToggleRow
                 label="Essensfenster"
                 hint="Intervallfasten ist optional — ohne diesen Schalter taucht es nirgends auf."

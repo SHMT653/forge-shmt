@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Target, ArrowRight } from 'lucide-react';
 import { formatRange, type ResolvedTargets } from '@/domain/goalPhase';
-import { formatHours, formatLiters } from '@/domain/coach';
+import { formatHours, formatLiters } from '@/domain/dayEvaluation';
 import type { GoalPhaseRecord } from '@/domain/types';
 
 /** The phase card from §38 — what am I working towards, and since when. */

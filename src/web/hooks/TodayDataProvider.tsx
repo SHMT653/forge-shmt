@@ -25,3 +25,11 @@ export function useTodayContext(): TodayDataValue {
   if (!context) throw new Error('useTodayContext muss innerhalb von TodayDataProvider verwendet werden');
   return context;
 }
+
+/**
+ * For screens that want to refresh today's data when they are done but must
+ * still render outside the provider — the workout screen in tests, chiefly.
+ */
+export function useTodayContextOptional(): TodayDataValue | null {
+  return useContext(TodayDataContext);
+}

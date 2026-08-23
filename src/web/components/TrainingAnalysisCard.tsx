@@ -40,11 +40,11 @@ export function TrainingAnalysisCard() {
       </div>
 
       {analysis.nextFocus && (
-        <div className="coach-card" style={{ marginBottom: 12 }}>
-          <span className="coach-avatar" aria-hidden><TrendingUp size={16} /></span>
+        <div className="note-card" style={{ marginBottom: 12 }}>
+          <span className="note-icon" aria-hidden><TrendingUp size={16} /></span>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <p className="coach-label">Als Nächstes</p>
-            <p className="coach-text">
+            <p className="note-label">Als Nächstes</p>
+            <p className="note-text">
               {REGION_LABEL[analysis.nextFocus.region]} — {analysis.nextFocus.reason}
             </p>
           </div>

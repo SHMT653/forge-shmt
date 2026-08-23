@@ -8,7 +8,7 @@
  */
 
 import { evaluateGoal, evaluateRange, type ResolvedTargets, type Tone } from './goalPhase';
-import { formatHours, formatLiters } from './coach';
+import { formatHours, formatLiters } from './dayEvaluation';
 import { formatDistance } from './health';
 import type { Macros } from './types';
 

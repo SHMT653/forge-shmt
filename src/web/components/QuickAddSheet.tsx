@@ -3,11 +3,11 @@
 import { useMemo, useState } from 'react';
 import { Utensils, Droplets, Footprints, Moon, Scale, Dumbbell, Search, Sparkles, Box, Plus, Check, X, Star } from 'lucide-react';
 import { Sheet } from './Sheet';
-import { AiQuickInput } from './AiQuickInput';
+import { QuickTextInput } from './QuickTextInput';
 import { useFoodSearch } from '@/web/hooks/useFoodSearch';
 import { scaleCandidate, type ScoredCandidate } from '@/domain/foodResolver';
 import { macrosForServings, MEAL_SLOT_ICON, roundMacros, scaleMacros, slotForHour } from '@/domain/nutritionMath';
-import { formatLiters, formatHours } from '@/domain/coach';
+import { formatLiters, formatHours } from '@/domain/dayEvaluation';
 import type { MealEntry, MealEntryInput } from '@/data/nutrition';
 import type { FoodItemInput } from '@/data/foodLibrary';
 import type { FoodItem, MealPrepBatch, Recipe } from '@/domain/types';
@@ -39,7 +39,6 @@ export function QuickAddSheet({
   currentSteps,
   currentSleep,
   currentWeight,
-  aiEnabled,
   recentMeals = [],
   allFoods,
   allRecipes,
@@ -57,7 +56,6 @@ export function QuickAddSheet({
   currentSteps: number;
   currentSleep: number;
   currentWeight: number | null;
-  aiEnabled: boolean;
   handlers: QuickAddHandlers;
 }) {
   const [mode, setMode] = useState<Mode>('food');
@@ -93,7 +91,6 @@ export function QuickAddSheet({
           recentMeals={recentMeals}
           allFoods={allFoods ?? favoriteFoods}
           allRecipes={allRecipes ?? favoriteRecipes}
-          aiEnabled={aiEnabled}
           busy={busy}
           onAdd={(entry, keepOpen) => run(() => handlers.onAddEntry(entry), keepOpen)}
           {...(handlers.onSaveFood ? { onSaveFood: handlers.onSaveFood } : {})}
@@ -204,7 +201,6 @@ function FoodPanel({
   recentMeals,
   allFoods,
   allRecipes,
-  aiEnabled,
   busy,
   onAdd,
   onSaveFood,
@@ -215,7 +211,6 @@ function FoodPanel({
   recentMeals: readonly MealEntry[];
   allFoods: readonly FoodItem[];
   allRecipes: readonly Recipe[];
-  aiEnabled: boolean;
   busy: boolean;
   onAdd: (entry: MealEntryInput, keepOpen?: boolean) => void;
   onSaveFood?: (input: FoodItemInput) => Promise<void> | void;
@@ -321,7 +316,7 @@ function FoodPanel({
 
   return (
     <div className="stack-sm">
-      {aiEnabled && <AiQuickInput onAdd={(entry) => onAdd(entry, true)} />}
+      <QuickTextInput onAdd={(entry) => onAdd(entry, true)} />
 
       {/* Meal prep batches first — they are time-sensitive */}
       {batches.length > 0 && (

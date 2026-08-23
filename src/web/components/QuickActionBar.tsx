@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles, Plus } from 'lucide-react';
-import { CoachDrawer } from './CoachDrawer';
+import { Plus } from 'lucide-react';
 import { QuickAddSheet } from './QuickAddSheet';
 import { useTodayContext } from '@/web/hooks/TodayDataProvider';
 import { macrosForServings } from '@/domain/nutritionMath';
@@ -15,7 +14,7 @@ import type { MealEntryInput } from '@/data/nutrition';
 
 /**
  * The two things that must be reachable from every screen (§ "möglichst
- * schnell viel eintragen"): logging something, and asking the coach.
+ * schnell viel eintragen"): logging something, from anywhere in the app.
  *
  * Rendered by the app shell rather than by each view, so the position never
  * shifts and no screen has to remember to include it.
@@ -23,10 +22,9 @@ import type { MealEntryInput } from '@/data/nutrition';
 export function QuickActionBar() {
   const { user } = useAuth();
   const { data, addEntry, addWater, setMetric, saveFood, startSuggestedWorkout, reload } = useTodayContext();
-  const [coachOpen, setCoachOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
-  // Until the day's data is loaded there is nothing to add against; the coach
+  // Until the day's data is loaded there is nothing to add against; the button
   // button still works, because its context is built server-side.
   const ready = data !== null && Boolean(data.goals.onboardedAt);
 
@@ -79,27 +77,18 @@ export function QuickActionBar() {
 
   return (
     <>
+      {/* One button now. It used to be a pair — quick-add beside a coach that
+          needed an API key nobody had — so the useful half was the small one. */}
       {ready && (
         <button
           type="button"
-          className="fab fab-secondary"
+          className="fab"
           onClick={() => setAddOpen(true)}
           aria-label="Schnell eintragen"
         >
-          <Plus size={22} />
+          <Plus size={24} />
         </button>
       )}
-
-      <button
-        type="button"
-        className="fab"
-        onClick={() => setCoachOpen(true)}
-        aria-label="Coach öffnen"
-      >
-        <Sparkles size={22} />
-      </button>
-
-      {coachOpen && <CoachDrawer onClose={() => setCoachOpen(false)} />}
 
       {addOpen && data && (
         <QuickAddSheet
@@ -114,7 +103,6 @@ export function QuickActionBar() {
           currentSteps={data.metrics.steps}
           currentSleep={data.metrics.sleepH}
           currentWeight={data.weight.latest}
-          aiEnabled={data.goals.aiParsingEnabled}
           handlers={{
             onAddEntry: handleEntry,
             onSaveFood: saveFood,

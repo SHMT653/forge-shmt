@@ -1,8 +1,8 @@
 'use client';
 
-import { Sparkles, Footprints, Droplets, Plus } from 'lucide-react';
+import { Target, Footprints, Droplets, Plus } from 'lucide-react';
 import { describeRemaining, remainingBudget, suggestFits, type FitCandidate } from '@/domain/remainingDay';
-import { formatLiters } from '@/domain/coach';
+import { formatLiters } from '@/domain/dayEvaluation';
 import { TONE_COLOR } from '@/domain/goalPhase';
 import type { ResolvedTargets } from '@/domain/goalPhase';
 import type { Macros } from '@/domain/types';
@@ -13,7 +13,9 @@ import type { MealEntryInput } from '@/data/nutrition';
  *
  * Deliberately the most concrete thing on the screen: not a percentage, but
  * named foods from the user's own library that fit what is left, each one tap
- * away from being logged.
+ * away from being logged. Every number here is arithmetic on today's rows —
+ * it was briefly dressed up as a coach speaking, which added a persona to a
+ * subtraction.
  */
 export function RestOfDayCard({
   consumed,
@@ -21,21 +23,16 @@ export function RestOfDayCard({
   targets,
   entryCount,
   candidates,
-  headline,
   onAdd,
   onAddWater,
-  onOpenCoach,
 }: {
   consumed: Macros;
   metrics: { steps: number; waterMl: number };
   targets: ResolvedTargets;
   entryCount: number;
   candidates: readonly FitCandidate[];
-  /** The coach's read on the day — merged in rather than shown as its own card. */
-  headline: string;
   onAdd: (entry: MealEntryInput) => void;
   onAddWater: (ml: number) => void;
-  onOpenCoach?: () => void;
 }) {
   const budget = remainingBudget(consumed, metrics, targets, entryCount);
   const fits = suggestFits(candidates, budget);
@@ -47,27 +44,14 @@ export function RestOfDayCard({
     : 'green';
 
   return (
-    <section className="coach-card" style={{ display: 'block' }}>
+    <section className="panel soft" style={{ display: 'block' }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-        <span className="coach-avatar" aria-hidden style={{ color: TONE_COLOR[tone] }}>
-          <Sparkles size={17} />
+        <span className="stat-icon" aria-hidden style={{ color: TONE_COLOR[tone] }}>
+          <Target size={17} />
         </span>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <p className="coach-label">Coach</p>
-          <p className="coach-text">{headline}</p>
-          <p className="coach-text" style={{ marginTop: 6, color: 'var(--muted)' }}>
-            {describeRemaining(budget, targets)}
-          </p>
-          {onOpenCoach && (
-            <button
-              type="button"
-              className="button ghost compact"
-              style={{ marginTop: 6, padding: 0, minHeight: 0, color: 'var(--violet)' }}
-              onClick={onOpenCoach}
-            >
-              Nachfragen →
-            </button>
-          )}
+          <p className="section-label">Rest des Tages</p>
+          <p className="copy" style={{ margin: '2px 0 0' }}>{describeRemaining(budget, targets)}</p>
         </div>
       </div>
 

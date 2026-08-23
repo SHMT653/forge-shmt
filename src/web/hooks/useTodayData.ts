@@ -32,14 +32,11 @@ import { combineQuality, slotForHour } from '@/domain/nutritionMath';
 import { weekBoundsFor } from '@/domain/weeklyReview';
 import {
   buildDayStatus,
-  buildHeadline,
-  buildInsights,
   scoreDay,
-  type CoachContext,
-  type CoachInsight,
+  type DayContext,
   type DayStatusItem,
   type DayScore,
-} from '@/domain/coach';
+} from '@/domain/dayEvaluation';
 import type {
   GoalPhaseRecord,
   DailyCheckin,
@@ -120,9 +117,7 @@ export type TodayData = {
   trainingStreak: number;
 
   // coach
-  coach: CoachContext;
-  headline: string;
-  insights: CoachInsight[];
+  coach: DayContext;
   dayStatus: DayStatusItem[];
   dayScore: DayScore;
 
@@ -251,7 +246,7 @@ export function useTodayData() {
 
       // ── Coach context ───────────────────────────────────────────────
       const lastCompleted = recentSessions.find((s) => s.completedAt);
-      const coach: CoachContext = {
+      const coach: DayContext = {
         today,
         hour: new Date().getHours(),
         targets,
@@ -307,8 +302,6 @@ export function useTodayData() {
         dailyStreak: consecutiveDayStreak(habitDayKeys),
         trainingStreak: consecutiveDayStreak(completedDates),
         coach,
-        headline: buildHeadline(coach),
-        insights: buildInsights(coach),
         dayStatus: buildDayStatus(coach),
         dayScore: scoreDay(coach),
         weighInDue: isWeighInDue(weight.latestDate, today, goals.weighInWeekday),

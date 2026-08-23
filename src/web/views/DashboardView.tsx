@@ -7,12 +7,10 @@ import {
   Flame, Dumbbell, Plus, Trophy, Scale, Camera, ArrowRight, ListChecks, Activity,
 } from 'lucide-react';
 import { useTodayContext } from '@/web/hooks/TodayDataProvider';
-import { InsightList } from '@/web/components/CoachCard';
 import { DayRings, type RingSpec } from '@/web/components/DayRings';
 import { DailyTimeline, mealToEvent, type TimelineEvent } from '@/web/components/DailyTimeline';
 import { QuickAddSheet } from '@/web/components/QuickAddSheet';
-import { AiQuickInput } from '@/web/components/AiQuickInput';
-import { CoachDrawer } from '@/web/components/CoachDrawer';
+import { QuickTextInput } from '@/web/components/QuickTextInput';
 import { SorenessPicker } from '@/web/components/SorenessPicker';
 import { GoalCard } from '@/web/components/GoalCard';
 import { SourceBadge } from '@/web/components/SourceBadge';
@@ -20,7 +18,7 @@ import { RestOfDayCard } from '@/web/components/RestOfDayCard';
 import { DayStatsCard } from '@/web/components/DayStatsCard';
 import { OnboardingView } from '@/web/views/OnboardingView';
 import { evaluateRange, TONE_COLOR } from '@/domain/goalPhase';
-import { isDayInProgress } from '@/domain/coach';
+import { isDayInProgress } from '@/domain/dayEvaluation';
 import { macrosForServings } from '@/domain/nutritionMath';
 import { saveBodyMetric } from '@/data/progress';
 import { startMiniSession } from '@/data/workouts';
@@ -44,7 +42,6 @@ export function DashboardView() {
   const health = useHealth({ autoSync: true });
 
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [coachOpen, setCoachOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const [doneBanner, setDoneBanner] = useState<{ exercises: number } | null>(null);
 
@@ -118,7 +115,7 @@ export function DashboardView() {
     return <OnboardingView goals={data.goals} onDone={() => void reload()} />;
   }
 
-  const { targets, totals, metrics, dayStatus, insights, headline } = data;
+  const { targets, totals, metrics, dayStatus } = data;
   const inProgress = isDayInProgress(new Date().getHours());
   const kcalEval = evaluateRange(totals.kcal, targets.calories, { dayInProgress: inProgress });
   const proteinEval = evaluateRange(totals.proteinG, targets.protein, { dayInProgress: inProgress, overTolerance: 9999 });
@@ -181,7 +178,7 @@ export function DashboardView() {
     await reload();
   }
 
-  /** Resolves an AI/quick-add proposal against real stored macros where possible. */
+  /** Resolves a quick-add proposal against real stored macros where possible. */
   function handleEntry(entry: MealEntryInput) {
     if (entry.recipeId) {
       const recipe = data?.allRecipes.find((r) => r.id === entry.recipeId);
@@ -266,10 +263,8 @@ export function DashboardView() {
           ...data.allFoods.map((f) => ({ id: f.id, name: f.name, macros: f.macros, kind: 'food' as const })),
           ...data.allRecipes.map((r) => ({ id: r.id, name: r.name, macros: r.perServing, kind: 'recipe' as const })),
         ]}
-        headline={headline}
         onAdd={handleEntry}
         onAddWater={addWater}
-        {...(data.goals.aiCoachEnabled ? { onOpenCoach: () => setCoachOpen(true) } : {})}
       />
 
       {/* ── Primary action + quick input (§36) ────────────────────────── */}
@@ -295,10 +290,9 @@ export function DashboardView() {
           )}
         </div>
 
-        <AiQuickInput
+        <QuickTextInput
           onAdd={handleEntry}
           onMetric={handleMetric}
-          aiEnabled={data.goals.aiParsingEnabled}
           library={[
             ...data.allFoods.map((f) => ({ id: f.id, kind: 'food' as const, name: f.name })),
             ...data.allRecipes.map((r) => ({ id: r.id, kind: 'recipe' as const, name: r.name })),
@@ -402,12 +396,6 @@ export function DashboardView() {
             dayInProgress={inProgress}
           />
 
-          {insights.length > 0 && (
-            <section className="panel soft">
-              <p className="section-label" style={{ marginBottom: 6 }}>Worauf es heute ankommt</p>
-              <InsightList insights={insights} limit={5} />
-            </section>
-          )}
         </div>
       </details>
 
@@ -425,7 +413,6 @@ export function DashboardView() {
           currentSteps={metrics.steps}
           currentSleep={metrics.sleepH}
           currentWeight={data.weight.latest}
-          aiEnabled={data.goals.aiParsingEnabled}
           handlers={{
             onAddEntry: handleEntry,
             onSaveFood: saveFood,
@@ -439,7 +426,6 @@ export function DashboardView() {
         />
       )}
 
-      {coachOpen && <CoachDrawer onClose={() => setCoachOpen(false)} />}
 
     </>
   );

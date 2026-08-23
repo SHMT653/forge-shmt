@@ -9,7 +9,7 @@
  * Returns the same shape as the AI path, so the UI cannot tell the difference.
  */
 
-import type { ValidatedEntry, ValidatedParseResult } from './aiSchema';
+import type { ValidatedEntry, ValidatedParseResult } from './parsedEntry';
 
 export type LibraryItem = {
   id: string;

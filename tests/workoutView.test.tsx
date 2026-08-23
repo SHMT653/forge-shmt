@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import type { WorkoutSession } from '@/domain/types';
 
 const state: { loading: boolean; session: WorkoutSession | null } = { loading: true, session: null };
@@ -11,13 +11,19 @@ vi.mock('@/data/workouts', () => ({ listExerciseSnapshots: async () => [] }));
 vi.mock('@/data/profile', () => ({ getUserGoals: async () => ({ currentWeight: 80, equipment: [] }) }));
 vi.mock('@/data/cardio', () => ({ addCardioLog: vi.fn() }));
 vi.mock('@/data/exercises', () => ({ findCustomExerciseByName: async () => null }));
+const abandon = vi.fn(async () => {});
+const reload = vi.fn(async () => {});
+vi.mock('@/web/hooks/TodayDataProvider', () => ({
+  TodayDataProvider: ({ children }: { children: unknown }) => children,
+  useTodayContextOptional: () => ({ reload }),
+}));
 vi.mock('@/web/hooks/useActiveWorkout', () => ({
   useActiveWorkout: () => ({
     session: state.session,
     loading: state.loading,
     error: null,
     lastPerformance: new Map(),
-    saveSet: vi.fn(), addSet: vi.fn(), finish: vi.fn(), abandon: vi.fn(), reload: vi.fn(),
+    saveSet: vi.fn(), addSet: vi.fn(), finish: vi.fn(), abandon, reload: vi.fn(),
   }),
 }));
 
@@ -32,7 +38,7 @@ const session: WorkoutSession = {
   }],
 } as unknown as WorkoutSession;
 
-afterEach(() => { cleanup(); state.loading = true; state.session = null; });
+afterEach(() => { cleanup(); vi.clearAllMocks(); state.loading = true; state.session = null; });
 
 describe('WorkoutView', () => {
   it('survives the transition from loading to loaded', () => {
@@ -62,5 +68,19 @@ describe('WorkoutView', () => {
     state.session = null;
     render(<WorkoutView sessionId="s1" />);
     expect(screen.getByText(/nicht gefunden/)).toBeTruthy();
+  });
+
+  it('refreshes today before returning to the dashboard after abandoning', async () => {
+    // The provider sits above the router, so the deleted session would
+    // otherwise stay in today's timeline until the app was reloaded.
+    state.loading = false;
+    state.session = session;
+    render(<WorkoutView sessionId="s1" />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Abbrechen/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ja, abbrechen' }));
+
+    await waitFor(() => expect(abandon).toHaveBeenCalled());
+    await waitFor(() => expect(reload).toHaveBeenCalled());
   });
 });

@@ -1,15 +1,19 @@
 /**
- * Per-day traffic light for the calendar.
+ * Per-day score and traffic light — the single scoring function.
  *
- * Deliberately separate from `scoreDay` in coach.ts: that one needs a full
- * CoachContext to write a sentence about today, which is far too much to
- * assemble for thirty days at once. This works from the cached daily
- * aggregates — one row per day per table — so a whole month costs three
- * queries.
+ * There used to be two: this one for the calendar and `scoreDay` in coach.ts
+ * for today's screen, with different weights, different components and a
+ * different treatment of untracked metrics. The same day therefore showed one
+ * number in the calendar and another on the dashboard. `scoreDay` now supplies
+ * only the wording and delegates the number here.
  *
- * The other difference is fairness. A day is judged only on what the user
- * actually tracks. Someone who never logs water must not see a month of
- * orange because of it (§43 — no punishment mechanics).
+ * It works from the cached daily aggregates — one row per day per table — so
+ * scoring a whole month stays cheap.
+ *
+ * A day is judged only on what the user actually tracks. A metric that was
+ * never recorded contributes nothing, neither credit nor penalty, so someone
+ * who does not log water must not see a month of orange for it (§43 — no
+ * punishment mechanics).
  */
 
 import { evaluateRange, evaluateGoal, type ResolvedTargets, type Tone } from './goalPhase';
@@ -21,6 +25,7 @@ export type DayAggregate = {
   proteinG: number | null;
   steps: number | null;
   sleepH: number | null;
+  waterMl: number | null;
   trained: boolean;
   miniSession: boolean;
 };
@@ -43,11 +48,22 @@ type Component = { weight: number; factor: number; note: string | null };
  * A missing metric contributes nothing — neither credit nor penalty — so the
  * score always reflects the part of the day that was actually tracked.
  */
-export function rateDay(day: DayAggregate, targets: ResolvedTargets): DayRating {
+export function rateDay(
+  day: DayAggregate,
+  targets: ResolvedTargets,
+  /**
+   * True only for today, and only while it is still running. Half a day's
+   * calories at lunchtime is not a day under target — judging today by the
+   * same yardstick as a finished day is the other half of why the two views
+   * disagreed.
+   */
+  options: { dayInProgress?: boolean } = {},
+): DayRating {
+  const dayInProgress = options.dayInProgress ?? false;
   const components: Component[] = [];
 
   if (day.kcal !== null && day.kcal > 0) {
-    const result = evaluateRange(day.kcal, targets.calories, { dayInProgress: false });
+    const result = evaluateRange(day.kcal, targets.calories, { dayInProgress });
     components.push({
       weight: 2.5,
       factor: toneFactor(result.tone),
@@ -71,7 +87,7 @@ export function rateDay(day: DayAggregate, targets: ResolvedTargets): DayRating 
   }
 
   if (day.steps !== null && day.steps > 0) {
-    const result = evaluateGoal(day.steps, targets.steps, false);
+    const result = evaluateGoal(day.steps, targets.steps, dayInProgress);
     components.push({
       weight: 1.5,
       factor: toneFactor(result.tone),
@@ -85,6 +101,15 @@ export function rateDay(day: DayAggregate, targets: ResolvedTargets): DayRating 
       weight: 1,
       factor: toneFactor(result.tone),
       note: result.tone === 'green' ? null : `${formatHoursShort(day.sleepH)} Schlaf`,
+    });
+  }
+
+  if (day.waterMl !== null && day.waterMl > 0) {
+    const result = evaluateGoal(day.waterMl, targets.waterMl, dayInProgress);
+    components.push({
+      weight: 0.5,
+      factor: toneFactor(result.tone),
+      note: result.tone === 'green' ? null : `${(day.waterMl / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 })} l Wasser`,
     });
   }
 

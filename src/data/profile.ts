@@ -57,8 +57,6 @@ export const GOALS_DEFAULTS: UserGoals = {
   weighInWeekday: 0,
   photoIntervalDays: 14,
   fastingEnabled: false,
-  aiCoachEnabled: true,
-  aiParsingEnabled: true,
   units: 'metric',
   equipment: [],
   trainingFocus: [],
@@ -72,7 +70,7 @@ const GOALS_COLUMNS =
   'activity_level, goal_type, program_id, fasting_protocol, fasting_start_hour, ' +
   'phase_type, phase_start_date, phase_end_date, calories_min, calories_max, protein_min, protein_max, ' +
   'steps_goal, water_goal_ml, sleep_goal_h, weigh_in_weekday, photo_interval_days, ' +
-  'fasting_enabled, ai_coach_enabled, ai_parsing_enabled, units, ' +
+  'fasting_enabled, units, ' +
   'equipment, training_focus, weekly_training_goal, onboarded_at, health_enabled';
 
 /** Postgres text[] arrives as an array; filter it down to ids we know. */
@@ -129,8 +127,6 @@ export async function getUserGoals(userId: string): Promise<UserGoals> {
     weighInWeekday: num(data.weigh_in_weekday) ?? GOALS_DEFAULTS.weighInWeekday,
     photoIntervalDays: num(data.photo_interval_days) ?? GOALS_DEFAULTS.photoIntervalDays,
     fastingEnabled: (data.fasting_enabled as boolean | null) ?? false,
-    aiCoachEnabled: (data.ai_coach_enabled as boolean | null) ?? true,
-    aiParsingEnabled: (data.ai_parsing_enabled as boolean | null) ?? true,
     units: (data.units === 'imperial' ? 'imperial' : 'metric'),
     equipment: toEquipment(data.equipment),
     trainingFocus: toFocus(data.training_focus),
@@ -170,8 +166,6 @@ export async function saveUserGoals(userId: string, goals: UserGoals): Promise<v
       weigh_in_weekday: goals.weighInWeekday,
       photo_interval_days: goals.photoIntervalDays,
       fasting_enabled: goals.fastingEnabled,
-      ai_coach_enabled: goals.aiCoachEnabled,
-      ai_parsing_enabled: goals.aiParsingEnabled,
       units: goals.units,
       equipment: goals.equipment,
       training_focus: goals.trainingFocus,

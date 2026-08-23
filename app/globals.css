@@ -1311,7 +1311,7 @@ button:disabled {
 }
 
 /* ── Coach card ─────────────────────────────────────────────────────── */
-.coach-card {
+.note-card {
   display: flex;
   gap: 12px;
   padding: 15px 16px;
@@ -1320,7 +1320,7 @@ button:disabled {
   background: linear-gradient(180deg, rgba(139, 92, 246, 0.12), rgba(22, 22, 27, 0.9));
 }
 
-.coach-avatar {
+.note-icon {
   display: grid;
   place-items: center;
   width: 34px;
@@ -1331,14 +1331,14 @@ button:disabled {
   color: var(--violet);
 }
 
-.coach-text {
+.note-text {
   margin: 0;
   color: var(--text);
   font-size: 14px;
   line-height: 1.5;
 }
 
-.coach-label {
+.note-label {
   margin: 0 0 3px;
   color: var(--violet);
   font-size: 11px;
