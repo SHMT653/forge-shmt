@@ -2094,3 +2094,23 @@ button:disabled {
   gap: 8px;
   align-items: center;
 }
+
+/* ── Exercise info modal ─────────────────────────────────────────────── */
+.sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background: rgba(0, 0, 0, 0.6);
+}
+.sheet-panel {
+  position: relative;
+  background: var(--panel, #16161b);
+  border-top: 1px solid var(--border);
+  border-radius: 20px 20px 0 0;
+  padding: 14px 18px calc(32px + env(safe-area-inset-bottom));
+  max-height: 88dvh;
+  overflow-y: auto;
+}
