@@ -35,7 +35,7 @@ export function usePlans() {
     void load();
   }, [load]);
 
-  const useTemplate = useCallback(
+  const applyTemplate = useCallback(
     async (template: PlanTemplate) => {
       if (!user) return;
       const id = await createPlanFromTemplate(user.id, template);
@@ -118,7 +118,7 @@ export function usePlans() {
 
   return {
     plans, loading, error, reload: load,
-    useTemplate, createCustom, activate, remove, startDay,
+    applyTemplate, createCustom, activate, remove, startDay,
     editPlanName, addDay, renameDay, deleteDay, addExercise, editExercise, deleteExercise,
   };
 }

@@ -214,16 +214,16 @@ function PlanBuilder({ onCreate, onClose }: { onCreate: (name: string, focus: st
 }
 
 export function PlansView() {
-  const { plans, loading, error, useTemplate, createCustom, activate, remove } = usePlans();
+  const { plans, loading, error, applyTemplate, createCustom, activate, remove } = usePlans();
   const [showBuilder, setShowBuilder] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  async function handleUseTemplate(templateId: string) {
+  async function handleApplyTemplate(templateId: string) {
     const template = PLAN_TEMPLATES.find((t) => t.id === templateId);
     if (!template) return;
     setBusyId(templateId);
     try {
-      await useTemplate(template);
+      await applyTemplate(template);
     } finally {
       setBusyId(null);
     }
@@ -317,7 +317,7 @@ export function PlansView() {
                 <span className="pill">{template.days.length} Tage</span>
               </div>
               <div className="card-actions">
-                <button type="button" className="button compact" disabled={busyId === template.id} onClick={() => handleUseTemplate(template.id)}>
+                <button type="button" className="button compact" disabled={busyId === template.id} onClick={() => handleApplyTemplate(template.id)}>
                   {busyId === template.id ? 'Wird übernommen …' : 'Plan übernehmen'}
                 </button>
               </div>

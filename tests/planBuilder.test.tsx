@@ -8,7 +8,7 @@ vi.mock('@/data/exercises', () => ({ listCustomExercises: async () => [] }));
 vi.mock('@/web/hooks/usePlans', () => ({
   usePlans: () => ({
     plans: [], loading: false, error: null,
-    useTemplate: vi.fn(), createCustom: vi.fn(), activate: vi.fn(), remove: vi.fn(),
+    applyTemplate: vi.fn(), createCustom: vi.fn(), activate: vi.fn(), remove: vi.fn(),
   }),
 }));
 

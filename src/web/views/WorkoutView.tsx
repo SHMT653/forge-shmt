@@ -259,8 +259,50 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
   const [prExercise, setPrExercise] = useState<string | null>(null);
   const prTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Today's concrete targets, derived from the last session for this exercise.
+  const [plan, setPlan] = useState<ReturnType<typeof planSession> | null>(null);
+  // Bumped whenever a set is finished, which starts the rest countdown.
+  const [restSignal, setRestSignal] = useState(0);
+  const [holdingSet, setHoldingSet] = useState<number | null>(null);
+
+  // Everything below reads the current exercise, which may not exist yet while
+  // the session loads. It is resolved here, above the early returns, because
+  // every hook in this component has to run on every render — see the guard
+  // comment at the returns below.
+  const exercise = session?.exercises[exerciseIndex];
+  const suggestion = exercise ? lastPerformance.get(exercise.exerciseName) : undefined;
+  // Infer from previous sessions first — an empty new set carries no signal.
+  const setMetric: MetricKind = suggestion?.metric ?? (exercise ? metricForSets(exercise.sets) : 'reps');
+
+  const exerciseName = exercise?.exerciseName;
+  const targetSets = exercise?.targetSets;
+  const targetReps = exercise?.targetReps;
+
   useEffect(() => () => { if (prTimer.current) clearTimeout(prTimer.current); }, []);
 
+  useEffect(() => {
+    if (!user || !exerciseName || targetSets === undefined || targetReps === undefined) {
+      setPlan(null);
+      return;
+    }
+    let active = true;
+    void listExerciseSnapshots(user.id, exerciseName)
+      .then((history) => {
+        if (!active) return;
+        const previous = history[history.length - 1] ?? null;
+        setPlan(planSession(previous, targetSets, targetReps, setMetric));
+      })
+      .catch(() => { if (active) setPlan(null); });
+    return () => { active = false; };
+  }, [user, exerciseName, targetSets, targetReps, setMetric]);
+
+  // A hold running on exercise 3 must not still be running on exercise 4.
+  useEffect(() => { setHoldingSet(null); }, [exerciseIndex]);
+
+  // ── Early returns start here. Nothing below may call a hook: React counts
+  //    them per render, and a hook that only runs once the session has loaded
+  //    aborts the render with "rendered more hooks than during the previous
+  //    render" — which reaches the user as a blank "this page couldn't load".
   if (loading) return <p className="copy">Training wird geladen …</p>;
   if (error) return <p className="copy" style={{ color: 'var(--danger)' }}>{error}</p>;
 
@@ -284,7 +326,6 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
     );
   }
 
-  const exercise = session.exercises[exerciseIndex];
   if (!exercise) {
     return (
       <div className="empty-state">
@@ -294,28 +335,6 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
   }
 
   const isLast = exerciseIndex === session.exercises.length - 1;
-  const suggestion = lastPerformance.get(exercise.exerciseName);
-  // Infer from previous sessions first — an empty new set carries no signal.
-  const setMetric: MetricKind = suggestion?.metric ?? metricForSets(exercise.sets);
-
-  // Today's concrete targets, derived from the last session for this exercise.
-  const [plan, setPlan] = useState<ReturnType<typeof planSession> | null>(null);
-  // Bumped whenever a set is finished, which starts the rest countdown.
-  const [restSignal, setRestSignal] = useState(0);
-  const [holdingSet, setHoldingSet] = useState<number | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    if (!user) return;
-    void listExerciseSnapshots(user.id, exercise.exerciseName)
-      .then((history) => {
-        if (!active) return;
-        const previous = history[history.length - 1] ?? null;
-        setPlan(planSession(previous, exercise.targetSets, exercise.targetReps, setMetric));
-      })
-      .catch(() => { if (active) setPlan(null); });
-    return () => { active = false; };
-  }, [user, exercise.exerciseName, exercise.targetSets, exercise.targetReps, setMetric]);
   const isCardio = findExercise(exercise.exerciseName)?.type === 'cardio';
 
   async function handleFinish() {

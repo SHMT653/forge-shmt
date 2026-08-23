@@ -24,14 +24,15 @@ export function NutritionView() {
   const { state, favorites, addMeal, removeMeal, addWater, saveAsFood, cookBatch } = useNutrition();
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  const meals = state.meals;
   const bySlot = useMemo(() => {
-    const map = new Map<MealSlot | 'other', typeof state.meals>();
-    for (const meal of state.meals) {
+    const map = new Map<MealSlot | 'other', typeof meals>();
+    for (const meal of meals) {
       const key = meal.slot ?? 'other';
       map.set(key, [...(map.get(key) ?? []), meal]);
     }
     return map;
-  }, [state.meals]);
+  }, [meals]);
 
   if (state.loading) {
     return <div className="panel"><p className="copy">Ernährung wird geladen …</p></div>;
