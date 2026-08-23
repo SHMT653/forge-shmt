@@ -6,6 +6,7 @@ import { useCardio } from '@/web/hooks/useCardio';
 import { CARDIO_ACTIVITIES, CARDIO_CATEGORIES, calcKcalBurned, type CardioActivity } from '@/domain/cardioActivities';
 import { formatFullDate } from '@/domain/dates';
 import type { CardioLog } from '@/data/cardio';
+import { parseDecimal, parseDecimalOr } from '@/domain/numbers';
 
 // ─── Category color mapping ─────────────────────────────────────────────────
 
@@ -120,7 +121,7 @@ export function CardioView() {
   const [saving, setSaving]                     = useState(false);
 
   const estimatedKcal = selectedActivity
-    ? calcKcalBurned(selectedActivity.met, weightKg, Number(duration) || 0)
+    ? calcKcalBurned(selectedActivity.met, weightKg, parseDecimalOr(duration, 0))
     : 0;
 
   async function handleAdd() {
@@ -129,8 +130,8 @@ export function CardioView() {
     try {
       await addLog({
         activity: selectedActivity.name,
-        durationMinutes: Math.max(1, Number(duration) || 30),
-        distanceKm: distance.trim() ? Number(distance.replace(',', '.')) : null,
+        durationMinutes: Math.max(1, parseDecimalOr(duration, 30)),
+        distanceKm: distance.trim() ? parseDecimal(distance) : null,
         kcalBurned: estimatedKcal,
       });
       setDuration('30');
@@ -240,7 +241,7 @@ export function CardioView() {
             type="button"
             className="button"
             style={{ width: '100%', marginTop: 12 }}
-            disabled={saving || !duration.trim() || Number(duration) <= 0}
+            disabled={saving || !duration.trim() || parseDecimalOr(duration, 0) <= 0}
             onClick={handleAdd}
           >
             <Timer size={16} /> {saving ? 'Wird gespeichert …' : 'Aktivität eintragen'}

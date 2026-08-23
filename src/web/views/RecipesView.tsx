@@ -8,6 +8,7 @@ import { Sheet } from '@/web/components/Sheet';
 import { createRecipe, deleteFoodItem, deleteRecipe, type RecipeInput } from '@/data/foodLibrary';
 import { sumMacros, scaleMacros, roundMacros } from '@/domain/nutritionMath';
 import type { Macros } from '@/domain/types';
+import { parseDecimalOr } from '@/domain/numbers';
 
 type IngredientDraft = { name: string; amountLabel: string; kcal: string; proteinG: string; carbsG: string; fatG: string };
 
@@ -221,13 +222,13 @@ function RecipeSheet({ onClose, onSave }: { onClose: () => void; onSave: (input:
   const [saving, setSaving] = useState(false);
 
   const parsed: Macros[] = ingredients.map((ing) => ({
-    kcal: Number(ing.kcal) || 0,
-    proteinG: Number(ing.proteinG) || 0,
-    carbsG: Number(ing.carbsG) || 0,
-    fatG: Number(ing.fatG) || 0,
+    kcal: parseDecimalOr(ing.kcal, 0),
+    proteinG: parseDecimalOr(ing.proteinG, 0),
+    carbsG: parseDecimalOr(ing.carbsG, 0),
+    fatG: parseDecimalOr(ing.fatG, 0),
   }));
   const total = sumMacros(parsed);
-  const totalServings = Math.max(0.5, Number(servings) || 1);
+  const totalServings = Math.max(0.5, parseDecimalOr(servings, 1));
   const perServing = roundMacros(scaleMacros(total, 1 / totalServings));
 
   async function submit() {
@@ -310,7 +311,7 @@ function RecipeSheet({ onClose, onSave }: { onClose: () => void; onSave: (input:
             <div className="split-4" style={{ gap: 6, marginTop: 6 }}>
               <input className="input compact" inputMode="numeric" placeholder="kcal" value={ing.kcal}
                 onChange={(e) => updateIngredient(setIngredients, index, { kcal: e.target.value })} />
-              <input className="input compact" inputMode="numeric" placeholder="P" value={ing.proteinG}
+              <input className="input compact" inputMode="decimal" placeholder="P" value={ing.proteinG}
                 onChange={(e) => updateIngredient(setIngredients, index, { proteinG: e.target.value })} />
               <input className="input compact" inputMode="numeric" placeholder="KH" value={ing.carbsG}
                 onChange={(e) => updateIngredient(setIngredients, index, { carbsG: e.target.value })} />
@@ -372,10 +373,10 @@ function FoodSheet({
     setSaving(true);
     try {
       await onSave(name.trim(), brand.trim(), servingLabel.trim() || '1 Portion', {
-        kcal: Number(kcal) || 0,
-        proteinG: Number(proteinG) || 0,
-        carbsG: Number(carbsG) || 0,
-        fatG: Number(fatG) || 0,
+        kcal: parseDecimalOr(kcal, 0),
+        proteinG: parseDecimalOr(proteinG, 0),
+        carbsG: parseDecimalOr(carbsG, 0),
+        fatG: parseDecimalOr(fatG, 0),
       });
     } finally {
       setSaving(false);
@@ -413,7 +414,7 @@ function FoodSheet({
         </div>
         <div className="field">
           <label className="field-label">Protein</label>
-          <input className="input compact" inputMode="numeric" value={proteinG} onChange={(e) => setProteinG(e.target.value)} />
+          <input className="input compact" inputMode="decimal" value={proteinG} onChange={(e) => setProteinG(e.target.value)} />
         </div>
         <div className="field">
           <label className="field-label">KH</label>

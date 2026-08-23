@@ -10,6 +10,7 @@ import { EQUIPMENT, TRAINING_FOCUS, type EquipmentId, type TrainingFocusId } fro
 import { ACTIVITY_LABELS } from '@/domain/macroCalculator';
 import { todayKey } from '@/domain/dates';
 import type { ActivityLevel, Gender, UserGoals } from '@/domain/types';
+import { parseDecimalOr } from '@/domain/numbers';
 
 const PHASE_ICON: Record<PhaseType, string> = {
   cut: '🔥',
@@ -327,6 +328,6 @@ function toggle<T>(list: T[], value: T): T[] {
 function numberOrNull(value: string): number | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
-  const parsed = Number(trimmed.replace(',', '.'));
+  const parsed = parseDecimalOr(trimmed, Number.NaN);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }

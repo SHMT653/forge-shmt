@@ -11,6 +11,7 @@ import { formatKg, weightOnOrBefore } from '@/domain/weightTrend';
 import { formatRepsPerSet, formatScore } from '@/domain/progression';
 import { toDateKey, todayKey } from '@/domain/dates';
 import type { BiaValues, PhotoPose } from '@/domain/types';
+import { parseDecimalOr } from '@/domain/numbers';
 
 const POSES: { value: PhotoPose; label: string }[] = [
   { value: 'front', label: 'Vorne' },
@@ -38,7 +39,7 @@ export function ProgressView() {
 
   async function handleWeightSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const kg = parseFloat(weightInput.replace(',', '.'));
+    const kg = parseDecimalOr(weightInput, Number.NaN);
     if (!Number.isFinite(kg) || kg <= 0) return;
     setSaving(true);
     try {
@@ -411,10 +412,10 @@ function BiaSheet({
       for (const field of BIA_FIELDS) {
         const raw = values[field.key];
         if (!raw?.trim()) continue;
-        const n = Number(raw.replace(',', '.'));
+        const n = parseDecimalOr(raw, Number.NaN);
         if (Number.isFinite(n)) parsed[field.key] = n;
       }
-      const kg = Number(weightInput.replace(',', '.'));
+      const kg = parseDecimalOr(weightInput, Number.NaN);
       await onSave(parsed, Number.isFinite(kg) && kg > 0 ? kg : null);
     } finally {
       setSaving(false);

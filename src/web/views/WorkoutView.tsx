@@ -17,6 +17,7 @@ import { RestTimer } from '@/web/components/RestTimer';
 import { HoldTimer } from '@/web/components/HoldTimer';
 import type { SetUpdate } from '@/data/workouts';
 import type { SetEntry } from '@/domain/types';
+import { parseDecimal, parseDecimalOr } from '@/domain/numbers';
 
 /** True when this set beats the last session on whichever metric the exercise uses. */
 function isPersonalRecord(patch: SetUpdate, previous: LastPerformance | undefined): boolean {
@@ -77,12 +78,12 @@ function SetRow({
   function buildPatch(completed: boolean): SetUpdate {
     const patch: SetUpdate = { completed };
     if (isHold) {
-      patch.durationSeconds = seconds.trim() ? Number(seconds) : null;
+      patch.durationSeconds = seconds.trim() ? parseDecimal(seconds) : null;
     } else {
-      patch.reps = reps.trim() ? Number(reps) : null;
+      patch.reps = reps.trim() ? parseDecimal(reps) : null;
       // Only touch weight when the user actually typed one, so a bodyweight
       // exercise never writes a stray 0 kg into its history.
-      if (weight.trim() || set.weightKg !== null) patch.weightKg = weight.trim() ? Number(weight) : null;
+      if (weight.trim() || set.weightKg !== null) patch.weightKg = weight.trim() ? parseDecimal(weight) : null;
     }
     return patch;
   }
@@ -171,7 +172,7 @@ function CardioExercisePanel({
     void getUserGoals(userId).then((g) => { if (g.currentWeight) setWeightKg(g.currentWeight); });
   });
 
-  const mins = Math.max(1, Number(duration) || 0);
+  const mins = Math.max(1, parseDecimalOr(duration, 0));
   const estimatedKcal = mins > 0 ? calcKcalBurned(met, weightKg, mins) : 0;
 
   async function handleSave() {
@@ -181,7 +182,7 @@ function CardioExercisePanel({
       await addCardioLog(userId, todayKey(), {
         activity: exerciseName,
         durationMinutes: mins,
-        distanceKm: distance.trim() ? Number(distance.replace(',', '.')) : null,
+        distanceKm: distance.trim() ? parseDecimal(distance) : null,
         kcalBurned: estimatedKcal,
       });
       onDone();

@@ -11,6 +11,7 @@ import { formatLiters, formatHours } from '@/domain/coach';
 import type { MealEntry, MealEntryInput } from '@/data/nutrition';
 import type { FoodItemInput } from '@/data/foodLibrary';
 import type { FoodItem, MealPrepBatch, Recipe } from '@/domain/types';
+import { parseDecimalOr } from '@/domain/numbers';
 
 type Mode = 'food' | 'water' | 'steps' | 'sleep' | 'weight' | 'training';
 
@@ -298,8 +299,8 @@ function FoodPanel({
   }
 
   function submitManual() {
-    const kcal = Number(manualKcal) || 0;
-    const proteinG = Number(manualProtein) || 0;
+    const kcal = parseDecimalOr(manualKcal, 0);
+    const proteinG = parseDecimalOr(manualProtein, 0);
     if (!kcal && !proteinG) return;
     const remaining = Math.max(0, kcal - proteinG * 4);
     onAdd({
@@ -446,7 +447,7 @@ function FoodPanel({
           />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <input className="input" inputMode="numeric" placeholder="kcal" value={manualKcal} onChange={(e) => setManualKcal(e.target.value)} aria-label="Kalorien" />
-            <input className="input" inputMode="numeric" placeholder="Protein g" value={manualProtein} onChange={(e) => setManualProtein(e.target.value)} aria-label="Protein" />
+            <input className="input" inputMode="decimal" placeholder="Protein g" value={manualProtein} onChange={(e) => setManualProtein(e.target.value)} aria-label="Protein" />
           </div>
           <button type="button" className="button block" disabled={busy || (!manualKcal && !manualProtein)} onClick={submitManual}>
             <Check size={16} /> Hinzufügen
@@ -493,7 +494,7 @@ function PortionPicker({
   const factors = base ? [0.5, 1, 1.5, 2] : [0.5, 1, 1.5, 2];
 
   const customFactor = (() => {
-    const value = Number(custom.replace(',', '.'));
+    const value = parseDecimalOr(custom, Number.NaN);
     if (!Number.isFinite(value) || value <= 0) return null;
     return base ? value / base : value;
   })();
@@ -630,7 +631,7 @@ function NumberPanel({
   onSubmit: (value: number) => void;
 }) {
   const [value, setValue] = useState(initial);
-  const parsed = Number(value.replace(',', '.'));
+  const parsed = parseDecimalOr(value, Number.NaN);
   const valid = value.trim() !== '' && Number.isFinite(parsed) && parsed > 0;
 
   return (

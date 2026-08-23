@@ -5,6 +5,7 @@ import { CheckCircle2, Circle, Flame, Droplets, Plus, Minus, Beef } from 'lucide
 import { useHabits } from '@/web/hooks/useHabits';
 import { todayKey } from '@/domain/dates';
 import type { Habit } from '@/domain/types';
+import { parseDecimalOr } from '@/domain/numbers';
 
 const GLASS_ML = 250;
 
@@ -155,7 +156,7 @@ function NumericCard({
   }, [loggedValue]);
 
   function commit() {
-    const numeric = parseFloat(input.replace(',', '.'));
+    const numeric = parseDecimalOr(input, Number.NaN);
     if (!Number.isNaN(numeric) && numeric >= 0) {
       onLog(today, numeric, numeric >= habit.target);
     }

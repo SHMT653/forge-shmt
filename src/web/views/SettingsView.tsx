@@ -18,13 +18,14 @@ import { startPhase } from '@/data/goalPhases';
 import { todayKey } from '@/domain/dates';
 import type { ActivityLevel, Gender, GoalType, UserGoals } from '@/domain/types';
 import type { ProgramId, FastingProtocol } from '@/domain/programs';
+import { parseDecimal, parseDecimalOr } from '@/domain/numbers';
 
 const WEEKDAYS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
 
 function numberOrNull(value: string): number | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
-  const parsed = Number(trimmed.replace(',', '.'));
+  const parsed = parseDecimalOr(trimmed, Number.NaN);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
@@ -162,12 +163,12 @@ export function SettingsView() {
       // Spread first so phase ranges, tracking routine and feature switches
       // survive a save from this form — it only edits a subset of the fields.
       ...(goals ?? GOALS_DEFAULTS),
-      calorieGoal:     Number(calorieGoal) || 2200,
-      proteinGoal:     Number(proteinGoal) || 150,
-      weightGoal:      weightGoal.trim() ? Number(weightGoal) : null,
-      currentWeight:   currentWeight.trim() ? Number(currentWeight) : null,
-      heightCm:        heightCm.trim() ? Number(heightCm) : null,
-      birthYear:       birthYear.trim() ? Number(birthYear) : null,
+      calorieGoal:     parseDecimalOr(calorieGoal, 2200),
+      proteinGoal:     parseDecimalOr(proteinGoal, 150),
+      weightGoal:      parseDecimal(weightGoal),
+      currentWeight:   parseDecimal(currentWeight),
+      heightCm:        parseDecimal(heightCm),
+      birthYear:       parseDecimal(birthYear),
       gender,
       activityLevel,
       goalType,
@@ -406,12 +407,12 @@ export function SettingsView() {
             </div>
             <div className="field">
               <label className="field-label" htmlFor="proteinMin">Protein von (g)</label>
-              <input id="proteinMin" className="input compact" inputMode="numeric"
+              <input id="proteinMin" className="input compact" inputMode="decimal"
                 value={proteinMin} onChange={(e) => setProteinMin(e.target.value)} />
             </div>
             <div className="field">
               <label className="field-label" htmlFor="proteinMax">Protein bis (g)</label>
-              <input id="proteinMax" className="input compact" inputMode="numeric"
+              <input id="proteinMax" className="input compact" inputMode="decimal"
                 value={proteinMax} onChange={(e) => setProteinMax(e.target.value)} />
             </div>
           </div>
@@ -451,7 +452,7 @@ export function SettingsView() {
               </div>
               <div className="field">
                 <label className="field-label" htmlFor="proteinGoal">Proteinziel (g)</label>
-                <input id="proteinGoal" className="input compact" inputMode="numeric"
+                <input id="proteinGoal" className="input compact" inputMode="decimal"
                   value={proteinGoal} onChange={(e) => setProteinGoal(e.target.value)} />
               </div>
             </div>

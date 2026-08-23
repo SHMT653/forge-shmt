@@ -10,6 +10,7 @@ import type { MealEntryInput, } from '@/data/nutrition';
 import { formatSleep } from '@/domain/health';
 import { slotForHour } from '@/domain/nutritionMath';
 import { TONE_COLOR } from '@/domain/goalPhase';
+import { parseDecimalOr } from '@/domain/numbers';
 
 /**
  * Opens one day for review and correction.
@@ -76,8 +77,8 @@ export function DayEditorSheet({
   }
 
   async function submitMeal() {
-    const kcal = Number(mealKcal) || 0;
-    const proteinG = Number(mealProtein) || 0;
+    const kcal = parseDecimalOr(mealKcal, 0);
+    const proteinG = parseDecimalOr(mealProtein, 0);
     if (!kcal && !proteinG) return;
     const remaining = Math.max(0, kcal - proteinG * 4);
     await run(async () => {
@@ -204,7 +205,7 @@ export function DayEditorSheet({
             />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8 }}>
               <input className="input compact" inputMode="numeric" placeholder="kcal" value={mealKcal} onChange={(e) => setMealKcal(e.target.value)} aria-label="Kalorien" />
-              <input className="input compact" inputMode="numeric" placeholder="Protein" value={mealProtein} onChange={(e) => setMealProtein(e.target.value)} aria-label="Protein" />
+              <input className="input compact" inputMode="decimal" placeholder="Protein" value={mealProtein} onChange={(e) => setMealProtein(e.target.value)} aria-label="Protein" />
               <button type="button" className="button compact" disabled={busy || (!mealKcal && !mealProtein)} onClick={submitMeal}>
                 <Check size={15} />
               </button>
@@ -237,7 +238,7 @@ function QuickField({
   busy: boolean;
   decimal?: boolean;
 }) {
-  const parsed = Number(value.replace(',', '.'));
+  const parsed = parseDecimalOr(value, Number.NaN);
   const valid = value.trim() !== '' && Number.isFinite(parsed) && parsed > 0;
 
   return (
