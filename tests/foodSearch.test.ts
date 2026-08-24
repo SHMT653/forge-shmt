@@ -140,6 +140,7 @@ describe('findOpenFoodFactsByBarcode', () => {
     expect(normalizeBarcode('4 001724 819394')).toBe('4001724819394');
     expect(normalizeBarcode('https://id.gs1.org/01/04001724819394/10/ABC')).toBe('04001724819394');
     expect(normalizeBarcode('(01)04001724819394(17)260101')).toBe('04001724819394');
+    expect(normalizeBarcode(']d2010400172481939417260101')).toBe('04001724819394');
     expect(normalizeBarcode('abc')).toBeNull();
   });
 

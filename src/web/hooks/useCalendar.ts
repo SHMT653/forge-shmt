@@ -58,6 +58,7 @@ export function useCalendar() {
 
   const load = useCallback(async () => {
     if (!user) return;
+    setLoading(true);
     setError(null);
     try {
       const [userGoals, phase, aggregates, habitList, plans, progressDates] = await Promise.all([

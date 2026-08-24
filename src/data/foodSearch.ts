@@ -139,7 +139,7 @@ export function normalizeBarcode(raw: string): string | null {
   const digitalLink = /(?:^|\/)01\/(\d{8,14})(?=\/|[?#]|$)/.exec(decoded);
   if (digitalLink?.[1]) return digitalLink[1];
 
-  const gs1Element = /(?:^|[\x1d(])01\)?(\d{14})/.exec(decoded);
+  const gs1Element = /(?:^|[\x1d(]|\]d2)01\)?(\d{14})/i.exec(decoded);
   if (gs1Element?.[1]) return gs1Element[1];
 
   const digits = raw.replace(/\D/g, '');

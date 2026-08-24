@@ -21,7 +21,6 @@ type Mode = 'food' | 'water' | 'steps' | 'sleep' | 'weight' | 'training';
 
 const WATER_STEPS = [250, 500, 750];
 const SLEEP_OPTIONS = [7, 7.5, 8, 8.5, 9, 9.5, 10];
-const BARCODE_CAMERA_READY_KEY = 'forge-barcode-camera-ready';
 const FOOD_BARCODE_FORMATS = [
   'aztec',
   'codabar',
@@ -694,7 +693,6 @@ function BarcodePanel({
         ref={scannerRef}
         visible={cameraOpen}
         onDetected={handleDetected}
-        onReady={rememberBarcodeCamera}
         onClose={() => setCameraOpen(false)}
       />
     </div>
@@ -788,15 +786,6 @@ function firstFoodBarcode(results: NativeBarcodeResult[]): string | null {
   return results[0]?.rawValue?.trim() || null;
 }
 
-function rememberBarcodeCamera(): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(BARCODE_CAMERA_READY_KEY, '1');
-  } catch {
-    // Private mode can block storage; the scanner still works without memory.
-  }
-}
-
 function mediaStreamFromVideo(video: HTMLVideoElement | null): MediaStream | null {
   return video?.srcObject instanceof MediaStream ? video.srcObject : null;
 }
@@ -842,7 +831,7 @@ function barcodeCameraConstraints(tuned = true): MediaStreamConstraints {
   return {
     audio: false,
     video: {
-      facingMode: { ideal: 'environment' },
+      facingMode: { exact: 'environment' },
       width: { ideal: tuned ? 1280 : 640 },
       height: { ideal: tuned ? 720 : 480 },
       ...(tuned ? { advanced: CAMERA_TUNING } : {}),
@@ -852,25 +841,30 @@ function barcodeCameraConstraints(tuned = true): MediaStreamConstraints {
 
 async function requestBarcodeCameraStream(): Promise<MediaStream> {
   try {
-    return await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints());
+    return assertRearCamera(await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints()));
   } catch {
-    try {
-      return await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints(false));
-    } catch {
-      return navigator.mediaDevices.getUserMedia({ audio: false, video: true });
-    }
+    return assertRearCamera(await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints(false)));
   }
+}
+
+function assertRearCamera(stream: MediaStream): MediaStream {
+  const track = stream.getVideoTracks()[0];
+  const settings = track?.getSettings?.();
+  const label = `${settings?.facingMode ?? ''} ${track?.label ?? ''}`.toLowerCase();
+  if (label.includes('user') || label.includes('front') || label.includes('selfie') || label.includes('facetime')) {
+    stopMediaStream(stream);
+    throw new Error('Front camera is not allowed for barcode scanning.');
+  }
+  return stream;
 }
 
 const CameraScanner = forwardRef<CameraScannerHandle, {
   visible: boolean;
   onDetected: (raw: string) => void;
-  onReady: () => void;
   onClose: () => void;
 }>(function CameraScanner({
   visible,
   onDetected,
-  onReady,
   onClose,
 }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -938,8 +932,7 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
 
     controlsRef.current = controls;
     setScanRunning(true);
-    onReady();
-  }, [clearNativeLoop, completeScan, onReady, setScanRunning]);
+  }, [clearNativeLoop, completeScan, setScanRunning]);
 
   const scheduleNativeScan = useCallback((detector: NativeBarcodeDetector, stream: MediaStream, video: HTMLVideoElement) => {
     const scan = async () => {
@@ -1001,7 +994,6 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
       const nativeDetector = await createNativeBarcodeDetector();
       if (nativeDetector) {
         setScanRunning(true);
-        onReady();
         scheduleNativeScan(nativeDetector, stream, video);
       } else {
         await startZxingOnStream(stream, video);
@@ -1013,7 +1005,7 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
       startingRef.current = false;
       setStarting(false);
     }
-  }, [onReady, scheduleNativeScan, setScanRunning, startZxingOnStream, stopScan]);
+  }, [scheduleNativeScan, setScanRunning, startZxingOnStream, stopScan]);
 
   useImperativeHandle(ref, () => ({
     start: startScan,
