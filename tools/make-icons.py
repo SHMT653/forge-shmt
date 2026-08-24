@@ -19,14 +19,14 @@ from pathlib import Path
 
 DARK = (8, 7, 12)
 LIGHT = (244, 245, 251)
-FALLBACK = (27, 16, 48)
+FALLBACK = DARK
 DARK_HEX = '#08070c'
 LIGHT_HEX = '#f4f5fb'
 ALPHA_THRESHOLD = 8
 
-LOCKUP_SCALE = 0.79
+LOCKUP_SCALE = 0.70
 MARK_SCALE = 0.84
-MASKABLE_SCALE = 0.67
+MASKABLE_SCALE = 0.60
 
 
 def read_png(path):

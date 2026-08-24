@@ -4,7 +4,6 @@ import { inflateSync } from 'node:zlib';
 
 const DARK_TILE: [number, number, number] = [8, 7, 12];
 const LIGHT_TILE: [number, number, number] = [244, 245, 251];
-const FALLBACK_TILE: [number, number, number] = [27, 16, 48];
 
 /**
  * The app icon follows the same contract as NEO: transparent lockups for plain
@@ -81,8 +80,9 @@ describe('app icons', () => {
     expect(cornerPixel('public/icons/app-icon-dark-512.png')).toEqual(DARK_TILE);
     expect(cornerPixel('public/icons/apple-touch-icon-light.png')).toEqual(LIGHT_TILE);
     expect(cornerPixel('public/icons/app-icon-light-512.png')).toEqual(LIGHT_TILE);
-    // Same as NEO: the unsuffixed iOS fallback uses the violet app tile.
-    expect(cornerPixel('public/icons/apple-touch-icon.png')).toEqual(FALLBACK_TILE);
+    // iOS/macOS install surfaces often ignore media-qualified apple icons.
+    // The stable fallback must therefore match the dark NEO-looking tile.
+    expect(cornerPixel('public/icons/apple-touch-icon.png')).toEqual(DARK_TILE);
   });
 
   it('keeps the stable apple fallback before optional light/dark variants', () => {
@@ -108,8 +108,8 @@ describe('app icons', () => {
     expect(favicons).toMatch(/app-icon-dark-512\.png[\s\S]*?prefers-color-scheme: dark/);
   });
 
-  it('keeps the unsuffixed home-screen fallback on the NEO violet tile', () => {
-    expect(cornerPixel('public/icons/apple-touch-icon.png')).toEqual(FALLBACK_TILE);
+  it('keeps the unsuffixed home-screen fallback on the NEO dark tile', () => {
+    expect(cornerPixel('public/icons/apple-touch-icon.png')).toEqual(DARK_TILE);
   });
 
   it('gives maskable its own artwork rather than relabelling the full tile', () => {
@@ -132,7 +132,7 @@ describe('app icons', () => {
     // pixel the phone will not show.
     for (const name of ['apple-touch-icon', 'apple-touch-icon-light']) {
       expect(cornerPixel(`public/icons/${name}.png`), name)
-        .toEqual(name.endsWith('light') ? LIGHT_TILE : FALLBACK_TILE);
+        .toEqual(name.endsWith('light') ? LIGHT_TILE : DARK_TILE);
     }
   });
 });
