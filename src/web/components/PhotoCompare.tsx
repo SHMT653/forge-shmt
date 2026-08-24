@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
 import type { ProgressPhoto } from '@/domain/types';
 
 /**
@@ -40,13 +39,10 @@ export function PhotoCompare({ photos }: { photos: readonly ProgressPhoto[] }) {
               }}
             >
               {photo?.url && (
-                <Image
+                <img
                   src={photo.url}
                   alt={`Fortschrittsbild ${photo.takenAt}`}
-                  fill
-                  sizes="(max-width: 640px) 45vw, 260px"
-                  style={{ objectFit: 'cover' }}
-                  unoptimized
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                 />
               )}
             </div>

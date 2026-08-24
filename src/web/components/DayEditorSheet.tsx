@@ -10,6 +10,7 @@ import { formatSleep } from '@/domain/health';
 import { slotForHour } from '@/domain/nutritionMath';
 import { TONE_COLOR } from '@/domain/goalPhase';
 import { parseDecimalOr } from '@/domain/numbers';
+import type { ProgressPhotoDateStatus } from '@/domain/weightTrend';
 import type { PhotoPose, WorkoutKind } from '@/domain/types';
 
 const POSES: { value: PhotoPose; label: string }[] = [
@@ -39,6 +40,7 @@ export function DayEditorSheet({
   onSetSleep,
   onSetWeight,
   onAddPhoto,
+  photoDateStatus,
 }: {
   date: string;
   rating: DayRating | undefined;
@@ -54,6 +56,7 @@ export function DayEditorSheet({
   onSetSleep: (date: string, hours: number) => Promise<void>;
   onSetWeight: (date: string, kg: number) => Promise<void>;
   onAddPhoto: (date: string, file: File, pose: PhotoPose, weightKg: number | null) => Promise<void>;
+  photoDateStatus: ProgressPhotoDateStatus;
 }) {
   const [detail, setDetail] = useState<DayDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,6 +73,7 @@ export function DayEditorSheet({
   const [workoutKind, setWorkoutKind] = useState<WorkoutKind>('full');
   const [weight, setWeight] = useState('');
   const [photoPose, setPhotoPose] = useState<PhotoPose>('front');
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = async () => {
@@ -145,7 +149,12 @@ export function DayEditorSheet({
     const file = event.target.files?.[0];
     if (photoInputRef.current) photoInputRef.current.value = '';
     if (!file) return;
-    await run(() => onAddPhoto(date, file, photoPose, detail?.weightKg ?? null));
+    setPhotoError(null);
+    try {
+      await run(() => onAddPhoto(date, file, photoPose, detail?.weightKg ?? null));
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : 'Foto konnte nicht gespeichert werden.');
+    }
   }
 
   const totals = (detail?.meals ?? []).reduce(
@@ -324,34 +333,47 @@ export function DayEditorSheet({
 
           <div className="stack-sm">
             <p className="section-label">Fortschrittsfoto nachtragen</p>
-            <div className="chip-row">
-              {POSES.map((pose) => (
+            {photoDateStatus.allowed ? (
+              <>
+                <div className="chip-row">
+                  {POSES.map((pose) => (
+                    <button
+                      key={pose.value}
+                      type="button"
+                      className={`chip${photoPose === pose.value ? ' active' : ''}`}
+                      disabled={busy}
+                      onClick={() => {
+                        setPhotoPose(pose.value);
+                        setPhotoError(null);
+                      }}
+                    >
+                      {pose.label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/*"
+                  onChange={handlePhotoFile}
+                  style={{ display: 'none' }}
+                />
                 <button
-                  key={pose.value}
                   type="button"
-                  className={`chip${photoPose === pose.value ? ' active' : ''}`}
-                  disabled={busy}
-                  onClick={() => setPhotoPose(pose.value)}
+                  className="button secondary block"
+                  disabled={busy || Boolean(detail?.photos.some((photo) => photo.pose === photoPose))}
+                  onClick={() => photoInputRef.current?.click()}
                 >
-                  {pose.label}
+                  <Camera size={15} /> Foto für diesen Tag wählen
                 </button>
-              ))}
-            </div>
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoFile}
-              style={{ display: 'none' }}
-            />
-            <button
-              type="button"
-              className="button secondary block"
-              disabled={busy}
-              onClick={() => photoInputRef.current?.click()}
-            >
-              <Camera size={15} /> Foto für diesen Tag wählen
-            </button>
+                {detail?.photos.some((photo) => photo.pose === photoPose) && (
+                  <p className="muted-sm">Diese Pose ist für den Tag schon eingetragen.</p>
+                )}
+              </>
+            ) : (
+              <p className="muted-sm">{photoDateStatus.reason ?? 'Dieser Tag ist kein Foto-Tag.'}</p>
+            )}
+            {photoError && <p className="muted-sm" style={{ color: 'var(--danger)' }}>{photoError}</p>}
           </div>
         </>
       )}

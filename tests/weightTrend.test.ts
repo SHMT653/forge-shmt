@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { buildWeightSeries, daysSinceLastWeighIn, formatKg, isPhotoDue, isWeighInDue, summarizeWeight, weightOnOrBefore } from '@/domain/weightTrend';
+import {
+  buildWeightSeries,
+  daysSinceLastWeighIn,
+  formatKg,
+  isPhotoDue,
+  isWeighInDue,
+  progressPhotoDateStatus,
+  summarizeWeight,
+  weightOnOrBefore,
+} from '@/domain/weightTrend';
 import type { BodyMetric } from '@/domain/types';
 
 function metric(logDate: string, weightKg: number | null): BodyMetric {
@@ -107,6 +116,34 @@ describe('reminders (§26/§27)', () => {
     expect(isPhotoDue(null, '2026-01-01', 14)).toBe(true);
     expect(isPhotoDue('2026-01-01', '2026-01-15', 14)).toBe(true);
     expect(isPhotoDue('2026-01-01', '2026-01-10', 14)).toBe(false);
+  });
+
+  it('allows the first progress photo to set the baseline', () => {
+    expect(progressPhotoDateStatus('2026-01-05', [], 14, '2026-01-10').allowed).toBe(true);
+  });
+
+  it('blocks progress photos before the interval has elapsed', () => {
+    const status = progressPhotoDateStatus('2026-01-10', ['2026-01-01'], 14, '2026-01-20');
+    expect(status.allowed).toBe(false);
+    expect(status.nextDate).toBe('2026-01-15');
+  });
+
+  it('allows progress photos once the interval has elapsed', () => {
+    expect(progressPhotoDateStatus('2026-01-15', ['2026-01-01'], 14, '2026-01-20').allowed).toBe(true);
+  });
+
+  it('keeps existing photo days open for the other poses', () => {
+    expect(progressPhotoDateStatus('2026-01-15', ['2026-01-01', '2026-01-15'], 14, '2026-01-20').allowed).toBe(true);
+  });
+
+  it('blocks future progress photos', () => {
+    expect(progressPhotoDateStatus('2026-01-21', ['2026-01-01'], 14, '2026-01-20').allowed).toBe(false);
+  });
+
+  it('does not allow a backfilled photo too close to the next recorded photo day', () => {
+    const status = progressPhotoDateStatus('2026-01-15', ['2026-01-01', '2026-01-20'], 14, '2026-01-25');
+    expect(status.allowed).toBe(false);
+    expect(status.nextDate).toBe('2026-01-20');
   });
 });
 

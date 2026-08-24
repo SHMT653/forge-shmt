@@ -1,13 +1,12 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import Image from 'next/image';
 import { Camera, Scale, TrendingUp, Trash2, Trophy, CalendarCheck, Plus } from 'lucide-react';
 import { useProgress } from '@/web/hooks/useProgress';
 import { WeightTrendChart } from '@/web/components/WeightTrendChart';
 import { PhotoCompare } from '@/web/components/PhotoCompare';
 import { Sheet } from '@/web/components/Sheet';
-import { formatKg, weightOnOrBefore } from '@/domain/weightTrend';
+import { formatKg, progressPhotoDateStatus, weightOnOrBefore } from '@/domain/weightTrend';
 import { formatRepsPerSet, formatScore } from '@/domain/progression';
 import { toDateKey, todayKey } from '@/domain/dates';
 import type { BiaValues, PhotoPose } from '@/domain/types';
@@ -62,8 +61,21 @@ export function ProgressView() {
     setPending({ file, date: toDateKey(new Date(file.lastModified)) });
   }
 
+  const posePhotos = photos.filter((p) => p.pose === pose);
+  const pendingStatus = pending
+    ? progressPhotoDateStatus(
+        pending.date,
+        photos.map((photo) => photo.takenAt),
+        goals?.photoIntervalDays ?? 14,
+        todayKey(),
+      )
+    : null;
+  const poseAlreadyExists = pending
+    ? photos.some((photo) => photo.takenAt === pending.date && photo.pose === pose)
+    : false;
+
   async function savePending() {
-    if (!pending) return;
+    if (!pending || !pendingStatus?.allowed || poseAlreadyExists) return;
     setUploading(true);
     try {
       // The weight that belongs to the photo's own day, not to today (§25).
@@ -73,8 +85,6 @@ export function ProgressView() {
       setUploading(false);
     }
   }
-
-  const posePhotos = photos.filter((p) => p.pose === pose);
 
   return (
     <>
@@ -299,8 +309,23 @@ export function ProgressView() {
               Pose: {POSES.find((p) => p.value === pose)?.label}
               {weightOnOrBefore(metrics, pending.date) !== null && ` · ${weightOnOrBefore(metrics, pending.date)} kg an diesem Tag`}
             </p>
+            {pendingStatus && !pendingStatus.allowed && (
+              <p className="muted-sm" style={{ margin: 0, color: 'var(--danger)' }}>
+                {pendingStatus.reason ?? 'Dieses Datum ist kein Foto-Tag.'}
+              </p>
+            )}
+            {poseAlreadyExists && (
+              <p className="muted-sm" style={{ margin: 0, color: 'var(--danger)' }}>
+                Diese Pose ist für den Tag schon eingetragen.
+              </p>
+            )}
             <div className="button-row">
-              <button type="button" className="button" disabled={uploading || !pending.date} onClick={() => void savePending()}>
+              <button
+                type="button"
+                className="button"
+                disabled={uploading || !pending.date || !pendingStatus?.allowed || poseAlreadyExists}
+                onClick={() => void savePending()}
+              >
                 {uploading ? 'Wird hochgeladen …' : 'Speichern'}
               </button>
               <button type="button" className="button ghost compact" disabled={uploading} onClick={() => setPending(null)}>
@@ -326,7 +351,11 @@ export function ProgressView() {
               <div key={photo.id} style={{ position: 'relative' }}>
                 <div style={{ position: 'relative', aspectRatio: '3 / 4', borderRadius: 'var(--radius)', overflow: 'hidden', background: 'var(--surface-2)' }}>
                   {photo.url && (
-                    <Image src={photo.url} alt={photo.takenAt} fill sizes="45vw" style={{ objectFit: 'cover' }} unoptimized />
+                    <img
+                      src={photo.url}
+                      alt={photo.takenAt}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    />
                   )}
                 </div>
                 <div className="row-between" style={{ marginTop: 4 }}>

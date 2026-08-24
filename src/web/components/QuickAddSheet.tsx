@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Utensils, Droplets, Footprints, Moon, Scale, Dumbbell, Search, Sparkles,
-  Plus, Check, X, Star, ScanBarcode, Camera,
+  Plus, Check, X, Star, ScanBarcode, Camera, Upload,
 } from 'lucide-react';
 import { Sheet } from './Sheet';
 import { useFoodSearch } from '@/web/hooks/useFoodSearch';
@@ -436,6 +436,7 @@ function BarcodePanel({
   const [status, setStatus] = useState<string | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const lookup = useCallback(
     async (raw: string) => {
@@ -479,6 +480,25 @@ function BarcodePanel({
     [lookup],
   );
 
+  async function handleImageScan(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (imageInputRef.current) imageInputRef.current.value = '';
+    if (!file) return;
+
+    setLookingUp(true);
+    setStatus('Barcode-Bild wird gelesen …');
+    try {
+      const raw = await decodeBarcodeFromImageFile(file);
+      if (!raw) {
+        setStatus('Kein Barcode im Bild erkannt.');
+        return;
+      }
+      await lookup(raw);
+    } finally {
+      setLookingUp(false);
+    }
+  }
+
   return (
     <div className="panel soft" style={{ padding: 12 }}>
       <div className="row-between" style={{ marginBottom: 10 }}>
@@ -495,6 +515,15 @@ function BarcodePanel({
           <Camera size={15} /> Kamera
         </button>
       </div>
+
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleImageScan}
+        style={{ display: 'none' }}
+      />
 
       <form
         style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}
@@ -516,6 +545,16 @@ function BarcodePanel({
         </button>
       </form>
 
+      <button
+        type="button"
+        className="button ghost compact"
+        style={{ marginTop: 8, padding: 0 }}
+        disabled={busy || lookingUp}
+        onClick={() => imageInputRef.current?.click()}
+      >
+        <Upload size={14} /> Barcode-Foto lesen
+      </button>
+
       {status && <p className="muted-sm" style={{ marginTop: 8 }}>{status}</p>}
 
       {cameraOpen && (
@@ -528,51 +567,76 @@ function BarcodePanel({
   );
 }
 
+async function decodeBarcodeFromImageFile(file: File): Promise<string | null> {
+  const { BrowserMultiFormatOneDReader } = await import('@zxing/browser');
+  const reader = new BrowserMultiFormatOneDReader();
+  const url = URL.createObjectURL(file);
+  try {
+    const result = await reader.decodeFromImageUrl(url);
+    return result.getText();
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 function CameraScanner({ onDetected, onClose }: { onDetected: (raw: string) => void; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const controlsRef = useRef<{ stop: () => void } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [running, setRunning] = useState(false);
+
+  const stopScan = useCallback(() => {
+    controlsRef.current?.stop();
+    controlsRef.current = null;
+    const stream = videoRef.current?.srcObject;
+    if (stream instanceof MediaStream) stream.getTracks().forEach((track) => track.stop());
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setRunning(false);
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    let controls: { stop: () => void } | null = null;
-    const videoElement = videoRef.current;
+    return stopScan;
+  }, [stopScan]);
 
-    async function start() {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setError('Kamera ist hier nicht verfügbar.');
-        return;
-      }
-
-      try {
-        if (!videoElement) return;
-        const { BrowserMultiFormatReader } = await import('@zxing/browser');
-        const reader = new BrowserMultiFormatReader();
-        controls = await reader.decodeFromConstraints(
-          { video: { facingMode: { ideal: 'environment' } }, audio: false },
-          videoElement,
-          (result, _error, scanControls) => {
-            const raw = result?.getText();
-            if (!raw || cancelled) return;
-            scanControls.stop();
-            onDetected(raw);
-          },
-        );
-        if (cancelled) controls.stop();
-      } catch {
-        setError('Kamera konnte nicht gestartet werden.');
-      }
+  async function startScan() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError('Kamera ist hier nicht verfügbar.');
+      return;
     }
 
-    void start();
-
-    return () => {
-      cancelled = true;
-      controls?.stop();
-      const stream = videoElement?.srcObject;
-      if (stream instanceof MediaStream) stream.getTracks().forEach((track) => track.stop());
-      if (videoElement) videoElement.srcObject = null;
-    };
-  }, [onDetected]);
+    setError(null);
+    setStarting(true);
+    try {
+      const video = videoRef.current;
+      if (!video) return;
+      const { BrowserMultiFormatOneDReader } = await import('@zxing/browser');
+      const reader = new BrowserMultiFormatOneDReader();
+      const controls = await reader.decodeFromConstraints(
+        { video: { facingMode: { ideal: 'environment' } }, audio: false },
+        video,
+        (result, _error, scanControls) => {
+          const raw = result?.getText();
+          if (!raw) return;
+          scanControls.stop();
+          controlsRef.current = null;
+          const stream = videoRef.current?.srcObject;
+          if (stream instanceof MediaStream) stream.getTracks().forEach((track) => track.stop());
+          if (videoRef.current) videoRef.current.srcObject = null;
+          setRunning(false);
+          onDetected(raw);
+        },
+      );
+      controlsRef.current = controls;
+      setRunning(true);
+    } catch {
+      setError('Kamera konnte nicht gestartet werden. Nutze Barcode-Foto oder gib die Nummer ein.');
+    } finally {
+      setStarting(false);
+    }
+  }
 
   return (
     <div className="panel" style={{ marginTop: 10, padding: 10 }}>
@@ -584,6 +648,14 @@ function CameraScanner({ onDetected, onClose }: { onDetected: (raw: string) => v
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           aria-label="Barcode Kamera"
         />
+      </div>
+      <div className="button-row" style={{ marginTop: 8 }}>
+        <button type="button" className="button compact" disabled={starting || running} onClick={() => void startScan()}>
+          {starting ? 'Startet …' : running ? 'Kamera läuft' : 'Kamera starten'}
+        </button>
+        <button type="button" className="button ghost compact" disabled={!running} onClick={stopScan}>
+          Stoppen
+        </button>
       </div>
       {error && <p className="muted-sm" style={{ marginTop: 8, color: 'var(--danger)' }}>{error}</p>}
       <button type="button" className="button ghost compact" style={{ marginTop: 8, padding: 0 }} onClick={onClose}>

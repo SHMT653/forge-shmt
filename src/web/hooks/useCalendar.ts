@@ -8,13 +8,14 @@ import { getActivePhase } from '@/data/goalPhases';
 import { addMealEntry, deleteMealEntry, syncNutritionTotals, type MealEntryInput } from '@/data/nutrition';
 import { rememberFoodFromEntry } from '@/data/foodLibrary';
 import { setHealthMetric } from '@/data/dailyHealth';
-import { saveBodyMetric, uploadProgressPhoto } from '@/data/progress';
+import { listProgressPhotoDates, saveBodyMetric, uploadProgressPhoto } from '@/data/progress';
 import { saveCheckin } from '@/data/checkins';
 import { errorMessage } from '@/domain/errors';
 import { dateKeyAddDays, toDateKey, todayKey } from '@/domain/dates';
 import { resolveTargets, type ResolvedTargets } from '@/domain/goalPhase';
 import { isDayInProgress } from '@/domain/dayEvaluation';
 import { rateDay, summarizeRatings, type DayRating } from '@/domain/dayRating';
+import { progressPhotoDateStatus, type ProgressPhotoDateStatus } from '@/domain/weightTrend';
 import type { Habit, PhotoPose, Soreness, TrainingPlan, UserGoals, WorkoutKind } from '@/domain/types';
 import { pickMetricHabits, setDayMetric } from '@/data/dailyMetrics';
 import { listHabits } from '@/data/habits';
@@ -49,6 +50,7 @@ export function useCalendar() {
   const [waterByDate, setWaterByDate] = useState<Map<string, number>>(new Map());
   // The active plan, so a back-filled workout can carry a real day and its sets.
   const [activePlan, setActivePlan] = useState<TrainingPlan | null>(null);
+  const [photoDates, setPhotoDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,17 +60,19 @@ export function useCalendar() {
     if (!user) return;
     setError(null);
     try {
-      const [userGoals, phase, aggregates, habitList, plans] = await Promise.all([
+      const [userGoals, phase, aggregates, habitList, plans, progressDates] = await Promise.all([
         getUserGoals(user.id),
         getActivePhase(user.id),
         loadDayAggregates(user.id, grid.start, grid.end),
         listHabits(user.id),
         listPlans(user.id),
+        listProgressPhotoDates(user.id),
       ]);
       // Needed so a drink back-filled onto a past day credits that day's fluid.
       setWaterHabit(pickMetricHabits(habitList).water);
       setWaterByDate(new Map([...aggregates].map(([date, day]) => [date, day.waterMl ?? 0])));
       setActivePlan(plans.find((plan) => plan.isActive) ?? null);
+      setPhotoDates(progressDates);
 
       const effective: UserGoals = phase
         ? {
@@ -116,6 +120,12 @@ export function useCalendar() {
   }, [load]);
 
   const summary = useMemo(() => summarizeRatings([...ratings.values()]), [ratings]);
+
+  const photoStatusForDate = useCallback(
+    (date: string): ProgressPhotoDateStatus =>
+      progressPhotoDateStatus(date, photoDates, goals?.photoIntervalDays ?? 14, todayKey()),
+    [photoDates, goals?.photoIntervalDays],
+  );
 
   const openDay = useCallback(
     async (date: string): Promise<DayDetail | null> => {
@@ -211,10 +221,12 @@ export function useCalendar() {
   const addPhotoOn = useCallback(
     async (date: string, file: File, pose: PhotoPose, weightKg: number | null) => {
       if (!user) return;
+      const status = progressPhotoDateStatus(date, photoDates, goals?.photoIntervalDays ?? 14, todayKey());
+      if (!status.allowed) throw new Error(status.reason ?? 'Dieser Tag ist kein Foto-Tag.');
       await uploadProgressPhoto(user.id, file, date, pose, weightKg);
       await load();
     },
-    [user, load],
+    [user, photoDates, goals?.photoIntervalDays, load],
   );
 
   const setSorenessOn = useCallback(
@@ -234,6 +246,7 @@ export function useCalendar() {
     targets,
     goals,
     summary,
+    photoStatusForDate,
     loading,
     error,
     reload: load,

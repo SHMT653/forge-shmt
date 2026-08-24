@@ -142,6 +142,7 @@ export function CalendarView() {
           onSetSleep={calendar.setSleepOn}
           onSetWeight={calendar.setWeightOn}
           onAddPhoto={calendar.addPhotoOn}
+          photoDateStatus={calendar.photoStatusForDate(openDate)}
           onLogWorkout={calendar.logWorkoutOn}
           planDays={calendar.activePlan?.days ?? []}
         />

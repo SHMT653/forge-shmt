@@ -182,6 +182,90 @@ export function isPhotoDue(lastPhotoDate: string | null, today: string, interval
   return since !== null && since >= intervalDays;
 }
 
+export type ProgressPhotoDateStatus = {
+  allowed: boolean;
+  previousDate: string | null;
+  nextDate: string | null;
+  reason: string | null;
+};
+
+function photoInterval(intervalDays: number): number {
+  return Math.max(1, Math.round(intervalDays));
+}
+
+function uniquePhotoDates(photoDates: readonly string[]): string[] {
+  return [...new Set(photoDates.map((date) => date.slice(0, 10)).filter(Boolean))].sort();
+}
+
+/**
+ * Whether a progress photo can be attached to `date`.
+ *
+ * A photo day is a measurement checkpoint, not a random gallery. The first
+ * photo sets the baseline. After that, a new photo day is only valid once the
+ * configured interval has elapsed, and it must not sit too close to the next
+ * already recorded photo day.
+ */
+export function progressPhotoDateStatus(
+  date: string,
+  photoDates: readonly string[],
+  intervalDays: number,
+  today: string,
+): ProgressPhotoDateStatus {
+  const day = date.slice(0, 10);
+  const interval = photoInterval(intervalDays);
+  const dates = uniquePhotoDates(photoDates).filter((entry) => entry <= today);
+
+  if (day > today) {
+    return {
+      allowed: false,
+      previousDate: dates.filter((entry) => entry < day).at(-1) ?? null,
+      nextDate: null,
+      reason: 'Fortschrittsbilder können nicht in die Zukunft eingetragen werden.',
+    };
+  }
+
+  if (dates.includes(day)) {
+    return { allowed: true, previousDate: day, nextDate: day, reason: null };
+  }
+
+  const previousDate = dates.filter((entry) => entry < day).at(-1) ?? null;
+  const nextDate = dates.find((entry) => entry > day) ?? null;
+
+  // With no baseline yet, the first photo may define the rhythm.
+  if (!previousDate) {
+    if (nextDate && dateKeyAddDays(day, interval) > nextDate) {
+      return {
+        allowed: false,
+        previousDate: null,
+        nextDate,
+        reason: `Dieser Tag liegt zu nah am nächsten Foto (${nextDate}).`,
+      };
+    }
+    return { allowed: true, previousDate: null, nextDate, reason: null };
+  }
+
+  const dueDate = dateKeyAddDays(previousDate, interval);
+  if (day < dueDate) {
+    return {
+      allowed: false,
+      previousDate,
+      nextDate: dueDate,
+      reason: `Nächstes Fortschrittsbild ab ${dueDate}.`,
+    };
+  }
+
+  if (nextDate && dateKeyAddDays(day, interval) > nextDate) {
+    return {
+      allowed: false,
+      previousDate,
+      nextDate,
+      reason: `Dieser Tag liegt zu nah am nächsten Foto (${nextDate}).`,
+    };
+  }
+
+  return { allowed: true, previousDate, nextDate, reason: null };
+}
+
 /**
  * The weight recorded on `date`, or the most recent one before it.
  *

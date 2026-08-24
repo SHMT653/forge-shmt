@@ -92,6 +92,16 @@ export async function saveBodyMetric(userId: string, logDate: string, values: Bo
 }
 
 const PHOTO_BUCKET = 'forge-progress-photos';
+const PHOTO_URL_TTL_SECONDS = 60 * 60 * 24;
+
+async function progressPhotoUrl(storagePath: string): Promise<string | null> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.storage.from(PHOTO_BUCKET).createSignedUrl(storagePath, PHOTO_URL_TTL_SECONDS);
+  if (!error && data?.signedUrl) return data.signedUrl;
+
+  const { data: fallback } = supabase.storage.from(PHOTO_BUCKET).getPublicUrl(storagePath);
+  return fallback?.publicUrl ?? null;
+}
 
 export async function listProgressPhotos(userId: string): Promise<ProgressPhoto[]> {
   const supabase = getSupabaseClient();
@@ -103,17 +113,27 @@ export async function listProgressPhotos(userId: string): Promise<ProgressPhoto[
     .limit(120);
   if (error) throw error;
 
-  return (data ?? []).map((row) => {
-    const { data: signed } = supabase.storage.from(PHOTO_BUCKET).getPublicUrl(row.storage_path);
-    return {
+  return Promise.all(
+    (data ?? []).map(async (row) => ({
       id: row.id,
       takenAt: row.taken_at,
       storagePath: row.storage_path,
-      url: signed?.publicUrl ?? null,
+      url: await progressPhotoUrl(row.storage_path),
       pose: (row.pose ?? 'front') as PhotoPose,
       weightKg: row.weight_kg !== null && row.weight_kg !== undefined ? Number(row.weight_kg) : null,
-    };
-  });
+    })),
+  );
+}
+
+export async function listProgressPhotoDates(userId: string): Promise<string[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('forge_progress_photos')
+    .select('taken_at')
+    .eq('user_id', userId)
+    .order('taken_at', { ascending: true });
+  if (error) throw error;
+  return [...new Set((data ?? []).map((row) => row.taken_at as string))];
 }
 
 export async function uploadProgressPhoto(
