@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 
 const DARK_TILE: [number, number, number] = [8, 7, 12];
@@ -91,6 +91,13 @@ describe('app icons', () => {
     expect(apple).toMatch(/apple-touch-icon\.png[\s\S]*?apple-touch-icon-light\.png[\s\S]*?apple-touch-icon-dark\.png/);
     expect(apple).toMatch(/apple-touch-icon-light\.png[\s\S]*?prefers-color-scheme: light/);
     expect(apple).toMatch(/apple-touch-icon-dark\.png[\s\S]*?prefers-color-scheme: dark/);
+  });
+
+  it('uses the same static manifest path as NEO', () => {
+    const layout = readFileSync('app/layout.tsx', 'utf8');
+    expect(layout).toContain("manifest: '/manifest.json'");
+    expect(layout).not.toContain('manifest.webmanifest');
+    expect(existsSync('app/manifest.ts')).toBe(false);
   });
 
   it('keeps both variants for the tab icon, where the query does work', () => {
