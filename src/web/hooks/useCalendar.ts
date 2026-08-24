@@ -123,8 +123,14 @@ export function useCalendar() {
 
   const photoStatusForDate = useCallback(
     (date: string): ProgressPhotoDateStatus =>
-      progressPhotoDateStatus(date, photoDates, goals?.photoIntervalDays ?? 14, todayKey()),
-    [photoDates, goals?.photoIntervalDays],
+      progressPhotoDateStatus(
+        date,
+        photoDates,
+        goals?.photoIntervalDays ?? 14,
+        todayKey(),
+        goals?.progressStartDate ?? null,
+      ),
+    [photoDates, goals?.photoIntervalDays, goals?.progressStartDate],
   );
 
   const openDay = useCallback(
@@ -226,12 +232,18 @@ export function useCalendar() {
   const addPhotoOn = useCallback(
     async (date: string, file: File, pose: PhotoPose, weightKg: number | null) => {
       if (!user) return;
-      const status = progressPhotoDateStatus(date, photoDates, goals?.photoIntervalDays ?? 14, todayKey());
+      const status = progressPhotoDateStatus(
+        date,
+        photoDates,
+        goals?.photoIntervalDays ?? 14,
+        todayKey(),
+        goals?.progressStartDate ?? null,
+      );
       if (!status.allowed) throw new Error(status.reason ?? 'Dieser Tag ist kein Foto-Tag.');
       await uploadProgressPhoto(user.id, file, date, pose, weightKg);
       await load();
     },
-    [user, photoDates, goals?.photoIntervalDays, load],
+    [user, photoDates, goals?.photoIntervalDays, goals?.progressStartDate, load],
   );
 
   const setSorenessOn = useCallback(

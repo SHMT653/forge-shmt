@@ -97,6 +97,7 @@ export function SettingsView() {
   const [sleepGoalH, setSleepGoalH] = useState('');
   const [weighInWeekday, setWeighInWeekday] = useState(0);
   const [photoIntervalDays, setPhotoIntervalDays] = useState(14);
+  const [progressStartDate, setProgressStartDate] = useState('');
   const [fastingEnabled, setFastingEnabled] = useState(false);
   const [equipment, setEquipment] = useState<EquipmentId[]>([]);
   const [trainingFocus, setTrainingFocus] = useState<TrainingFocusId[]>([]);
@@ -141,6 +142,7 @@ export function SettingsView() {
     setSleepGoalH(String(resolved.sleepH));
     setWeighInWeekday(goals.weighInWeekday);
     setPhotoIntervalDays(goals.photoIntervalDays);
+    setProgressStartDate(goals.progressStartDate ?? '');
     setFastingEnabled(goals.fastingEnabled);
     setEquipment(goals.equipment);
     setTrainingFocus(goals.trainingFocus);
@@ -181,6 +183,7 @@ export function SettingsView() {
       sleepGoalH: numberOrNull(sleepGoalH),
       weighInWeekday,
       photoIntervalDays,
+      progressStartDate: progressStartDate || null,
       fastingEnabled,
       equipment,
       trainingFocus,
@@ -473,6 +476,17 @@ export function SettingsView() {
                 <input id="photoInterval" className="input compact" inputMode="numeric"
                   value={String(photoIntervalDays)}
                   onChange={(e) => setPhotoIntervalDays(Number(e.target.value) || 14)} />
+              </div>
+              <div className="field">
+                <label className="field-label" htmlFor="progressStart">Startdatum Fortschritt</label>
+                <input
+                  id="progressStart"
+                  className="input compact"
+                  type="date"
+                  max={todayKey()}
+                  value={progressStartDate}
+                  onChange={(e) => setProgressStartDate(e.target.value)}
+                />
               </div>
             </div>
           </div>

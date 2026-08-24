@@ -32,6 +32,7 @@ alter table public.forge_user_goals
   -- tracking routine
   add column if not exists weigh_in_weekday  integer,   -- 0=Sun … 6=Sat, default Sunday
   add column if not exists photo_interval_days integer, -- default 14
+  add column if not exists progress_start_date date,
   -- feature switches
   add column if not exists fasting_enabled   boolean not null default false,
   add column if not exists ai_coach_enabled  boolean not null default true,

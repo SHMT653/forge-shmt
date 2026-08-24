@@ -105,9 +105,11 @@ function changeOver(points: readonly WeightPoint[], days: number): WeightChange 
   };
 }
 
-export function summarizeWeight(metrics: readonly BodyMetric[]): WeightSummary {
-  const points = buildWeightSeries(metrics);
-  const weighed = metrics.filter((m) => m.weightKg !== null).sort((a, b) => a.logDate.localeCompare(b.logDate));
+export function summarizeWeight(metrics: readonly BodyMetric[], startDate: string | null = null): WeightSummary {
+  const start = normalizeDateKey(startDate);
+  const scopedMetrics = start ? metrics.filter((m) => m.logDate >= start) : metrics;
+  const points = buildWeightSeries(scopedMetrics);
+  const weighed = scopedMetrics.filter((m) => m.weightKg !== null).sort((a, b) => a.logDate.localeCompare(b.logDate));
   const newest = weighed[weighed.length - 1] ?? null;
   const oldest = weighed[0] ?? null;
   const last = points[points.length - 1] ?? null;
@@ -176,7 +178,18 @@ export function isWeighInDue(latestDate: string | null, today: string, weekday: 
 }
 
 /** True when the photo interval has elapsed (§27). */
-export function isPhotoDue(lastPhotoDate: string | null, today: string, intervalDays: number): boolean {
+export function isPhotoDue(
+  lastPhotoDate: string | null,
+  today: string,
+  intervalDays: number,
+  startDate: string | null = null,
+): boolean {
+  if (lastPhotoDate === today) return false;
+  const start = normalizeDateKey(startDate);
+  if (start) {
+    if (today < start) return false;
+    return isScheduledProgressPhotoDate(today, start, intervalDays);
+  }
   if (!lastPhotoDate) return true;
   const since = daysSinceLastWeighIn(lastPhotoDate, today);
   return since !== null && since >= intervalDays;
@@ -191,6 +204,36 @@ export type ProgressPhotoDateStatus = {
 
 function photoInterval(intervalDays: number): number {
   return Math.max(1, Math.round(intervalDays));
+}
+
+function normalizeDateKey(value: string | null | undefined): string | null {
+  const day = value?.slice(0, 10) ?? '';
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null;
+}
+
+function dateKeyUtcMs(key: string): number {
+  const [y, m, d] = key.split('-').map(Number);
+  return Date.UTC(y ?? 1970, (m ?? 1) - 1, d ?? 1);
+}
+
+function daysBetweenKeys(from: string, to: string): number {
+  return Math.round((dateKeyUtcMs(to) - dateKeyUtcMs(from)) / 86_400_000);
+}
+
+export function isScheduledProgressPhotoDate(date: string, startDate: string | null, intervalDays: number): boolean {
+  const day = normalizeDateKey(date);
+  const start = normalizeDateKey(startDate);
+  if (!day || !start || day < start) return false;
+  return daysBetweenKeys(start, day) % photoInterval(intervalDays) === 0;
+}
+
+export function nextProgressPhotoDate(startDate: string | null, today: string, intervalDays: number): string | null {
+  const start = normalizeDateKey(startDate);
+  if (!start) return null;
+  if (today <= start) return start;
+  const interval = photoInterval(intervalDays);
+  const elapsed = Math.max(0, daysBetweenKeys(start, today));
+  return dateKeyAddDays(start, Math.ceil(elapsed / interval) * interval);
 }
 
 function uniquePhotoDates(photoDates: readonly string[]): string[] {
@@ -210,10 +253,12 @@ export function progressPhotoDateStatus(
   photoDates: readonly string[],
   intervalDays: number,
   today: string,
+  startDate: string | null = null,
 ): ProgressPhotoDateStatus {
   const day = date.slice(0, 10);
   const interval = photoInterval(intervalDays);
   const dates = uniquePhotoDates(photoDates).filter((entry) => entry <= today);
+  const start = normalizeDateKey(startDate);
 
   if (day > today) {
     return {
@@ -221,6 +266,43 @@ export function progressPhotoDateStatus(
       previousDate: dates.filter((entry) => entry < day).at(-1) ?? null,
       nextDate: null,
       reason: 'Fortschrittsbilder können nicht in die Zukunft eingetragen werden.',
+    };
+  }
+
+  if (start) {
+    const previousRecorded = dates.filter((entry) => entry < day).at(-1) ?? null;
+    if (day < start) {
+      return {
+        allowed: false,
+        previousDate: null,
+        nextDate: start,
+        reason: `Erstes Fortschrittsbild am Starttag ${start}.`,
+      };
+    }
+
+    if (dates.includes(day)) {
+      return { allowed: true, previousDate: day, nextDate: day, reason: null };
+    }
+
+    const elapsed = daysBetweenKeys(start, day);
+    const passedIntervals = Math.floor(elapsed / interval);
+    const previousScheduled = passedIntervals > 0 ? dateKeyAddDays(start, passedIntervals * interval) : null;
+
+    if (elapsed % interval !== 0) {
+      const nextScheduled = dateKeyAddDays(start, (passedIntervals + 1) * interval);
+      return {
+        allowed: false,
+        previousDate: previousRecorded ?? previousScheduled,
+        nextDate: nextScheduled,
+        reason: `Nächster Foto-Tag: ${nextScheduled}.`,
+      };
+    }
+
+    return {
+      allowed: true,
+      previousDate: previousRecorded ?? previousScheduled,
+      nextDate: dateKeyAddDays(day, interval),
+      reason: null,
     };
   }
 

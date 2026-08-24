@@ -146,6 +146,7 @@ export type UserGoals = {
   // ── Tracking routine (§26/§27)
   weighInWeekday: number;      // 0 = Sunday … 6 = Saturday
   photoIntervalDays: number;
+  progressStartDate: string | null;
 
   // ── Feature switches (§41/§70)
   fastingEnabled: boolean;
@@ -271,4 +272,3 @@ export type DailyCheckin = {
   energy: number | null;
   note: string;
 };
-

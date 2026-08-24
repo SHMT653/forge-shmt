@@ -4,6 +4,8 @@ import {
   daysSinceLastWeighIn,
   formatKg,
   isPhotoDue,
+  isScheduledProgressPhotoDate,
+  nextProgressPhotoDate,
   isWeighInDue,
   progressPhotoDateStatus,
   summarizeWeight,
@@ -79,6 +81,15 @@ describe('summarizeWeight', () => {
     expect(summary.latest).toBe(74);
     expect(summary.changeTotal.deltaKg).toBe(0);
   });
+
+  it('measures total change from the configured progress start', () => {
+    const summary = summarizeWeight([
+      metric('2026-01-01', 82),
+      metric('2026-02-01', 80),
+      metric('2026-02-08', 79),
+    ], '2026-02-01');
+    expect(summary.changeTotal.deltaKg).toBe(-1);
+  });
 });
 
 describe('formatKg', () => {
@@ -118,8 +129,38 @@ describe('reminders (§26/§27)', () => {
     expect(isPhotoDue('2026-01-01', '2026-01-10', 14)).toBe(false);
   });
 
+  it('uses the configured start date as the fixed photo rhythm', () => {
+    expect(isScheduledProgressPhotoDate('2026-01-01', '2026-01-01', 14)).toBe(true);
+    expect(isScheduledProgressPhotoDate('2026-01-15', '2026-01-01', 14)).toBe(true);
+    expect(isScheduledProgressPhotoDate('2026-01-16', '2026-01-01', 14)).toBe(false);
+    expect(nextProgressPhotoDate('2026-01-01', '2026-01-16', 14)).toBe('2026-01-29');
+  });
+
+  it('only nudges for photos on scheduled days once a start date exists', () => {
+    expect(isPhotoDue(null, '2026-01-15', 14, '2026-01-01')).toBe(true);
+    expect(isPhotoDue(null, '2026-01-16', 14, '2026-01-01')).toBe(false);
+    expect(isPhotoDue('2026-01-15', '2026-01-15', 14, '2026-01-01')).toBe(false);
+  });
+
   it('allows the first progress photo to set the baseline', () => {
     expect(progressPhotoDateStatus('2026-01-05', [], 14, '2026-01-10').allowed).toBe(true);
+  });
+
+  it('allows the configured start photo and then fixed interval days', () => {
+    expect(progressPhotoDateStatus('2026-01-01', [], 14, '2026-01-20', '2026-01-01').allowed).toBe(true);
+    expect(progressPhotoDateStatus('2026-01-15', ['2026-01-01'], 14, '2026-01-20', '2026-01-01').allowed).toBe(true);
+  });
+
+  it('blocks progress photos between fixed interval days', () => {
+    const status = progressPhotoDateStatus('2026-01-16', ['2026-01-01'], 14, '2026-01-20', '2026-01-01');
+    expect(status.allowed).toBe(false);
+    expect(status.nextDate).toBe('2026-01-29');
+  });
+
+  it('blocks progress photos before the configured start', () => {
+    const status = progressPhotoDateStatus('2026-01-01', [], 14, '2026-01-20', '2026-01-05');
+    expect(status.allowed).toBe(false);
+    expect(status.nextDate).toBe('2026-01-05');
   });
 
   it('blocks progress photos before the interval has elapsed', () => {

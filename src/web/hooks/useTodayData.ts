@@ -321,7 +321,7 @@ export function useTodayData() {
           plannedDayName: suggestedDay?.name ?? null,
         }),
         weighInDue: isWeighInDue(weight.latestDate, today, goals.weighInWeekday),
-        photoDue: isPhotoDue(lastPhoto, today, goals.photoIntervalDays),
+        photoDue: isPhotoDue(lastPhoto, today, goals.photoIntervalDays, goals.progressStartDate),
       });
     } catch (err) {
       setError(errorMessage(err, 'Daten konnten nicht geladen werden.'));

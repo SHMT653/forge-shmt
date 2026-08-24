@@ -56,6 +56,7 @@ export const GOALS_DEFAULTS: UserGoals = {
   sleepGoalH: null,
   weighInWeekday: 0,
   photoIntervalDays: 14,
+  progressStartDate: null,
   fastingEnabled: false,
   units: 'metric',
   equipment: [],
@@ -72,6 +73,26 @@ const GOALS_COLUMNS =
   'steps_goal, water_goal_ml, sleep_goal_h, weigh_in_weekday, photo_interval_days, ' +
   'fasting_enabled, units, ' +
   'equipment, training_focus, weekly_training_goal, onboarded_at, health_enabled';
+const GOALS_COLUMNS_WITH_PROGRESS_START = `${GOALS_COLUMNS}, progress_start_date`;
+
+type DataError = {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+};
+
+function missingProgressStartColumn(error: DataError | null): boolean {
+  if (!error) return false;
+  const text = [error.code, error.message, error.details, error.hint].filter(Boolean).join(' ').toLowerCase();
+  return text.includes('progress_start_date') && (
+    text.includes('does not exist') ||
+    text.includes('could not find') ||
+    text.includes('schema cache') ||
+    text.includes('pgrst204') ||
+    text.includes('42703')
+  );
+}
 
 /** Postgres text[] arrives as an array; filter it down to ids we know. */
 function toEquipment(value: unknown): EquipmentId[] {
@@ -95,11 +116,24 @@ export async function getUserGoals(userId: string): Promise<UserGoals> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('forge_user_goals')
-    .select(GOALS_COLUMNS)
+    .select(GOALS_COLUMNS_WITH_PROGRESS_START)
     .eq('user_id', userId)
     .maybeSingle<Record<string, unknown>>();
 
+  if (missingProgressStartColumn(error)) {
+    const fallback = await supabase
+      .from('forge_user_goals')
+      .select(GOALS_COLUMNS)
+      .eq('user_id', userId)
+      .maybeSingle<Record<string, unknown>>();
+    if (fallback.error) throw fallback.error;
+    return goalsFromRow(fallback.data, false);
+  }
   if (error) throw error;
+  return goalsFromRow(data, true);
+}
+
+function goalsFromRow(data: Record<string, unknown> | null, hasProgressStartColumn: boolean): UserGoals {
   if (!data) return GOALS_DEFAULTS;
   return {
     calorieGoal: num(data.calorie_goal) ?? GOALS_DEFAULTS.calorieGoal,
@@ -126,6 +160,9 @@ export async function getUserGoals(userId: string): Promise<UserGoals> {
     sleepGoalH: num(data.sleep_goal_h),
     weighInWeekday: num(data.weigh_in_weekday) ?? GOALS_DEFAULTS.weighInWeekday,
     photoIntervalDays: num(data.photo_interval_days) ?? GOALS_DEFAULTS.photoIntervalDays,
+    progressStartDate: hasProgressStartColumn
+      ? (data.progress_start_date as string | null) ?? null
+      : (data.phase_start_date as string | null) ?? null,
     fastingEnabled: (data.fasting_enabled as boolean | null) ?? false,
     units: (data.units === 'imperial' ? 'imperial' : 'metric'),
     equipment: toEquipment(data.equipment),
@@ -136,44 +173,56 @@ export async function getUserGoals(userId: string): Promise<UserGoals> {
   };
 }
 
+function goalsRow(userId: string, goals: UserGoals, includeProgressStart: boolean): Record<string, unknown> {
+  return {
+    user_id: userId,
+    calorie_goal: goals.calorieGoal,
+    protein_goal: goals.proteinGoal,
+    weight_goal: goals.weightGoal,
+    current_weight: goals.currentWeight,
+    height_cm: goals.heightCm,
+    birth_year: goals.birthYear,
+    gender: goals.gender,
+    activity_level: goals.activityLevel,
+    goal_type: goals.goalType,
+    program_id: goals.programId,
+    fasting_protocol: goals.fastingProtocol,
+    fasting_start_hour: goals.fastingStartHour,
+    phase_type: goals.phaseType,
+    phase_start_date: goals.phaseStartDate,
+    phase_end_date: goals.phaseEndDate,
+    calories_min: goals.caloriesMin,
+    calories_max: goals.caloriesMax,
+    protein_min: goals.proteinMin,
+    protein_max: goals.proteinMax,
+    steps_goal: goals.stepsGoal,
+    water_goal_ml: goals.waterGoalMl,
+    sleep_goal_h: goals.sleepGoalH,
+    weigh_in_weekday: goals.weighInWeekday,
+    photo_interval_days: goals.photoIntervalDays,
+    ...(includeProgressStart ? { progress_start_date: goals.progressStartDate } : {}),
+    fasting_enabled: goals.fastingEnabled,
+    units: goals.units,
+    equipment: goals.equipment,
+    training_focus: goals.trainingFocus,
+    weekly_training_goal: goals.weeklyTrainingGoal,
+    onboarded_at: goals.onboardedAt,
+    health_enabled: goals.healthEnabled,
+  };
+}
+
 export async function saveUserGoals(userId: string, goals: UserGoals): Promise<void> {
   const supabase = getSupabaseClient();
   const { error } = await supabase.from('forge_user_goals').upsert(
-    {
-      user_id: userId,
-      calorie_goal: goals.calorieGoal,
-      protein_goal: goals.proteinGoal,
-      weight_goal: goals.weightGoal,
-      current_weight: goals.currentWeight,
-      height_cm: goals.heightCm,
-      birth_year: goals.birthYear,
-      gender: goals.gender,
-      activity_level: goals.activityLevel,
-      goal_type: goals.goalType,
-      program_id: goals.programId,
-      fasting_protocol: goals.fastingProtocol,
-      fasting_start_hour: goals.fastingStartHour,
-      phase_type: goals.phaseType,
-      phase_start_date: goals.phaseStartDate,
-      phase_end_date: goals.phaseEndDate,
-      calories_min: goals.caloriesMin,
-      calories_max: goals.caloriesMax,
-      protein_min: goals.proteinMin,
-      protein_max: goals.proteinMax,
-      steps_goal: goals.stepsGoal,
-      water_goal_ml: goals.waterGoalMl,
-      sleep_goal_h: goals.sleepGoalH,
-      weigh_in_weekday: goals.weighInWeekday,
-      photo_interval_days: goals.photoIntervalDays,
-      fasting_enabled: goals.fastingEnabled,
-      units: goals.units,
-      equipment: goals.equipment,
-      training_focus: goals.trainingFocus,
-      weekly_training_goal: goals.weeklyTrainingGoal,
-      onboarded_at: goals.onboardedAt,
-      health_enabled: goals.healthEnabled,
-    },
+    goalsRow(userId, goals, true),
     { onConflict: 'user_id' },
   );
+  if (missingProgressStartColumn(error)) {
+    const fallbackRow = goalsRow(userId, goals, false);
+    fallbackRow.phase_start_date = goals.progressStartDate;
+    const fallback = await supabase.from('forge_user_goals').upsert(fallbackRow, { onConflict: 'user_id' });
+    if (fallback.error) throw fallback.error;
+    return;
+  }
   if (error) throw error;
 }

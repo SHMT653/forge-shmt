@@ -235,6 +235,7 @@ alter table public.forge_user_goals add column if not exists birth_year integer;
 alter table public.forge_user_goals add column if not exists gender text not null default 'other';
 alter table public.forge_user_goals add column if not exists activity_level text not null default 'moderate';
 alter table public.forge_user_goals add column if not exists goal_type text not null default 'maintain';
+alter table public.forge_user_goals add column if not exists progress_start_date date;
 
 create table if not exists public.forge_nutrition_logs (
   id uuid primary key default gen_random_uuid(),

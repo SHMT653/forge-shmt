@@ -11,7 +11,7 @@ import {
   type BodyMetricInput,
 } from '@/data/progress';
 import { listExerciseSnapshots, listTrainedExerciseNames } from '@/data/workouts';
-import { getUserGoals } from '@/data/profile';
+import { getUserGoals, saveUserGoals } from '@/data/profile';
 import { errorMessage } from '@/domain/errors';
 import { dateKeyAddDays, todayKey } from '@/domain/dates';
 import { resolveTargets, type ResolvedTargets } from '@/domain/goalPhase';
@@ -57,7 +57,7 @@ export function useProgress() {
       ]);
 
       const resolved = resolveTargets(userGoals);
-      const weightSummary = summarizeWeight(bodyMetrics);
+      const weightSummary = summarizeWeight(bodyMetrics, userGoals.progressStartDate);
 
       // Per-exercise histories, most-trained first. Capped so the screen stays
       // responsive for someone with a long history.
@@ -128,8 +128,19 @@ export function useProgress() {
     [user, load],
   );
 
+  const saveProgressStartDate = useCallback(
+    async (startDate: string | null) => {
+      if (!user || !goals) return;
+      const next: UserGoals = { ...goals, progressStartDate: startDate };
+      setGoals(next);
+      await saveUserGoals(user.id, next);
+      await load();
+    },
+    [user, goals, load],
+  );
+
   return {
     metrics, photos, goals, targets, weight, exercises, stats, rangeDays, setRangeDays,
-    loading, error, addMetric, addPhoto, removePhoto, reload: load,
+    loading, error, addMetric, addPhoto, removePhoto, saveProgressStartDate, reload: load,
   };
 }

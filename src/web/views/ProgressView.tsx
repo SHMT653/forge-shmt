@@ -1,15 +1,15 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { Camera, Scale, TrendingUp, Trash2, Trophy, CalendarCheck, Plus } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Camera, CalendarCheck, Folder, Plus, Trash2, Trophy } from 'lucide-react';
 import { useProgress } from '@/web/hooks/useProgress';
 import { WeightTrendChart } from '@/web/components/WeightTrendChart';
 import { PhotoCompare } from '@/web/components/PhotoCompare';
 import { Sheet } from '@/web/components/Sheet';
-import { formatKg, progressPhotoDateStatus, weightOnOrBefore } from '@/domain/weightTrend';
+import { formatKg, nextProgressPhotoDate, progressPhotoDateStatus, weightOnOrBefore } from '@/domain/weightTrend';
 import { formatRepsPerSet, formatScore } from '@/domain/progression';
-import { toDateKey, todayKey } from '@/domain/dates';
-import type { BiaValues, PhotoPose } from '@/domain/types';
+import { formatFullDate, toDateKey, todayKey } from '@/domain/dates';
+import type { BiaValues, PhotoPose, ProgressPhoto } from '@/domain/types';
 import { parseDecimalOr } from '@/domain/numbers';
 
 const POSES: { value: PhotoPose; label: string }[] = [
@@ -22,17 +22,24 @@ const POSES: { value: PhotoPose; label: string }[] = [
 export function ProgressView() {
   const {
     metrics, photos, goals, targets, weight, exercises, stats, rangeDays, setRangeDays,
-    loading, error, addMetric, addPhoto, removePhoto,
+    loading, error, addMetric, addPhoto, removePhoto, saveProgressStartDate,
   } = useProgress();
 
   const [weightInput, setWeightInput] = useState('');
   const [saving, setSaving] = useState(false);
+  const [startInput, setStartInput] = useState('');
+  const [savingStart, setSavingStart] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [pose, setPose] = useState<PhotoPose>('front');
   // A picked-but-not-yet-saved photo, so the date can be corrected first.
   const [pending, setPending] = useState<{ file: File; date: string } | null>(null);
   const [biaOpen, setBiaOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const today = todayKey();
+
+  useEffect(() => {
+    setStartInput(goals?.progressStartDate ?? '');
+  }, [goals?.progressStartDate]);
 
   if (loading) return <div className="panel"><p className="copy">Fortschritt wird geladen …</p></div>;
   if (error) return <div className="panel"><p className="copy" style={{ color: 'var(--danger)' }}>{error}</p></div>;
@@ -58,16 +65,26 @@ export function ProgressView() {
     // A photo picked from the gallery was taken when it was taken. Its file
     // date is the right default — the user only has to correct it when it is
     // wrong, instead of typing it every time.
-    setPending({ file, date: toDateKey(new Date(file.lastModified)) });
+    setPending({
+      file,
+      date: photos.length === 0 && goals?.progressStartDate
+        ? goals.progressStartDate
+        : toDateKey(new Date(file.lastModified)),
+    });
   }
 
+  const progressStartDate = goals?.progressStartDate ?? null;
+  const photoIntervalDays = goals?.photoIntervalDays ?? 14;
+  const photoGroups = groupPhotosByDate(photos);
+  const nextPhotoDate = nextProgressPhotoDate(progressStartDate, today, photoIntervalDays);
   const posePhotos = photos.filter((p) => p.pose === pose);
   const pendingStatus = pending
     ? progressPhotoDateStatus(
         pending.date,
         photos.map((photo) => photo.takenAt),
-        goals?.photoIntervalDays ?? 14,
-        todayKey(),
+        photoIntervalDays,
+        today,
+        progressStartDate,
       )
     : null;
   const poseAlreadyExists = pending
@@ -83,6 +100,17 @@ export function ProgressView() {
       setPending(null);
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function saveStartDate(e: React.FormEvent) {
+    e.preventDefault();
+    if (startInput && startInput > today) return;
+    setSavingStart(true);
+    try {
+      await saveProgressStartDate(startInput || null);
+    } finally {
+      setSavingStart(false);
     }
   }
 
@@ -265,6 +293,32 @@ export function ProgressView() {
           <span className="muted-sm">{photos.length} Bilder</span>
         </div>
 
+        <form onSubmit={saveStartDate} className="photo-start-row">
+          <div className="field">
+            <label className="field-label" htmlFor="progress-photo-start">Startdatum</label>
+            <input
+              id="progress-photo-start"
+              className="input compact"
+              type="date"
+              max={today}
+              value={startInput}
+              onChange={(e) => setStartInput(e.target.value)}
+            />
+          </div>
+          <button
+            type="submit"
+            className="button compact"
+            disabled={savingStart || startInput === (progressStartDate ?? '') || Boolean(startInput && startInput > today)}
+          >
+            {savingStart ? '…' : 'Speichern'}
+          </button>
+        </form>
+
+        <div className="photo-rhythm-row">
+          <span><CalendarCheck size={14} /> Start: {progressStartDate ? formatFullDate(progressStartDate) : 'nicht gesetzt'}</span>
+          <span>Nächster Foto-Tag: {nextPhotoDate ? formatFullDate(nextPhotoDate) : 'nach Startbild'}</span>
+        </div>
+
         <div className="chip-row" style={{ marginBottom: 12 }}>
           {POSES.map((option) => (
             <button
@@ -279,7 +333,7 @@ export function ProgressView() {
           ))}
         </div>
 
-        <PhotoCompare photos={posePhotos} />
+        {posePhotos.length >= 2 && <PhotoCompareFolder pose={pose} photos={posePhotos} />}
 
         {/* No `capture` attribute: forcing the camera made it impossible to add
             a photo from last week, which is most of what back-filling is. */}
@@ -301,7 +355,7 @@ export function ProgressView() {
                 className="input"
                 type="date"
                 value={pending.date}
-                max={todayKey()}
+                max={today}
                 onChange={(e) => setPending((prev) => (prev ? { ...prev, date: e.target.value } : prev))}
               />
             </div>
@@ -345,32 +399,10 @@ export function ProgressView() {
           </button>
         )}
 
-        {posePhotos.length > 0 && (
-          <div className="metric-thumb-grid" style={{ marginTop: 12 }}>
-            {posePhotos.slice(0, 6).map((photo) => (
-              <div key={photo.id} style={{ position: 'relative' }}>
-                <div style={{ position: 'relative', aspectRatio: '3 / 4', borderRadius: 'var(--radius)', overflow: 'hidden', background: 'var(--surface-2)' }}>
-                  {photo.url && (
-                    <img
-                      src={photo.url}
-                      alt={photo.takenAt}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                    />
-                  )}
-                </div>
-                <div className="row-between" style={{ marginTop: 4 }}>
-                  <span className="muted-sm">{photo.takenAt}</span>
-                  <button
-                    type="button"
-                    className="icon-button danger"
-                    style={{ width: 26, height: 26 }}
-                    onClick={() => void removePhoto(photo)}
-                    aria-label="Bild löschen"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              </div>
+        {photoGroups.length > 0 && (
+          <div className="photo-folder-list">
+            {photoGroups.map((group) => (
+              <PhotoFolder key={group.date} group={group} onRemove={(photo) => void removePhoto(photo)} />
             ))}
           </div>
         )}
@@ -398,6 +430,100 @@ export function ProgressView() {
         />
       )}
     </>
+  );
+}
+
+type PhotoDateGroup = {
+  date: string;
+  photos: ProgressPhoto[];
+  weightKg: number | null;
+};
+
+function poseLabel(pose: PhotoPose): string {
+  return POSES.find((option) => option.value === pose)?.label ?? pose;
+}
+
+function groupPhotosByDate(photos: readonly ProgressPhoto[]): PhotoDateGroup[] {
+  const groups = new Map<string, ProgressPhoto[]>();
+  for (const photo of photos) {
+    const date = photo.takenAt.slice(0, 10);
+    groups.set(date, [...(groups.get(date) ?? []), photo]);
+  }
+
+  return [...groups.entries()]
+    .map(([date, items]) => ({
+      date,
+      photos: [...items].sort((a, b) => poseLabel(a.pose).localeCompare(poseLabel(b.pose), 'de-DE')),
+      weightKg: items.find((photo) => photo.weightKg !== null)?.weightKg ?? null,
+    }))
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+function PhotoCompareFolder({ pose, photos }: { pose: PhotoPose; photos: readonly ProgressPhoto[] }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <details className="detail-fold" style={{ marginBottom: 12 }} onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>
+        <CalendarCheck size={14} /> Vergleich öffnen ({poseLabel(pose)})
+      </summary>
+      {open && (
+        <div style={{ marginTop: 12 }}>
+          <PhotoCompare photos={photos} />
+        </div>
+      )}
+    </details>
+  );
+}
+
+function PhotoFolder({ group, onRemove }: { group: PhotoDateGroup; onRemove: (photo: ProgressPhoto) => void }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <details className="photo-folder" onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>
+        <span className="photo-folder-title">
+          <Folder size={16} />
+          <span>
+            <span className="photo-folder-date">{formatFullDate(group.date)}</span>
+            <span className="photo-folder-meta">
+              {group.photos.length} {group.photos.length === 1 ? 'Bild' : 'Bilder'}
+              {group.weightKg !== null ? ` · ${formatKg(group.weightKg)}` : ''}
+            </span>
+          </span>
+        </span>
+        <span className="pill">{open ? 'Offen' : 'Öffnen'}</span>
+      </summary>
+
+      {open && (
+        <div className="metric-thumb-grid photo-folder-grid">
+          {group.photos.map((photo) => (
+            <div key={photo.id} className="photo-thumb">
+              <div className="photo-thumb-frame">
+                {photo.url && (
+                  <img
+                    src={photo.url}
+                    alt={`${poseLabel(photo.pose)} ${photo.takenAt}`}
+                  />
+                )}
+              </div>
+              <div className="row-between" style={{ marginTop: 4 }}>
+                <span className="muted-sm">{poseLabel(photo.pose)}</span>
+                <button
+                  type="button"
+                  className="icon-button danger"
+                  style={{ width: 26, height: 26 }}
+                  onClick={() => onRemove(photo)}
+                  aria-label={`${poseLabel(photo.pose)} vom ${photo.takenAt} löschen`}
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </details>
   );
 }
 
