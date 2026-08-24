@@ -19,13 +19,14 @@ from pathlib import Path
 
 DARK = (8, 7, 12)
 LIGHT = (244, 245, 251)
+FALLBACK = (27, 16, 48)
 DARK_HEX = '#08070c'
 LIGHT_HEX = '#f4f5fb'
 ALPHA_THRESHOLD = 8
 
-LOCKUP_SCALE = 0.90
+LOCKUP_SCALE = 0.79
 MARK_SCALE = 0.84
-MASKABLE_SCALE = 0.76
+MASKABLE_SCALE = 0.67
 
 
 def read_png(path):
@@ -333,13 +334,13 @@ def main():
         write_png(out_dir / f'apple-touch-icon-{name}.png', 180, 180, apple, 4)
         print(f'  wrote {name} PNG variants')
 
-    fallback = compose_icon(lockup, lockup_w, lockup_h, 180, LOCKUP_SCALE, DARK)
+    fallback = compose_icon(lockup, lockup_w, lockup_h, 180, LOCKUP_SCALE, FALLBACK)
     write_png(out_dir / 'apple-touch-icon.png', 180, 180, fallback, 4)
     for size in (192, 512):
         transparent = compose_icon(lockup, lockup_w, lockup_h, size, LOCKUP_SCALE)
         write_png(out_dir / f'icon-{size}.png', size, size, transparent, 4)
 
-        maskable = compose_icon(lockup, lockup_w, lockup_h, size, MASKABLE_SCALE, DARK)
+        maskable = compose_icon(lockup, lockup_w, lockup_h, size, MASKABLE_SCALE, FALLBACK)
         write_png(out_dir / f'icon-{size}-maskable.png', size, size, maskable, 4)
         if size == 512:
             write_png(out_dir / 'maskable-512.png', size, size, maskable, 4)

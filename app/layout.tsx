@@ -6,7 +6,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'FORGE — by SHMT',
   description: 'Dein persönliches Fortschrittssystem für Körper, Gewohnheiten und Disziplin.',
-  manifest: '/manifest.webmanifest',
+  manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

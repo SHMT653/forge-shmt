@@ -117,6 +117,7 @@ describe('service worker request routing', () => {
 
   it('never reaches for a cached manifest first', () => {
     expect(route('https://forge.test/manifest.webmanifest')).toBe('network-first');
+    expect(route('https://forge.test/manifest.json')).toBe('network-first');
   });
 
   it('still prefers the cache for content-hashed build output', () => {

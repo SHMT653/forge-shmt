@@ -62,7 +62,11 @@ function isImmutableAsset(url) {
  */
 function isStaticFile(url) {
   if (url.pathname.startsWith('/icons/')) return false;
-  if (url.pathname.endsWith('.webmanifest') || url.pathname === '/manifest.webmanifest') return false;
+  if (
+    url.pathname.endsWith('.webmanifest') ||
+    url.pathname === '/manifest.webmanifest' ||
+    url.pathname === '/manifest.json'
+  ) return false;
   return /\.(png|jpg|jpeg|svg|webp|ico|woff2?)$/i.test(url.pathname);
 }
 

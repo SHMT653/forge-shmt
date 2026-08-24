@@ -4,6 +4,7 @@ import { inflateSync } from 'node:zlib';
 
 const DARK_TILE: [number, number, number] = [8, 7, 12];
 const LIGHT_TILE: [number, number, number] = [244, 245, 251];
+const FALLBACK_TILE: [number, number, number] = [27, 16, 48];
 
 /**
  * The app icon follows the same contract as NEO: transparent lockups for plain
@@ -80,8 +81,8 @@ describe('app icons', () => {
     expect(cornerPixel('public/icons/app-icon-dark-512.png')).toEqual(DARK_TILE);
     expect(cornerPixel('public/icons/apple-touch-icon-light.png')).toEqual(LIGHT_TILE);
     expect(cornerPixel('public/icons/app-icon-light-512.png')).toEqual(LIGHT_TILE);
-    // The fallback is the dark one, because the app itself is dark.
-    expect(cornerPixel('public/icons/apple-touch-icon.png')).toEqual(DARK_TILE);
+    // Same as NEO: the unsuffixed iOS fallback uses the violet app tile.
+    expect(cornerPixel('public/icons/apple-touch-icon.png')).toEqual(FALLBACK_TILE);
   });
 
   it('keeps the stable apple fallback before optional light/dark variants', () => {
@@ -100,8 +101,8 @@ describe('app icons', () => {
     expect(favicons).toMatch(/app-icon-dark-512\.png[\s\S]*?prefers-color-scheme: dark/);
   });
 
-  it('keeps the unsuffixed home-screen fallback dark', () => {
-    expect(cornerPixel('public/icons/apple-touch-icon.png')).toEqual(DARK_TILE);
+  it('keeps the unsuffixed home-screen fallback on the NEO violet tile', () => {
+    expect(cornerPixel('public/icons/apple-touch-icon.png')).toEqual(FALLBACK_TILE);
   });
 
   it('gives maskable its own artwork rather than relabelling the full tile', () => {
@@ -112,10 +113,10 @@ describe('app icons', () => {
     const maskable = readFileSync('public/icons/icon-512-maskable.png');
     expect(full.equals(maskable)).toBe(false);
 
-    const manifest = readFileSync('app/manifest.ts', 'utf8');
-    expect(manifest).toMatch(/app-icon\.svg[\s\S]*?purpose: 'any'/);
-    expect(manifest).toMatch(/maskable-icon\.svg[\s\S]*?purpose: 'maskable'/);
-    expect(manifest).toMatch(/maskable-512\.png[\s\S]*?purpose: 'maskable'/);
+    const manifest = readFileSync('public/manifest.json', 'utf8');
+    expect(manifest).toMatch(/app-icon\.svg[\s\S]*?"purpose": "any"/);
+    expect(manifest).toMatch(/maskable-icon\.svg[\s\S]*?"purpose": "maskable"/);
+    expect(manifest).toMatch(/maskable-512\.png[\s\S]*?"purpose": "maskable"/);
     expect(manifest).not.toMatch(/icon-512\.png', sizes: '512x512', type: 'image\/png', purpose: 'maskable'/);
   });
 
@@ -124,7 +125,7 @@ describe('app icons', () => {
     // pixel the phone will not show.
     for (const name of ['apple-touch-icon', 'apple-touch-icon-light']) {
       expect(cornerPixel(`public/icons/${name}.png`), name)
-        .toEqual(name.endsWith('light') ? LIGHT_TILE : DARK_TILE);
+        .toEqual(name.endsWith('light') ? LIGHT_TILE : FALLBACK_TILE);
     }
   });
 });
