@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import {
   Utensils, Droplets, Footprints, Moon, Scale, Dumbbell, Search, Sparkles,
-  Plus, Check, X, Star, ScanBarcode, Camera, Upload, Flashlight, FlashlightOff,
+  Plus, Check, X, Star, ScanBarcode, Camera, Upload, Flashlight, FlashlightOff, SwitchCamera,
 } from 'lucide-react';
 import { Sheet } from './Sheet';
 import { useFoodSearch } from '@/web/hooks/useFoodSearch';
@@ -39,21 +40,17 @@ type ExtendedMediaTrackConstraintSet = MediaTrackConstraintSet & {
 type ExtendedMediaTrackCapabilities = MediaTrackCapabilities & {
   torch?: boolean;
 };
+type CameraFacingMode = 'environment' | 'user';
+type CameraScannerHandle = {
+  start: (facingMode?: CameraFacingMode) => Promise<void>;
+  stop: () => void;
+};
 
 const CAMERA_TUNING: ExtendedMediaTrackConstraintSet[] = [
   { focusMode: 'continuous' },
   { exposureMode: 'continuous' },
   { whiteBalanceMode: 'continuous' },
 ];
-const BARCODE_CAMERA_CONSTRAINTS: MediaStreamConstraints = {
-  audio: false,
-  video: {
-    facingMode: { ideal: 'environment' },
-    width: { ideal: 1920 },
-    height: { ideal: 1080 },
-    advanced: CAMERA_TUNING,
-  } as MediaTrackConstraints,
-};
 
 type ManualUnit = 'portion' | 'g' | 'ml' | 'piece' | 'glass' | 'can' | 'bottle' | 'pack';
 
@@ -543,30 +540,7 @@ function BarcodePanel({
   const [lookingUp, setLookingUp] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function openIfAlreadyAllowed() {
-      if (busy || scanPaused || lookingUp || cameraOpen || typeof navigator === 'undefined') return;
-      if (readRememberedBarcodeCamera()) {
-        setCameraOpen(true);
-        return;
-      }
-
-      try {
-        const permission = await navigator.permissions?.query({ name: 'camera' as PermissionName });
-        if (!cancelled && permission?.state === 'granted') setCameraOpen(true);
-      } catch {
-        // Safari support is partial; the normal camera button remains available.
-      }
-    }
-
-    void openIfAlreadyAllowed();
-    return () => {
-      cancelled = true;
-    };
-  }, [busy, cameraOpen, lookingUp, scanPaused]);
+  const scannerRef = useRef<CameraScannerHandle>(null);
 
   const lookup = useCallback(
     async (raw: string) => {
@@ -629,6 +603,18 @@ function BarcodePanel({
     }
   }
 
+  async function handleScannerButton() {
+    if (cameraOpen) {
+      scannerRef.current?.stop();
+      setCameraOpen(false);
+      return;
+    }
+
+    flushSync(() => setCameraOpen(true));
+    setStatus(null);
+    await scannerRef.current?.start('environment');
+  }
+
   return (
     <div className="panel soft" style={{ padding: 12 }}>
       <div className="row-between" style={{ marginBottom: 10 }}>
@@ -640,7 +626,7 @@ function BarcodePanel({
           type="button"
           className="button secondary compact"
           disabled={busy || lookingUp || scanPaused}
-          onClick={() => setCameraOpen((open) => !open)}
+          onClick={() => void handleScannerButton()}
         >
           <Camera size={15} /> {cameraOpen ? 'Ausblenden' : 'Scannen'}
         </button>
@@ -687,13 +673,13 @@ function BarcodePanel({
 
       {status && <p className="muted-sm" style={{ marginTop: 8 }}>{status}</p>}
 
-      {cameraOpen && (
-        <CameraScanner
-          onDetected={handleDetected}
-          onReady={rememberBarcodeCamera}
-          onClose={() => setCameraOpen(false)}
-        />
-      )}
+      <CameraScanner
+        ref={scannerRef}
+        visible={cameraOpen}
+        onDetected={handleDetected}
+        onReady={rememberBarcodeCamera}
+        onClose={() => setCameraOpen(false)}
+      />
     </div>
   );
 }
@@ -780,15 +766,6 @@ function firstFoodBarcode(results: NativeBarcodeResult[]): string | null {
   return results[0]?.rawValue?.trim() || null;
 }
 
-function readRememberedBarcodeCamera(): boolean {
-  if (typeof window === 'undefined') return false;
-  try {
-    return window.localStorage.getItem(BARCODE_CAMERA_READY_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
 function rememberBarcodeCamera(): void {
   if (typeof window === 'undefined') return;
   try {
@@ -839,15 +816,41 @@ async function setStreamTorch(stream: MediaStream | null, enabled: boolean): Pro
   return true;
 }
 
-function CameraScanner({
-  onDetected,
-  onReady,
-  onClose,
-}: {
+function barcodeCameraConstraints(facingMode: CameraFacingMode, tuned = true): MediaStreamConstraints {
+  return {
+    audio: false,
+    video: {
+      facingMode: { ideal: facingMode },
+      width: { ideal: tuned ? 1280 : 640 },
+      height: { ideal: tuned ? 720 : 480 },
+      ...(tuned ? { advanced: CAMERA_TUNING } : {}),
+    } as MediaTrackConstraints,
+  };
+}
+
+async function requestBarcodeCameraStream(facingMode: CameraFacingMode): Promise<MediaStream> {
+  try {
+    return await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints(facingMode));
+  } catch {
+    try {
+      return await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints(facingMode, false));
+    } catch {
+      return navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+    }
+  }
+}
+
+const CameraScanner = forwardRef<CameraScannerHandle, {
+  visible: boolean;
   onDetected: (raw: string) => void;
   onReady: () => void;
   onClose: () => void;
-}) {
+}>(function CameraScanner({
+  visible,
+  onDetected,
+  onReady,
+  onClose,
+}, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
   const nativeTimerRef = useRef<number | null>(null);
@@ -855,12 +858,14 @@ function CameraScanner({
   const runningRef = useRef(false);
   const closedRef = useRef(false);
   const detectedRef = useRef(false);
+  const facingModeRef = useRef<CameraFacingMode>('environment');
   const nativeErrorCountRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [running, setRunning] = useState(false);
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
+  const [facingMode, setFacingMode] = useState<CameraFacingMode>('environment');
 
   const setScanRunning = useCallback((next: boolean) => {
     runningRef.current = next;
@@ -946,23 +951,27 @@ function CameraScanner({
     nativeTimerRef.current = window.setTimeout(scan, 60);
   }, [completeScan, startZxingOnStream, stopScan]);
 
-  const startScan = useCallback(async () => {
-    if (startingRef.current || runningRef.current) return;
+  const startScan = useCallback(async (nextFacingMode: CameraFacingMode = facingModeRef.current) => {
+    if (startingRef.current) return;
     if (!navigator.mediaDevices?.getUserMedia) {
       setError('Kamera ist hier nicht verfügbar.');
       return;
     }
 
+    if (runningRef.current) stopScan();
+
     setError(null);
     detectedRef.current = false;
     nativeErrorCountRef.current = 0;
+    facingModeRef.current = nextFacingMode;
+    setFacingMode(nextFacingMode);
     startingRef.current = true;
     setStarting(true);
     try {
       const video = videoRef.current;
       if (!video) return;
 
-      const stream = await navigator.mediaDevices.getUserMedia(BARCODE_CAMERA_CONSTRAINTS);
+      const stream = await requestBarcodeCameraStream(nextFacingMode);
       if (closedRef.current) {
         stopMediaStream(stream);
         return;
@@ -988,6 +997,16 @@ function CameraScanner({
     }
   }, [onReady, scheduleNativeScan, setScanRunning, startZxingOnStream, stopScan]);
 
+  useImperativeHandle(ref, () => ({
+    start: startScan,
+    stop: stopScan,
+  }), [startScan, stopScan]);
+
+  const switchCamera = useCallback(async () => {
+    const next: CameraFacingMode = facingModeRef.current === 'environment' ? 'user' : 'environment';
+    await startScan(next);
+  }, [startScan]);
+
   const toggleTorch = useCallback(async () => {
     const next = !torchOn;
     try {
@@ -1001,15 +1020,14 @@ function CameraScanner({
 
   useEffect(() => {
     closedRef.current = false;
-    void startScan();
     return () => {
       closedRef.current = true;
       stopScan();
     };
-  }, [startScan, stopScan]);
+  }, [stopScan]);
 
   return (
-    <div className="panel" style={{ marginTop: 10, padding: 10 }}>
+    <div className="panel" style={{ display: visible ? 'block' : 'none', marginTop: 10, padding: 10 }}>
       <div style={{ position: 'relative', aspectRatio: '16 / 10', overflow: 'hidden', borderRadius: 'var(--radius)', background: 'var(--surface-2)' }}>
         <video
           ref={videoRef}
@@ -1046,6 +1064,10 @@ function CameraScanner({
         >
           {running ? 'Stoppen' : 'Weiter'}
         </button>
+        <button type="button" className="button ghost compact" disabled={starting} onClick={() => void switchCamera()}>
+          <SwitchCamera size={14} />
+          {facingMode === 'environment' ? 'Front' : 'Rück'}
+        </button>
         {torchAvailable && (
           <button type="button" className="button ghost compact" disabled={!running} onClick={() => void toggleTorch()}>
             {torchOn ? <FlashlightOff size={14} /> : <Flashlight size={14} />}
@@ -1057,12 +1079,20 @@ function CameraScanner({
         </span>
       </div>
       {error && <p className="muted-sm" style={{ marginTop: 8, color: 'var(--danger)' }}>{error}</p>}
-      <button type="button" className="button ghost compact" style={{ marginTop: 8, padding: 0 }} onClick={onClose}>
+      <button
+        type="button"
+        className="button ghost compact"
+        style={{ marginTop: 8, padding: 0 }}
+        onClick={() => {
+          stopScan();
+          onClose();
+        }}
+      >
         Scanner schließen
       </button>
     </div>
   );
-}
+});
 
 const SOURCE_NOTE: Record<ScoredCandidate['source'], string> = {
   library: 'aus deiner Bibliothek',
