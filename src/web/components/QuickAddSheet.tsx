@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Utensils, Droplets, Footprints, Moon, Scale, Dumbbell, Search, Sparkles,
-  Plus, Check, X, Star, ScanBarcode, Camera, Upload,
+  Plus, Check, X, Star, ScanBarcode, Camera, Upload, Flashlight, FlashlightOff,
 } from 'lucide-react';
 import { Sheet } from './Sheet';
 import { useFoodSearch } from '@/web/hooks/useFoodSearch';
@@ -21,6 +21,39 @@ type Mode = 'food' | 'water' | 'steps' | 'sleep' | 'weight' | 'training';
 const WATER_STEPS = [250, 500, 750];
 const SLEEP_OPTIONS = [7, 7.5, 8, 8.5, 9, 9.5, 10];
 const BARCODE_CAMERA_READY_KEY = 'forge-barcode-camera-ready';
+const FOOD_BARCODE_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'code_93', 'codabar', 'itf'];
+
+type NativeBarcodeResult = { rawValue?: string };
+type NativeBarcodeDetectorSource = HTMLVideoElement | HTMLImageElement | HTMLCanvasElement | ImageBitmap | Blob;
+type NativeBarcodeDetector = { detect: (source: NativeBarcodeDetectorSource) => Promise<NativeBarcodeResult[]> };
+type NativeBarcodeDetectorConstructor = {
+  new(options?: { formats?: string[] }): NativeBarcodeDetector;
+  getSupportedFormats?: () => Promise<string[]>;
+};
+type ExtendedMediaTrackConstraintSet = MediaTrackConstraintSet & {
+  focusMode?: 'continuous';
+  exposureMode?: 'continuous';
+  whiteBalanceMode?: 'continuous';
+  torch?: boolean;
+};
+type ExtendedMediaTrackCapabilities = MediaTrackCapabilities & {
+  torch?: boolean;
+};
+
+const CAMERA_TUNING: ExtendedMediaTrackConstraintSet[] = [
+  { focusMode: 'continuous' },
+  { exposureMode: 'continuous' },
+  { whiteBalanceMode: 'continuous' },
+];
+const BARCODE_CAMERA_CONSTRAINTS: MediaStreamConstraints = {
+  audio: false,
+  video: {
+    facingMode: { ideal: 'environment' },
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+    advanced: CAMERA_TUNING,
+  } as MediaTrackConstraints,
+};
 
 type ManualUnit = 'portion' | 'g' | 'ml' | 'piece' | 'glass' | 'can' | 'bottle' | 'pack';
 
@@ -666,8 +699,22 @@ function BarcodePanel({
 }
 
 async function decodeBarcodeFromImageFile(file: File): Promise<string | null> {
-  const { BrowserMultiFormatOneDReader } = await import('@zxing/browser');
-  const reader = new BrowserMultiFormatOneDReader();
+  const nativeDetector = await createNativeBarcodeDetector();
+  if (nativeDetector) {
+    try {
+      const source = typeof createImageBitmap === 'function' ? await createImageBitmap(file) : file;
+      try {
+        const raw = firstFoodBarcode(await nativeDetector.detect(source));
+        if (raw) return raw;
+      } finally {
+        if ('close' in source) source.close();
+      }
+    } catch {
+      // The ZXing fallback below supports browsers without native image scans.
+    }
+  }
+
+  const reader = await createZxingOneDReader();
   const url = URL.createObjectURL(file);
   try {
     const result = await reader.decodeFromImageUrl(url);
@@ -677,6 +724,60 @@ async function decodeBarcodeFromImageFile(file: File): Promise<string | null> {
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+function nativeBarcodeDetectorConstructor(): NativeBarcodeDetectorConstructor | null {
+  if (typeof window === 'undefined') return null;
+  const maybeWindow = window as Window & { BarcodeDetector?: NativeBarcodeDetectorConstructor };
+  return maybeWindow.BarcodeDetector ?? null;
+}
+
+async function createNativeBarcodeDetector(): Promise<NativeBarcodeDetector | null> {
+  const BarcodeDetector = nativeBarcodeDetectorConstructor();
+  if (!BarcodeDetector) return null;
+
+  try {
+    const supported = await BarcodeDetector.getSupportedFormats?.();
+    const formats = supported
+      ? FOOD_BARCODE_FORMATS.filter((format) => supported.includes(format))
+      : FOOD_BARCODE_FORMATS;
+    if (formats.length === 0) return null;
+    return new BarcodeDetector({ formats });
+  } catch {
+    return null;
+  }
+}
+
+async function createZxingOneDReader() {
+  const [{ BrowserMultiFormatOneDReader }, { BarcodeFormat, DecodeHintType }] = await Promise.all([
+    import('@zxing/browser'),
+    import('@zxing/library'),
+  ]);
+  const hints = new Map();
+  hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+    BarcodeFormat.EAN_13,
+    BarcodeFormat.EAN_8,
+    BarcodeFormat.UPC_A,
+    BarcodeFormat.UPC_E,
+    BarcodeFormat.CODE_128,
+    BarcodeFormat.CODE_39,
+    BarcodeFormat.ITF,
+    BarcodeFormat.CODABAR,
+  ]);
+  hints.set(DecodeHintType.TRY_HARDER, true);
+  return new BrowserMultiFormatOneDReader(hints, {
+    delayBetweenScanAttempts: 70,
+    delayBetweenScanSuccess: 180,
+    tryPlayVideoTimeout: 3000,
+  });
+}
+
+function firstFoodBarcode(results: NativeBarcodeResult[]): string | null {
+  for (const result of results) {
+    const raw = result.rawValue?.trim();
+    if (raw && normalizeBarcode(raw)) return raw;
+  }
+  return results[0]?.rawValue?.trim() || null;
 }
 
 function readRememberedBarcodeCamera(): boolean {
@@ -697,6 +798,47 @@ function rememberBarcodeCamera(): void {
   }
 }
 
+function mediaStreamFromVideo(video: HTMLVideoElement | null): MediaStream | null {
+  return video?.srcObject instanceof MediaStream ? video.srcObject : null;
+}
+
+function stopMediaStream(stream: MediaStream | null): void {
+  stream?.getTracks().forEach((track) => track.stop());
+}
+
+async function attachCameraStream(video: HTMLVideoElement, stream: MediaStream): Promise<void> {
+  video.srcObject = stream;
+  await new Promise<void>((resolve) => {
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      resolve();
+      return;
+    }
+    const timeout = window.setTimeout(resolve, 1000);
+    video.onloadedmetadata = () => {
+      window.clearTimeout(timeout);
+      resolve();
+    };
+  });
+  await video.play().catch(() => undefined);
+}
+
+async function prepareCameraStream(stream: MediaStream): Promise<boolean> {
+  const track = stream.getVideoTracks()[0];
+  if (!track) return false;
+  await track.applyConstraints({ advanced: CAMERA_TUNING } as MediaTrackConstraints).catch(() => undefined);
+  const capabilities = track.getCapabilities?.() as ExtendedMediaTrackCapabilities | undefined;
+  return Boolean(capabilities?.torch);
+}
+
+async function setStreamTorch(stream: MediaStream | null, enabled: boolean): Promise<boolean> {
+  const track = stream?.getVideoTracks()[0];
+  if (!track) return false;
+  const capabilities = track.getCapabilities?.() as ExtendedMediaTrackCapabilities | undefined;
+  if (!capabilities?.torch) return false;
+  await track.applyConstraints({ advanced: [{ torch: enabled }] as ExtendedMediaTrackConstraintSet[] } as MediaTrackConstraints);
+  return true;
+}
+
 function CameraScanner({
   onDetected,
   onReady,
@@ -708,25 +850,104 @@ function CameraScanner({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
+  const nativeTimerRef = useRef<number | null>(null);
   const startingRef = useRef(false);
+  const runningRef = useRef(false);
   const closedRef = useRef(false);
   const detectedRef = useRef(false);
+  const nativeErrorCountRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [running, setRunning] = useState(false);
+  const [torchAvailable, setTorchAvailable] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+
+  const setScanRunning = useCallback((next: boolean) => {
+    runningRef.current = next;
+    setRunning(next);
+  }, []);
+
+  const clearNativeLoop = useCallback(() => {
+    if (nativeTimerRef.current !== null) {
+      window.clearTimeout(nativeTimerRef.current);
+      nativeTimerRef.current = null;
+    }
+  }, []);
 
   const stopScan = useCallback(() => {
     startingRef.current = false;
+    clearNativeLoop();
     controlsRef.current?.stop();
     controlsRef.current = null;
-    const stream = videoRef.current?.srcObject;
-    if (stream instanceof MediaStream) stream.getTracks().forEach((track) => track.stop());
-    if (videoRef.current) videoRef.current.srcObject = null;
-    setRunning(false);
-  }, []);
+    stopMediaStream(mediaStreamFromVideo(videoRef.current));
+    if (videoRef.current) {
+      videoRef.current.onloadedmetadata = null;
+      videoRef.current.srcObject = null;
+    }
+    setTorchAvailable(false);
+    setTorchOn(false);
+    setScanRunning(false);
+  }, [clearNativeLoop, setScanRunning]);
+
+  const completeScan = useCallback((raw: string) => {
+    if (detectedRef.current) return;
+    detectedRef.current = true;
+    stopScan();
+    onDetected(raw);
+  }, [onDetected, stopScan]);
+
+  const startZxingOnStream = useCallback(async (stream: MediaStream, video: HTMLVideoElement) => {
+    clearNativeLoop();
+    const reader = await createZxingOneDReader();
+    const controls = await reader.decodeFromStream(stream, video, (result, _error, scanControls) => {
+      const raw = result?.getText();
+      if (!raw || detectedRef.current) return;
+      scanControls.stop();
+      completeScan(raw);
+    });
+
+    if (closedRef.current || detectedRef.current) {
+      controls.stop();
+      return;
+    }
+
+    controlsRef.current = controls;
+    setScanRunning(true);
+    onReady();
+  }, [clearNativeLoop, completeScan, onReady, setScanRunning]);
+
+  const scheduleNativeScan = useCallback((detector: NativeBarcodeDetector, stream: MediaStream, video: HTMLVideoElement) => {
+    const scan = async () => {
+      if (closedRef.current || detectedRef.current || !runningRef.current) return;
+
+      try {
+        if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          const raw = firstFoodBarcode(await detector.detect(video));
+          nativeErrorCountRef.current = 0;
+          if (raw) {
+            completeScan(raw);
+            return;
+          }
+        }
+      } catch {
+        nativeErrorCountRef.current += 1;
+        if (nativeErrorCountRef.current >= 2 && !controlsRef.current && !closedRef.current) {
+          void startZxingOnStream(stream, video).catch(() => {
+            stopScan();
+            setError('Scanner konnte nicht gestartet werden. Nutze Barcode-Foto oder gib die Nummer ein.');
+          });
+          return;
+        }
+      }
+
+      nativeTimerRef.current = window.setTimeout(scan, 90);
+    };
+
+    nativeTimerRef.current = window.setTimeout(scan, 60);
+  }, [completeScan, startZxingOnStream, stopScan]);
 
   const startScan = useCallback(async () => {
-    if (startingRef.current || controlsRef.current) return;
+    if (startingRef.current || runningRef.current) return;
     if (!navigator.mediaDevices?.getUserMedia) {
       setError('Kamera ist hier nicht verfügbar.');
       return;
@@ -734,43 +955,49 @@ function CameraScanner({
 
     setError(null);
     detectedRef.current = false;
+    nativeErrorCountRef.current = 0;
     startingRef.current = true;
     setStarting(true);
     try {
       const video = videoRef.current;
       if (!video) return;
-      const { BrowserMultiFormatOneDReader } = await import('@zxing/browser');
-      const reader = new BrowserMultiFormatOneDReader();
-      const controls = await reader.decodeFromConstraints(
-        { video: { facingMode: { ideal: 'environment' } }, audio: false },
-        video,
-        (result, _error, scanControls) => {
-          const raw = result?.getText();
-          if (!raw || detectedRef.current) return;
-          detectedRef.current = true;
-          scanControls.stop();
-          controlsRef.current = null;
-          const stream = videoRef.current?.srcObject;
-          if (stream instanceof MediaStream) stream.getTracks().forEach((track) => track.stop());
-          if (videoRef.current) videoRef.current.srcObject = null;
-          setRunning(false);
-          onDetected(raw);
-        },
-      );
+
+      const stream = await navigator.mediaDevices.getUserMedia(BARCODE_CAMERA_CONSTRAINTS);
       if (closedRef.current) {
-        controls.stop();
+        stopMediaStream(stream);
         return;
       }
-      controlsRef.current = controls;
-      setRunning(true);
-      onReady();
+
+      await attachCameraStream(video, stream);
+      setTorchAvailable(await prepareCameraStream(stream));
+
+      const nativeDetector = await createNativeBarcodeDetector();
+      if (nativeDetector) {
+        setScanRunning(true);
+        onReady();
+        scheduleNativeScan(nativeDetector, stream, video);
+      } else {
+        await startZxingOnStream(stream, video);
+      }
     } catch {
+      stopScan();
       setError('Kamera konnte nicht gestartet werden. Nutze Barcode-Foto oder gib die Nummer ein.');
     } finally {
       startingRef.current = false;
       setStarting(false);
     }
-  }, [onDetected, onReady]);
+  }, [onReady, scheduleNativeScan, setScanRunning, startZxingOnStream, stopScan]);
+
+  const toggleTorch = useCallback(async () => {
+    const next = !torchOn;
+    try {
+      const changed = await setStreamTorch(mediaStreamFromVideo(videoRef.current), next);
+      if (changed) setTorchOn(next);
+    } catch {
+      setTorchAvailable(false);
+      setTorchOn(false);
+    }
+  }, [torchOn]);
 
   useEffect(() => {
     closedRef.current = false;
@@ -783,13 +1010,25 @@ function CameraScanner({
 
   return (
     <div className="panel" style={{ marginTop: 10, padding: 10 }}>
-      <div style={{ position: 'relative', aspectRatio: '4 / 3', overflow: 'hidden', borderRadius: 'var(--radius)', background: 'var(--surface-2)' }}>
+      <div style={{ position: 'relative', aspectRatio: '16 / 10', overflow: 'hidden', borderRadius: 'var(--radius)', background: 'var(--surface-2)' }}>
         <video
           ref={videoRef}
           playsInline
           muted
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           aria-label="Barcode Kamera"
+        />
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            left: '10%',
+            right: '10%',
+            top: '42%',
+            height: 2,
+            background: 'rgba(255,255,255,0.82)',
+            boxShadow: '0 0 16px rgba(170,77,255,0.75)',
+          }}
         />
       </div>
       <div className="button-row" style={{ marginTop: 8 }}>
@@ -807,6 +1046,12 @@ function CameraScanner({
         >
           {running ? 'Stoppen' : 'Weiter'}
         </button>
+        {torchAvailable && (
+          <button type="button" className="button ghost compact" disabled={!running} onClick={() => void toggleTorch()}>
+            {torchOn ? <FlashlightOff size={14} /> : <Flashlight size={14} />}
+            Licht
+          </button>
+        )}
         <span className="muted-sm" style={{ flex: 1 }}>
           {starting ? 'Scanner startet …' : running ? 'Scanner läuft' : 'Scanner pausiert'}
         </span>
