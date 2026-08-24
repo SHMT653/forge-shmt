@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import {
+  barcodeLookupVariants,
   defaultPortionG,
   findOpenFoodFactsByBarcode,
   normalizeBarcode,
@@ -17,6 +18,10 @@ function offProductResponse(product: unknown, status = 1) {
   return { ok: true, json: async () => ({ status, product }) } as unknown as Response;
 }
 
+function fdcResponse(foods: unknown[]) {
+  return { ok: true, json: async () => ({ foods }) } as unknown as Response;
+}
+
 const skyr = {
   code: '4001724819394',
   product_name_de: 'Skyr Natur',
@@ -24,6 +29,20 @@ const skyr = {
   serving_size: '150 g',
   unique_scans_n: 1200,
   nutriments: { 'energy-kcal_100g': 63, proteins_100g: 11, carbohydrates_100g: 4, fat_100g: 0.2 },
+};
+
+const cheddar = {
+  description: 'CHEDDAR CHEESE',
+  brandName: 'GRAFTON VILLAGE',
+  gtinUpc: '094395000172',
+  servingSize: 28,
+  servingSizeUnit: 'g',
+  foodNutrients: [
+    { nutrientId: 1008, nutrientNumber: '208', value: 393, unitName: 'KCAL' },
+    { nutrientId: 1003, nutrientNumber: '203', value: 21.4, unitName: 'G' },
+    { nutrientId: 1005, nutrientNumber: '205', value: 3.57, unitName: 'G' },
+    { nutrientId: 1004, nutrientNumber: '204', value: 28.6, unitName: 'G' },
+  ],
 };
 
 describe('searchOpenFoodFacts', () => {
@@ -119,7 +138,17 @@ describe('findOpenFoodFactsByBarcode', () => {
 
   it('normalises package barcode text', () => {
     expect(normalizeBarcode('4 001724 819394')).toBe('4001724819394');
+    expect(normalizeBarcode('https://id.gs1.org/01/04001724819394/10/ABC')).toBe('04001724819394');
+    expect(normalizeBarcode('(01)04001724819394(17)260101')).toBe('04001724819394');
     expect(normalizeBarcode('abc')).toBeNull();
+  });
+
+  it('creates lookup variants for GTINs with a leading zero', () => {
+    expect(barcodeLookupVariants('https://id.gs1.org/01/04001724819394')).toEqual([
+      '04001724819394',
+      '4001724819394',
+    ]);
+    expect(barcodeLookupVariants('094395000172')).toEqual(['094395000172']);
   });
 
   it('loads one product by barcode', async () => {
@@ -149,6 +178,42 @@ describe('findOpenFoodFactsByBarcode', () => {
     expect(result?.name).toBe('Skyr Natur');
     expect(fetchMock).toHaveBeenNthCalledWith(1, expect.stringContaining('world.openfoodfacts.org'), expect.anything());
     expect(fetchMock).toHaveBeenNthCalledWith(2, expect.stringContaining('de.openfoodfacts.org'), expect.anything());
+  });
+
+  it('tries a stripped EAN variant when a GS1 GTIN-14 misses', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(offProductResponse(null, 0))
+      .mockResolvedValueOnce(offProductResponse(null, 0))
+      .mockResolvedValueOnce(offProductResponse(skyr))
+      .mockResolvedValueOnce(offProductResponse(null, 0));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await findOpenFoodFactsByBarcode('https://id.gs1.org/01/04001724819394');
+
+    expect(result?.name).toBe('Skyr Natur');
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/v2/product/04001724819394.json'), expect.anything());
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/v2/product/4001724819394.json'), expect.anything());
+  });
+
+  it('uses FoodData Central as a last barcode fallback', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(offProductResponse(null, 0))
+      .mockResolvedValueOnce(offProductResponse(null, 0))
+      .mockResolvedValueOnce(fdcResponse([cheddar]));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await findOpenFoodFactsByBarcode('094395000172');
+
+    expect(result).toMatchObject({
+      code: '094395000172',
+      name: 'CHEDDAR CHEESE',
+      brand: 'GRAFTON VILLAGE',
+      servingSizeG: 28,
+    });
+    expect(result?.per100).toEqual({ kcal: 393, proteinG: 21.4, carbsG: 3.6, fatG: 28.6 });
+    expect(fetchMock).toHaveBeenLastCalledWith(expect.stringContaining('api.nal.usda.gov/fdc/v1/foods/search'), expect.anything());
   });
 
   it('does not call the network for an invalid barcode', async () => {

@@ -4,14 +4,14 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import { flushSync } from 'react-dom';
 import {
   Utensils, Droplets, Footprints, Moon, Scale, Dumbbell, Search, Sparkles,
-  Plus, Check, X, Star, ScanBarcode, Camera, Upload, Flashlight, FlashlightOff, SwitchCamera,
+  Plus, Check, X, Star, ScanBarcode, Camera, Upload, Flashlight, FlashlightOff,
 } from 'lucide-react';
 import { Sheet } from './Sheet';
 import { useFoodSearch } from '@/web/hooks/useFoodSearch';
 import { scaleCandidate, type ScoredCandidate } from '@/domain/foodResolver';
 import { slotForHour } from '@/domain/nutritionMath';
 import { formatLiters, formatHours } from '@/domain/dayEvaluation';
-import { defaultPortionG, findOpenFoodFactsByBarcode, normalizeBarcode, offPortion, type OffFood } from '@/data/foodSearch';
+import { barcodeLookupVariants, defaultPortionG, findOpenFoodFactsByBarcode, normalizeBarcode, offPortion, type OffFood } from '@/data/foodSearch';
 import type { MealEntry, MealEntryInput } from '@/data/nutrition';
 import type { FoodItemInput } from '@/data/foodLibrary';
 import type { FoodItem } from '@/domain/types';
@@ -22,7 +22,21 @@ type Mode = 'food' | 'water' | 'steps' | 'sleep' | 'weight' | 'training';
 const WATER_STEPS = [250, 500, 750];
 const SLEEP_OPTIONS = [7, 7.5, 8, 8.5, 9, 9.5, 10];
 const BARCODE_CAMERA_READY_KEY = 'forge-barcode-camera-ready';
-const FOOD_BARCODE_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'code_93', 'codabar', 'itf'];
+const FOOD_BARCODE_FORMATS = [
+  'aztec',
+  'codabar',
+  'code_39',
+  'code_93',
+  'code_128',
+  'data_matrix',
+  'ean_8',
+  'ean_13',
+  'itf',
+  'pdf417',
+  'qr_code',
+  'upc_a',
+  'upc_e',
+];
 
 type NativeBarcodeResult = { rawValue?: string };
 type NativeBarcodeDetectorSource = HTMLVideoElement | HTMLImageElement | HTMLCanvasElement | ImageBitmap | Blob;
@@ -40,9 +54,8 @@ type ExtendedMediaTrackConstraintSet = MediaTrackConstraintSet & {
 type ExtendedMediaTrackCapabilities = MediaTrackCapabilities & {
   torch?: boolean;
 };
-type CameraFacingMode = 'environment' | 'user';
 type CameraScannerHandle = {
-  start: (facingMode?: CameraFacingMode) => Promise<void>;
+  start: () => Promise<void>;
   stop: () => void;
 };
 
@@ -554,7 +567,11 @@ function BarcodePanel({
       setLookingUp(true);
       setStatus('Produkt wird gesucht …');
       try {
-        const local = allFoods.find((food) => normalizeBarcode(food.barcode ?? '') === code);
+        const scannedVariants = barcodeLookupVariants(code);
+        const local = allFoods.find((food) => {
+          const foodVariants = barcodeLookupVariants(food.barcode ?? '');
+          return foodVariants.some((variant) => scannedVariants.includes(variant));
+        });
         if (local) {
           onFound(candidateFromFood(local, code));
           setStatus(`${local.name} gefunden.`);
@@ -612,7 +629,7 @@ function BarcodePanel({
 
     flushSync(() => setCameraOpen(true));
     setStatus(null);
-    await scannerRef.current?.start('environment');
+    await scannerRef.current?.start();
   }
 
   return (
@@ -700,7 +717,7 @@ async function decodeBarcodeFromImageFile(file: File): Promise<string | null> {
     }
   }
 
-  const reader = await createZxingOneDReader();
+  const reader = await createZxingReader();
   const url = URL.createObjectURL(file);
   try {
     const result = await reader.decodeFromImageUrl(url);
@@ -734,24 +751,29 @@ async function createNativeBarcodeDetector(): Promise<NativeBarcodeDetector | nu
   }
 }
 
-async function createZxingOneDReader() {
-  const [{ BrowserMultiFormatOneDReader }, { BarcodeFormat, DecodeHintType }] = await Promise.all([
+async function createZxingReader() {
+  const [{ BrowserMultiFormatReader }, { BarcodeFormat, DecodeHintType }] = await Promise.all([
     import('@zxing/browser'),
     import('@zxing/library'),
   ]);
   const hints = new Map();
   hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+    BarcodeFormat.AZTEC,
+    BarcodeFormat.CODABAR,
+    BarcodeFormat.CODE_39,
+    BarcodeFormat.CODE_93,
+    BarcodeFormat.CODE_128,
+    BarcodeFormat.DATA_MATRIX,
     BarcodeFormat.EAN_13,
     BarcodeFormat.EAN_8,
+    BarcodeFormat.ITF,
+    BarcodeFormat.PDF_417,
+    BarcodeFormat.QR_CODE,
     BarcodeFormat.UPC_A,
     BarcodeFormat.UPC_E,
-    BarcodeFormat.CODE_128,
-    BarcodeFormat.CODE_39,
-    BarcodeFormat.ITF,
-    BarcodeFormat.CODABAR,
   ]);
   hints.set(DecodeHintType.TRY_HARDER, true);
-  return new BrowserMultiFormatOneDReader(hints, {
+  return new BrowserMultiFormatReader(hints, {
     delayBetweenScanAttempts: 70,
     delayBetweenScanSuccess: 180,
     tryPlayVideoTimeout: 3000,
@@ -816,11 +838,11 @@ async function setStreamTorch(stream: MediaStream | null, enabled: boolean): Pro
   return true;
 }
 
-function barcodeCameraConstraints(facingMode: CameraFacingMode, tuned = true): MediaStreamConstraints {
+function barcodeCameraConstraints(tuned = true): MediaStreamConstraints {
   return {
     audio: false,
     video: {
-      facingMode: { ideal: facingMode },
+      facingMode: { ideal: 'environment' },
       width: { ideal: tuned ? 1280 : 640 },
       height: { ideal: tuned ? 720 : 480 },
       ...(tuned ? { advanced: CAMERA_TUNING } : {}),
@@ -828,12 +850,12 @@ function barcodeCameraConstraints(facingMode: CameraFacingMode, tuned = true): M
   };
 }
 
-async function requestBarcodeCameraStream(facingMode: CameraFacingMode): Promise<MediaStream> {
+async function requestBarcodeCameraStream(): Promise<MediaStream> {
   try {
-    return await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints(facingMode));
+    return await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints());
   } catch {
     try {
-      return await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints(facingMode, false));
+      return await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints(false));
     } catch {
       return navigator.mediaDevices.getUserMedia({ audio: false, video: true });
     }
@@ -858,14 +880,12 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
   const runningRef = useRef(false);
   const closedRef = useRef(false);
   const detectedRef = useRef(false);
-  const facingModeRef = useRef<CameraFacingMode>('environment');
   const nativeErrorCountRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [running, setRunning] = useState(false);
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
-  const [facingMode, setFacingMode] = useState<CameraFacingMode>('environment');
 
   const setScanRunning = useCallback((next: boolean) => {
     runningRef.current = next;
@@ -903,7 +923,7 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
 
   const startZxingOnStream = useCallback(async (stream: MediaStream, video: HTMLVideoElement) => {
     clearNativeLoop();
-    const reader = await createZxingOneDReader();
+    const reader = await createZxingReader();
     const controls = await reader.decodeFromStream(stream, video, (result, _error, scanControls) => {
       const raw = result?.getText();
       if (!raw || detectedRef.current) return;
@@ -951,7 +971,7 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
     nativeTimerRef.current = window.setTimeout(scan, 60);
   }, [completeScan, startZxingOnStream, stopScan]);
 
-  const startScan = useCallback(async (nextFacingMode: CameraFacingMode = facingModeRef.current) => {
+  const startScan = useCallback(async () => {
     if (startingRef.current) return;
     if (!navigator.mediaDevices?.getUserMedia) {
       setError('Kamera ist hier nicht verfügbar.');
@@ -963,15 +983,13 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
     setError(null);
     detectedRef.current = false;
     nativeErrorCountRef.current = 0;
-    facingModeRef.current = nextFacingMode;
-    setFacingMode(nextFacingMode);
     startingRef.current = true;
     setStarting(true);
     try {
       const video = videoRef.current;
       if (!video) return;
 
-      const stream = await requestBarcodeCameraStream(nextFacingMode);
+      const stream = await requestBarcodeCameraStream();
       if (closedRef.current) {
         stopMediaStream(stream);
         return;
@@ -1001,11 +1019,6 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
     start: startScan,
     stop: stopScan,
   }), [startScan, stopScan]);
-
-  const switchCamera = useCallback(async () => {
-    const next: CameraFacingMode = facingModeRef.current === 'environment' ? 'user' : 'environment';
-    await startScan(next);
-  }, [startScan]);
 
   const toggleTorch = useCallback(async () => {
     const next = !torchOn;
@@ -1063,10 +1076,6 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
           }}
         >
           {running ? 'Stoppen' : 'Weiter'}
-        </button>
-        <button type="button" className="button ghost compact" disabled={starting} onClick={() => void switchCamera()}>
-          <SwitchCamera size={14} />
-          {facingMode === 'environment' ? 'Front' : 'Rück'}
         </button>
         {torchAvailable && (
           <button type="button" className="button ghost compact" disabled={!running} onClick={() => void toggleTorch()}>

@@ -47,9 +47,32 @@ type OffProduct = {
   nutriments?: Record<string, number | string | undefined>;
 };
 
+type FdcSearchResponse = {
+  foods?: FdcProduct[];
+};
+
+type FdcProduct = {
+  fdcId?: number;
+  description?: string;
+  brandOwner?: string;
+  brandName?: string;
+  gtinUpc?: string;
+  servingSize?: number;
+  servingSizeUnit?: string;
+  foodNutrients?: FdcNutrient[];
+};
+
+type FdcNutrient = {
+  nutrientId?: number;
+  nutrientNumber?: string;
+  unitName?: string;
+  value?: number | string;
+};
+
 const OFF_FIELDS = 'code,product_name,product_name_de,brands,nutriments,serving_size,image_front_small_url,unique_scans_n';
 const SEARCH_TIMEOUT_MS = 7000;
 const BARCODE_TIMEOUT_MS = 4000;
+const FDC_API_KEY = process.env.NEXT_PUBLIC_USDA_FDC_API_KEY ?? process.env.NEXT_PUBLIC_FDC_API_KEY ?? 'DEMO_KEY';
 
 const FOOD_FACTS_ENDPOINTS = [
   { label: 'Open Food Facts World', baseUrl: 'https://world.openfoodfacts.org' },
@@ -109,8 +132,46 @@ function toOffFood(product: OffProduct): OffFood | null {
 
 /** Normalises a UPC/EAN/GTIN scanned by camera or typed from the package. */
 export function normalizeBarcode(raw: string): string | null {
+  const direct = raw.replace(/\D/g, '');
+  if (direct.length >= 8 && direct.length <= 14) return direct;
+
+  const decoded = decodeLoose(raw);
+  const digitalLink = /(?:^|\/)01\/(\d{8,14})(?=\/|[?#]|$)/.exec(decoded);
+  if (digitalLink?.[1]) return digitalLink[1];
+
+  const gs1Element = /(?:^|[\x1d(])01\)?(\d{14})/.exec(decoded);
+  if (gs1Element?.[1]) return gs1Element[1];
+
   const digits = raw.replace(/\D/g, '');
-  return digits.length >= 8 && digits.length <= 14 ? digits : null;
+  const gs1Plain = digits.length > 14 && digits.startsWith('01') ? digits.slice(2, 16) : null;
+  return gs1Plain && gs1Plain.length === 14 ? gs1Plain : null;
+}
+
+export function barcodeLookupVariants(raw: string): string[] {
+  const code = normalizeBarcode(raw);
+  if (!code) return [];
+
+  const variants = [code];
+  let stripped = code;
+  while (stripped.length > 12 && stripped.startsWith('0')) {
+    stripped = stripped.slice(1);
+    variants.push(stripped);
+  }
+  return [...new Set(variants)];
+}
+
+function decodeLoose(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+function sameBarcode(left: string, right: string): boolean {
+  const leftVariants = barcodeLookupVariants(left);
+  const rightVariants = barcodeLookupVariants(right);
+  return leftVariants.some((variant) => rightVariants.includes(variant));
 }
 
 /**
@@ -169,15 +230,20 @@ export async function searchOpenFoodFacts(query: string, limit = 12): Promise<Of
 
 /** Looks up exactly one product by UPC/EAN/GTIN barcode. */
 export async function findOpenFoodFactsByBarcode(rawBarcode: string): Promise<OffFood | null> {
-  const code = normalizeBarcode(rawBarcode);
-  if (!code) return null;
+  const codes = barcodeLookupVariants(rawBarcode);
+  if (codes.length === 0) return null;
 
   const params = new URLSearchParams({ fields: OFF_FIELDS });
   try {
-    const products = await Promise.all(
-      FOOD_FACTS_ENDPOINTS.map((endpoint) => fetchBarcodeProduct(endpoint, code, params)),
-    );
-    return products.find((product): product is OffFood => product !== null) ?? null;
+    for (const code of codes) {
+      const products = await Promise.all(
+        FOOD_FACTS_ENDPOINTS.map((endpoint) => fetchBarcodeProduct(endpoint, code, params)),
+      );
+      const product = products.find((candidate): candidate is OffFood => candidate !== null);
+      if (product) return product;
+    }
+
+    return await findFoodDataCentralByBarcode(codes);
   } catch {
     return null;
   }
@@ -224,6 +290,70 @@ async function fetchBarcodeProduct(
   if (!json || String(json.status ?? '0') !== '1' || !json.product) return null;
   const product = toOffFood({ ...json.product, code: json.product.code ?? code });
   return product ? { ...product, code } : null;
+}
+
+async function findFoodDataCentralByBarcode(codes: string[]): Promise<OffFood | null> {
+  for (const code of codes) {
+    const params = new URLSearchParams({
+      api_key: FDC_API_KEY,
+      query: code,
+      dataType: 'Branded',
+      pageSize: '5',
+    });
+    const json = await fetchJsonWithRetry<FdcSearchResponse>(
+      `https://api.nal.usda.gov/fdc/v1/foods/search?${params}`,
+      1,
+      BARCODE_TIMEOUT_MS,
+    );
+    for (const food of json?.foods ?? []) {
+      const mapped = toFoodDataCentralFood(food, code);
+      if (mapped) return mapped;
+    }
+  }
+  return null;
+}
+
+function toFoodDataCentralFood(food: FdcProduct, requestedCode: string): OffFood | null {
+  const gtin = normalizeBarcode(food.gtinUpc ?? '');
+  if (!gtin || !sameBarcode(gtin, requestedCode)) return null;
+
+  const kcal = fdcNutrient(food, [1008], ['208']);
+  const proteinG = fdcNutrient(food, [1003], ['203']);
+  const fatG = fdcNutrient(food, [1004], ['204']);
+  const carbsG = fdcNutrient(food, [1005], ['205']);
+  const name = food.description?.trim();
+  if (!name || kcal === null || kcal <= 0 || kcal > 900) return null;
+
+  const servingSizeG = parseFdcServing(food);
+  return {
+    code: gtin,
+    name,
+    brand: (food.brandName || food.brandOwner || '').trim(),
+    per100: {
+      kcal: Math.round(kcal),
+      proteinG: Math.round((proteinG ?? 0) * 10) / 10,
+      carbsG: Math.round((carbsG ?? 0) * 10) / 10,
+      fatG: Math.round((fatG ?? 0) * 10) / 10,
+    },
+    servingSizeG,
+    imageUrl: null,
+    popularity: 0,
+  };
+}
+
+function fdcNutrient(food: FdcProduct, ids: number[], numbers: string[]): number | null {
+  for (const nutrient of food.foodNutrients ?? []) {
+    if (nutrient.nutrientId && ids.includes(nutrient.nutrientId)) return numberOr(nutrient.value, null);
+    if (nutrient.nutrientNumber && numbers.includes(nutrient.nutrientNumber)) return numberOr(nutrient.value, null);
+  }
+  return null;
+}
+
+function parseFdcServing(food: FdcProduct): number | null {
+  const unit = food.servingSizeUnit?.toLowerCase();
+  if (unit !== 'g' && unit !== 'ml') return null;
+  const size = food.servingSize;
+  return typeof size === 'number' && Number.isFinite(size) && size > 0 && size < 5000 ? size : null;
 }
 
 async function fetchJsonWithRetry<T>(url: string, attempts = 2, timeoutMs = SEARCH_TIMEOUT_MS): Promise<T | null> {
