@@ -116,8 +116,8 @@ export type TodayData = {
   dailyStreak: number;
   trainingStreak: number;
 
-  // coach
-  coach: DayContext;
+  // day evaluation
+  dayContext: DayContext;
   dayStatus: DayStatusItem[];
   dayScore: DayScore;
 
@@ -243,9 +243,9 @@ export function useTodayData() {
       for (const log of habitLogs) if (log.completed) habitDayKeys.add(log.logDate);
       for (const date of completedDates) habitDayKeys.add(date);
 
-      // ── Coach context ───────────────────────────────────────────────
+      // ── Day context ─────────────────────────────────────────────────
       const lastCompleted = recentSessions.find((s) => s.completedAt);
-      const coach: DayContext = {
+      const dayContext: DayContext = {
         today,
         hour: new Date().getHours(),
         targets,
@@ -298,9 +298,9 @@ export function useTodayData() {
         weekly,
         dailyStreak: consecutiveDayStreak(habitDayKeys),
         trainingStreak: consecutiveDayStreak(completedDates),
-        coach,
-        dayStatus: buildDayStatus(coach),
-        dayScore: scoreDay(coach),
+        dayContext,
+        dayStatus: buildDayStatus(dayContext),
+        dayScore: scoreDay(dayContext),
         readiness: assessReadiness({
           today,
           weekEnd: weekBoundsFor(today).end,

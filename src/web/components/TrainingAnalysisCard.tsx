@@ -16,7 +16,7 @@ const SEVERITY_COLOR = {
   warn: 'var(--gold)',
 } as const;
 
-/** Volume, balance and what to train next — the coaching layer for training. */
+/** Weekly volume, region balance, and which region is least covered. */
 export function TrainingAnalysisCard() {
   const { analysis, loading, error } = useTrainingAnalysis();
 

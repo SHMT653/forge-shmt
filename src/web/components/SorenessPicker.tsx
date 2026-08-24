@@ -12,8 +12,8 @@ const OPTIONS: { value: Soreness; label: string }[] = [
 ];
 
 /**
- * Muscle soreness (§22). This is what lets the coach say "heute lieber
- * Recovery" instead of pushing the plan regardless of how you actually feel.
+ * Muscle soreness (§22). This is the input that lets FORGE recommend recovery
+ * instead of pushing the plan regardless of how the body actually feels.
  */
 export function SorenessPicker({
   value,

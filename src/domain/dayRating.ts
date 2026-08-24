@@ -1,7 +1,7 @@
 /**
  * Per-day score and traffic light — the single scoring function.
  *
- * There used to be two: this one for the calendar and `scoreDay` in coach.ts
+ * There used to be two: this one for the calendar and `scoreDay` in dayEvaluation.ts
  * for today's screen, with different weights, different components and a
  * different treatment of untracked metrics. The same day therefore showed one
  * number in the calendar and another on the dashboard. `scoreDay` now supplies

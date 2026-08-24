@@ -373,12 +373,6 @@ button:disabled {
   line-height: 1.25;
 }
 
-.greeting-date {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 14px;
-}
-
 .search-field {
   display: flex;
   align-items: center;
@@ -413,16 +407,6 @@ button:disabled {
 
 .search-field input::placeholder {
   color: var(--subtle);
-}
-
-.search-kbd {
-  flex: 0 0 auto;
-  padding: 2px 7px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--subtle);
-  font-size: 11px;
-  font-weight: 750;
 }
 
 .icon-badge {
@@ -498,13 +482,6 @@ button:disabled {
   text-transform: uppercase;
 }
 
-.hero-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
-  gap: 18px;
-  align-items: stretch;
-}
-
 .panel,
 .plan-card,
 .exercise-card,
@@ -574,11 +551,6 @@ button:disabled {
 .hero-actions,
 .button-row,
 .card-actions,
-.set-row-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
 
 .hero-actions {
   margin-top: 20px;
@@ -672,29 +644,6 @@ button:disabled {
   font-weight: 720;
 }
 
-.progress-track {
-  width: 100%;
-  height: 8px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.progress-fill {
-  height: 100%;
-  border-radius: inherit;
-  background: var(--violet);
-  transition: width 0.3s ease;
-}
-
-.progress-fill.gold {
-  background: var(--gold);
-}
-
-.progress-fill.teal {
-  background: var(--teal);
-}
-
 .ring {
   position: relative;
   display: grid;
@@ -703,25 +652,6 @@ button:disabled {
   height: 168px;
   border-radius: 999px;
   margin: 0 auto;
-}
-
-.ring-value {
-  display: grid;
-  justify-items: center;
-  gap: 2px;
-}
-
-.ring-number {
-  font-size: 32px;
-  font-weight: 920;
-  color: var(--text);
-  line-height: 1;
-}
-
-.ring-label {
-  font-size: 12px;
-  color: var(--muted);
-  font-weight: 700;
 }
 
 .split {
@@ -754,20 +684,6 @@ button:disabled {
 .list {
   display: grid;
   gap: 10px;
-}
-
-.check-line {
-  display: flex;
-  gap: 9px;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.45;
-}
-
-.check-line svg {
-  margin-top: 2px;
-  flex: 0 0 auto;
-  color: var(--teal);
 }
 
 .plan-grid,
@@ -929,12 +845,6 @@ button:disabled {
   outline: none;
   padding: 0 13px;
   font-size: 16px; /* prevents iOS auto-zoom on focus */
-}
-
-.textarea {
-  min-height: 96px;
-  padding: 13px;
-  resize: vertical;
 }
 
 .input:focus,
@@ -1159,40 +1069,6 @@ button:disabled {
   color: var(--muted);
 }
 
-/* Bottom nav customise overlay */
-.nav-customize-hint {
-  position: fixed;
-  bottom: calc(78px + env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 40;
-  padding: 8px 16px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: rgba(22,22,27,0.97);
-  color: var(--muted);
-  font-size: 12px;
-  white-space: nowrap;
-  pointer-events: none;
-}
-.nav-customize-panel {
-  position: fixed;
-  left: 10px; right: 10px;
-  bottom: calc(78px + env(safe-area-inset-bottom));
-  z-index: 40;
-  padding: 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  background: rgba(22,22,27,0.98);
-  backdrop-filter: blur(18px);
-}
-.nav-customize-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-top: 10px;
-}
-
 @media (max-width: 460px) {
   .h1 {
     font-size: 32px;
@@ -1224,8 +1100,7 @@ button:disabled {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Coach layer — status dots, ranges, timeline, sheets
-   Added for the tracker → coach rework. Uses the existing tokens only.
+   Day view — ranges, timeline, sheets
    ═══════════════════════════════════════════════════════════════════════ */
 
 /* ── Range bar: a target BAND, not a single number ──────────────────── */
@@ -1262,25 +1137,6 @@ button:disabled {
   background: rgba(255, 255, 255, 0.5);
 }
 
-/* ── Day status strip (§8) ──────────────────────────────────────────── */
-.status-strip {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.status-cell {
-  min-width: 0;
-  display: grid;
-  gap: 5px;
-  justify-items: center;
-  padding: 10px 4px;
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border);
-  text-align: center;
-}
-
 .status-dot {
   width: 9px;
   height: 9px;
@@ -1288,29 +1144,7 @@ button:disabled {
   flex: 0 0 auto;
 }
 
-.status-cell-label {
-  color: var(--subtle);
-  font-size: 10px;
-  font-weight: 720;
-  line-height: 1.1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-
-.status-cell-value {
-  color: var(--text);
-  font-size: 11px;
-  font-weight: 820;
-  line-height: 1.1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-
-/* ── Coach card ─────────────────────────────────────────────────────── */
+/* ── Note card ──────────────────────────────────────────────────────── */
 .note-card {
   display: flex;
   gap: 12px;
@@ -1818,7 +1652,7 @@ button:disabled {
   border: 1px solid var(--border);
 }
 
-/* ── Floating coach button (round, above the bottom bar) ─────────────── */
+/* ── Floating quick-add button (round, above the bottom bar) ────────── */
 .fab {
   position: fixed;
   right: 16px;
@@ -1840,17 +1674,6 @@ button:disabled {
 
 .fab:active {
   transform: scale(0.92);
-}
-
-.fab-secondary {
-  right: 16px;
-  bottom: calc(142px + env(safe-area-inset-bottom));
-  width: 46px;
-  height: 46px;
-  background: var(--surface-2);
-  border-color: var(--border-strong);
-  color: var(--text);
-  box-shadow: var(--shadow);
 }
 
 /* On desktop there is no bottom bar to clear. */
@@ -1891,17 +1714,6 @@ button:disabled {
 @media (max-width: 380px) {
   .cal-grid { gap: 4px; }
   .cal-day { border-radius: 8px; font-size: 11px; }
-}
-
-/* ── Übungszeile im Plan-Builder ──────────────────────────────────────
-   Not the same shape as .set-row: that grid ends in an `auto` column sized
-   for a small button, and putting a text input there let it eat the row while
-   the name and set fields collapsed to nothing.                            */
-.plan-exercise-row {
-  display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) 70px 92px;
-  gap: 8px;
-  align-items: center;
 }
 
 /* Narrow screens: the name gets its own line, the numbers sit underneath. */
@@ -2156,7 +1968,6 @@ button:disabled {
   font-size: 9px;
   font-weight: 800;
 }
-
 
 /* ── Offline notice ──────────────────────────────────────────────────────── */
 .offline-banner {

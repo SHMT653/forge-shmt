@@ -271,7 +271,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      {/* Reachable from every screen: quick add + coach */}
+      {/* Reachable from every screen */}
       <QuickActionBar />
 
       {/* Mobile 4-item bottom nav */}

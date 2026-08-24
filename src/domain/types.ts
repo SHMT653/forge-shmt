@@ -272,9 +272,3 @@ export type DailyCheckin = {
   note: string;
 };
 
-export type CoachNote = {
-  id: string;
-  kind: 'fact' | 'preference' | 'constraint';
-  content: string;
-  createdAt: string;
-};

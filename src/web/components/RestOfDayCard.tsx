@@ -14,8 +14,8 @@ import type { MealEntryInput } from '@/data/nutrition';
  * Deliberately the most concrete thing on the screen: not a percentage, but
  * named foods from the user's own library that fit what is left, each one tap
  * away from being logged. Every number here is arithmetic on today's rows —
- * it was briefly dressed up as a coach speaking, which added a persona to a
- * subtraction.
+ * it was briefly dressed up as a persona speaking, which added a character to
+ * a subtraction.
  */
 export function RestOfDayCard({
   consumed,

@@ -1,9 +1,9 @@
 /**
- * The coach layer.
+ * Evaluating one day against the user's targets.
  *
- * Everything here is a pure function over data FORGE already holds. The coach
- * interprets the database; it never invents numbers, and it never says anything
- * it cannot point at a row for (§78).
+ * Everything here is a pure function over data FORGE already holds. It
+ * interprets the database; it never invents numbers, and it never states
+ * anything it cannot point at a row for (§78).
  *
  * Tone rules, which the copy below follows deliberately:
  *  - a single bad day is never a verdict — the week is the unit that matters (§32)

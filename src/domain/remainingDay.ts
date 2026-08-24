@@ -1,7 +1,7 @@
 /**
  * "Wie komme ich durch den Rest des Tages?"
  *
- * The coach headline says what is missing in words. This turns the same
+ * The day summary says what is missing in words. This turns the same
  * numbers into something you can act on: which of the user's own foods still
  * fit the remaining budget, ranked by how much of the protein gap they close.
  *

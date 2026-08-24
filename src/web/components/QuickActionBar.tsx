@@ -69,8 +69,9 @@ export function QuickActionBar() {
 
   return (
     <>
-      {/* One button now. It used to be a pair — quick-add beside a coach that
-          needed an API key nobody had — so the useful half was the small one. */}
+      {/* One button now. It used to be a pair — quick-add beside an assistant
+          that needed an API key nobody had — so the useful half was the small
+          one. */}
       {ready && (
         <button
           type="button"

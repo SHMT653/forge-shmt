@@ -2,7 +2,7 @@
  * Equipment and training focus (§32/§33).
  *
  * FORGE must not assume a gym, and must not assume the home setup either.
- * Both are configuration, and both feed the coach and plan suggestions.
+ * Both are configuration, and both feed the mini-session and plan suggestions.
  */
 
 export type EquipmentId =
