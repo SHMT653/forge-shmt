@@ -1,13 +1,16 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Utensils, Droplets, Footprints, Moon, Scale, Dumbbell, Search, Sparkles, Box, Plus, Check, X, Star } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Utensils, Droplets, Footprints, Moon, Scale, Dumbbell, Search, Sparkles,
+  Plus, Check, X, Star, ScanBarcode, Camera,
+} from 'lucide-react';
 import { Sheet } from './Sheet';
-import { QuickTextInput } from './QuickTextInput';
 import { useFoodSearch } from '@/web/hooks/useFoodSearch';
 import { scaleCandidate, type ScoredCandidate } from '@/domain/foodResolver';
-import { MEAL_SLOT_ICON, roundMacros, scaleMacros, slotForHour } from '@/domain/nutritionMath';
+import { slotForHour } from '@/domain/nutritionMath';
 import { formatLiters, formatHours } from '@/domain/dayEvaluation';
+import { defaultPortionG, findOpenFoodFactsByBarcode, normalizeBarcode, offPortion, type OffFood } from '@/data/foodSearch';
 import type { MealEntry, MealEntryInput } from '@/data/nutrition';
 import type { FoodItemInput } from '@/data/foodLibrary';
 import type { FoodItem } from '@/domain/types';
@@ -228,7 +231,11 @@ function FoodPanel({
       macros,
       dataQuality: candidate.dataQuality,
       servings: factor,
-      source: candidate.source === 'library' ? 'favorite' : candidate.source === 'off' ? 'search' : 'search',
+      source: candidate.matchedByBarcode
+        ? 'barcode'
+        : candidate.source === 'library'
+          ? 'favorite'
+          : 'search',
       ...(candidate.libraryKind === 'food' && candidate.libraryId ? { foodItemId: candidate.libraryId } : {}),
       ...(candidate.libraryKind === 'recipe' && candidate.libraryId ? { recipeId: candidate.libraryId } : {}),
       slot,
@@ -244,6 +251,7 @@ function FoodPanel({
         servingG: candidate.portionG,
         macros: candidate.macros,
         dataQuality: candidate.dataQuality,
+        barcode: candidate.barcode ?? null,
         favorite: false,
       });
     }
@@ -275,7 +283,14 @@ function FoodPanel({
 
   return (
     <div className="stack-sm">
-      <QuickTextInput onAdd={(entry) => onAdd(entry, true)} />
+      <BarcodePanel
+        allFoods={allFoods}
+        busy={busy}
+        onFound={(candidate) => {
+          search.reset();
+          setSelected(candidate);
+        }}
+      />
 
       {/* Favourites — one tap (§37) */}
       {favoriteFoods.length > 0 && !search.query && (
@@ -367,6 +382,213 @@ function FoodPanel({
           </button>
         </div>
       </details>
+    </div>
+  );
+}
+
+function candidateFromFood(food: FoodItem, barcode: string): ScoredCandidate {
+  return {
+    id: `scan-lib-${food.id}`,
+    source: 'library',
+    name: food.name,
+    brand: food.brand,
+    macros: food.macros,
+    portionLabel: food.servingLabel,
+    portionG: food.servingG,
+    dataQuality: food.dataQuality,
+    libraryId: food.id,
+    libraryKind: 'food',
+    barcode,
+    matchedByBarcode: true,
+    score: 120,
+  };
+}
+
+function candidateFromOff(product: OffFood): ScoredCandidate {
+  const grams = defaultPortionG(product);
+  return {
+    id: `scan-off-${product.code}`,
+    source: 'off',
+    name: product.name,
+    brand: product.brand,
+    macros: offPortion(product, grams),
+    portionLabel: product.servingSizeG ? `${grams} g (Portion)` : '100 g',
+    portionG: grams,
+    dataQuality: 'estimated',
+    imageUrl: product.imageUrl,
+    popularity: product.popularity,
+    barcode: product.code,
+    matchedByBarcode: true,
+    score: 118,
+  };
+}
+
+function BarcodePanel({
+  allFoods,
+  busy,
+  onFound,
+}: {
+  allFoods: readonly FoodItem[];
+  busy: boolean;
+  onFound: (candidate: ScoredCandidate) => void;
+}) {
+  const [barcode, setBarcode] = useState('');
+  const [status, setStatus] = useState<string | null>(null);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+
+  const lookup = useCallback(
+    async (raw: string) => {
+      const code = normalizeBarcode(raw);
+      if (!code) {
+        setStatus('Barcode nicht erkannt.');
+        return;
+      }
+
+      setBarcode(code);
+      setLookingUp(true);
+      setStatus('Produkt wird gesucht …');
+      try {
+        const local = allFoods.find((food) => normalizeBarcode(food.barcode ?? '') === code);
+        if (local) {
+          onFound(candidateFromFood(local, code));
+          setStatus(`${local.name} gefunden.`);
+          return;
+        }
+
+        const product = await findOpenFoodFactsByBarcode(code);
+        if (product) {
+          onFound(candidateFromOff(product));
+          setStatus(`${product.name} gefunden.`);
+          return;
+        }
+
+        setStatus('Kein Produkt gefunden. Du kannst es unten manuell eintragen.');
+      } finally {
+        setLookingUp(false);
+      }
+    },
+    [allFoods, onFound],
+  );
+
+  const handleDetected = useCallback(
+    (raw: string) => {
+      setCameraOpen(false);
+      void lookup(raw);
+    },
+    [lookup],
+  );
+
+  return (
+    <div className="panel soft" style={{ padding: 12 }}>
+      <div className="row-between" style={{ marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <ScanBarcode size={16} color="var(--violet)" />
+          <p className="h3" style={{ fontSize: 14 }}>Produkt scannen</p>
+        </div>
+        <button
+          type="button"
+          className="button secondary compact"
+          disabled={busy || lookingUp}
+          onClick={() => setCameraOpen((open) => !open)}
+        >
+          <Camera size={15} /> Kamera
+        </button>
+      </div>
+
+      <form
+        style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void lookup(barcode);
+        }}
+      >
+        <input
+          className="input compact"
+          inputMode="numeric"
+          placeholder="Barcode"
+          value={barcode}
+          onChange={(event) => setBarcode(event.target.value)}
+          aria-label="Barcode"
+        />
+        <button type="submit" className="button compact" disabled={busy || lookingUp || !barcode.trim()}>
+          {lookingUp ? '…' : <Check size={15} />}
+        </button>
+      </form>
+
+      {status && <p className="muted-sm" style={{ marginTop: 8 }}>{status}</p>}
+
+      {cameraOpen && (
+        <CameraScanner
+          onDetected={handleDetected}
+          onClose={() => setCameraOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function CameraScanner({ onDetected, onClose }: { onDetected: (raw: string) => void; onClose: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let controls: { stop: () => void } | null = null;
+    const videoElement = videoRef.current;
+
+    async function start() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setError('Kamera ist hier nicht verfügbar.');
+        return;
+      }
+
+      try {
+        if (!videoElement) return;
+        const { BrowserMultiFormatReader } = await import('@zxing/browser');
+        const reader = new BrowserMultiFormatReader();
+        controls = await reader.decodeFromConstraints(
+          { video: { facingMode: { ideal: 'environment' } }, audio: false },
+          videoElement,
+          (result, _error, scanControls) => {
+            const raw = result?.getText();
+            if (!raw || cancelled) return;
+            scanControls.stop();
+            onDetected(raw);
+          },
+        );
+        if (cancelled) controls.stop();
+      } catch {
+        setError('Kamera konnte nicht gestartet werden.');
+      }
+    }
+
+    void start();
+
+    return () => {
+      cancelled = true;
+      controls?.stop();
+      const stream = videoElement?.srcObject;
+      if (stream instanceof MediaStream) stream.getTracks().forEach((track) => track.stop());
+      if (videoElement) videoElement.srcObject = null;
+    };
+  }, [onDetected]);
+
+  return (
+    <div className="panel" style={{ marginTop: 10, padding: 10 }}>
+      <div style={{ position: 'relative', aspectRatio: '4 / 3', overflow: 'hidden', borderRadius: 'var(--radius)', background: 'var(--surface-2)' }}>
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          aria-label="Barcode Kamera"
+        />
+      </div>
+      {error && <p className="muted-sm" style={{ marginTop: 8, color: 'var(--danger)' }}>{error}</p>}
+      <button type="button" className="button ghost compact" style={{ marginTop: 8, padding: 0 }} onClick={onClose}>
+        Kamera schließen
+      </button>
     </div>
   );
 }

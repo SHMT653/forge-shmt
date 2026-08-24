@@ -8,14 +8,14 @@ import { getActivePhase } from '@/data/goalPhases';
 import { addMealEntry, deleteMealEntry, syncNutritionTotals, type MealEntryInput } from '@/data/nutrition';
 import { rememberFoodFromEntry } from '@/data/foodLibrary';
 import { setHealthMetric } from '@/data/dailyHealth';
-import { saveBodyMetric } from '@/data/progress';
+import { saveBodyMetric, uploadProgressPhoto } from '@/data/progress';
 import { saveCheckin } from '@/data/checkins';
 import { errorMessage } from '@/domain/errors';
 import { dateKeyAddDays, toDateKey, todayKey } from '@/domain/dates';
 import { resolveTargets, type ResolvedTargets } from '@/domain/goalPhase';
 import { isDayInProgress } from '@/domain/dayEvaluation';
 import { rateDay, summarizeRatings, type DayRating } from '@/domain/dayRating';
-import type { Habit, Soreness, TrainingPlan, UserGoals, WorkoutKind } from '@/domain/types';
+import type { Habit, PhotoPose, Soreness, TrainingPlan, UserGoals, WorkoutKind } from '@/domain/types';
 import { pickMetricHabits, setDayMetric } from '@/data/dailyMetrics';
 import { listHabits } from '@/data/habits';
 import { fluidFromEntry } from '@/domain/fluids';
@@ -208,6 +208,15 @@ export function useCalendar() {
     [user, load],
   );
 
+  const addPhotoOn = useCallback(
+    async (date: string, file: File, pose: PhotoPose, weightKg: number | null) => {
+      if (!user) return;
+      await uploadProgressPhoto(user.id, file, date, pose, weightKg);
+      await load();
+    },
+    [user, load],
+  );
+
   const setSorenessOn = useCallback(
     async (date: string, soreness: Soreness | null) => {
       if (!user) return;
@@ -236,6 +245,7 @@ export function useCalendar() {
     setStepsOn,
     setSleepOn,
     setWeightOn,
+    addPhotoOn,
     setSorenessOn,
   };
 }

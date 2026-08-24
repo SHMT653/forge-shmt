@@ -98,6 +98,39 @@ describe('the body gets a say', () => {
     expect(r.preferMini).toBe(true);
     expect(r.offerStart).toBe(true);
   });
+
+  it('rests after yesterday’s workout when today has muscle soreness', () => {
+    const r = assessReadiness(input({
+      lastWorkoutDate: '2026-08-18',
+      sorenessHistory: [{ date: '2026-08-19', soreness: 'medium' }],
+    }));
+    expect(r.state).toBe('rest');
+    expect(r.offerStart).toBe(false);
+    expect(r.detail).toMatch(/Gestern trainiert/);
+  });
+
+  it('keeps recovery across the Sunday-to-Monday week boundary', () => {
+    const r = assessReadiness(input({
+      today: '2026-08-24',
+      weekEnd: '2026-08-30',
+      fullWorkoutsThisWeek: 0,
+      lastWorkoutDate: '2026-08-23',
+      sorenessHistory: [{ date: '2026-08-24', soreness: 'medium' }],
+    }));
+    expect(r.state).toBe('rest');
+    expect(r.offerStart).toBe(false);
+    expect(r.daysSinceLast).toBe(1);
+  });
+
+  it('only offers a mini session after yesterday’s workout when soreness is light', () => {
+    const r = assessReadiness(input({
+      lastWorkoutDate: '2026-08-18',
+      sorenessHistory: [{ date: '2026-08-19', soreness: 'light' }],
+    }));
+    expect(r.state).toBe('rest');
+    expect(r.preferMini).toBe(true);
+    expect(r.offerStart).toBe(true);
+  });
 });
 
 describe('nothing is suggested when there is nothing to suggest', () => {

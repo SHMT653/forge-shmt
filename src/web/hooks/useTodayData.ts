@@ -15,7 +15,14 @@ import {
   type MealEntry,
   type MealEntryInput,
 } from '@/data/nutrition';
-import { createFoodItem, listFoodItems, markFoodUsed, rememberFoodFromEntry, type FoodItemInput } from '@/data/foodLibrary';
+import {
+  createFoodItem,
+  listFoodItems,
+  markFoodUsed,
+  rememberFoodFromEntry,
+  updateFoodItem,
+  type FoodItemInput,
+} from '@/data/foodLibrary';
 import { getCheckin, listCheckins, saveCheckin } from '@/data/checkins';
 import { getTodayCardioKcal } from '@/data/cardio';
 import { getUserGoals } from '@/data/profile';
@@ -449,8 +456,26 @@ export function useTodayData() {
     async (input: FoodItemInput) => {
       if (!user) return;
       // Never store the same product twice under the same name.
-      const exists = data?.allFoods.some((f) => f.name.toLowerCase() === input.name.toLowerCase());
-      if (exists) return;
+      const existing = data?.allFoods.find((f) => f.name.toLowerCase() === input.name.toLowerCase());
+      if (existing) {
+        // A scan can teach an older manually saved product its barcode. Keeping
+        // that link means the next scan resolves locally instead of going back
+        // to Open Food Facts.
+        if (input.barcode && !existing.barcode) {
+          await updateFoodItem(user.id, existing.id, {
+            name: existing.name,
+            brand: existing.brand,
+            servingLabel: existing.servingLabel,
+            servingG: existing.servingG,
+            macros: existing.macros,
+            dataQuality: existing.dataQuality,
+            barcode: input.barcode,
+            favorite: existing.favorite,
+          });
+          void load();
+        }
+        return;
+      }
       await createFoodItem(user.id, input);
       void load();
     },

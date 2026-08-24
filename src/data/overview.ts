@@ -115,7 +115,7 @@ export async function loadDayAggregates(
 export async function loadDayDetail(userId: string, date: string) {
   const supabase = getSupabaseClient();
 
-  const [meals, health, weight, sessions, checkin] = await Promise.all([
+  const [meals, health, weight, sessions, checkin, photos] = await Promise.all([
     supabase
       .from('forge_meal_entries')
       .select('id, name, kcal, protein_g, carbs_g, fat_g, logged_at, data_quality, meal_slot')
@@ -147,6 +147,12 @@ export async function loadDayDetail(userId: string, date: string) {
       .eq('user_id', userId)
       .eq('log_date', date)
       .maybeSingle(),
+    supabase
+      .from('forge_progress_photos')
+      .select('id, taken_at, pose')
+      .eq('user_id', userId)
+      .eq('taken_at', date)
+      .order('pose', { ascending: true }),
   ]);
 
   return {
@@ -178,6 +184,11 @@ export async function loadDayDetail(userId: string, date: string) {
     })),
     soreness: (checkin.data?.soreness as string | null) ?? null,
     note: (checkin.data?.note as string | undefined) ?? '',
+    photos: (photos.data ?? []).map((row) => ({
+      id: row.id as string,
+      takenAt: row.taken_at as string,
+      pose: (row.pose as string | null) ?? 'front',
+    })),
   };
 }
 

@@ -27,17 +27,26 @@ export type OffFood = {
 };
 
 type OffSearchResponse = {
-  products?: {
-    code?: string;
-    product_name?: string;
-    product_name_de?: string;
-    brands?: string;
-    serving_size?: string;
-    image_front_small_url?: string;
-    unique_scans_n?: number;
-    nutriments?: Record<string, number | string | undefined>;
-  }[];
+  products?: OffProduct[];
 };
+
+type OffProductResponse = {
+  status?: number | string;
+  product?: OffProduct;
+};
+
+type OffProduct = {
+  code?: string;
+  product_name?: string;
+  product_name_de?: string;
+  brands?: string;
+  serving_size?: string;
+  image_front_small_url?: string;
+  unique_scans_n?: number;
+  nutriments?: Record<string, number | string | undefined>;
+};
+
+const OFF_FIELDS = 'code,product_name,product_name_de,brands,nutriments,serving_size,image_front_small_url,unique_scans_n';
 
 // A session-scoped cache. Open Food Facts asks callers to be gentle, and the
 // same query gets retyped constantly while the user edits the field.
@@ -61,6 +70,36 @@ function parseServingG(raw: string | undefined): number | null {
   return Number.isFinite(value) && value > 0 && value < 5000 ? value : null;
 }
 
+function toOffFood(product: OffProduct): OffFood | null {
+  const nutriments = product.nutriments ?? {};
+  const kcal = numberOr(nutriments['energy-kcal_100g'], null) ?? numberOr(nutriments['energy-kcal'], null);
+  const name = (product.product_name_de || product.product_name || '').trim();
+
+  // No name or no energy value means the entry cannot be logged honestly.
+  if (!name || kcal === null || kcal <= 0 || kcal > 900) return null;
+
+  return {
+    code: product.code ?? name,
+    name,
+    brand: product.brands?.split(',')[0]?.trim() ?? '',
+    per100: {
+      kcal: Math.round(kcal),
+      proteinG: Math.round((numberOr(nutriments.proteins_100g, 0) ?? 0) * 10) / 10,
+      carbsG: Math.round((numberOr(nutriments.carbohydrates_100g, 0) ?? 0) * 10) / 10,
+      fatG: Math.round((numberOr(nutriments.fat_100g, 0) ?? 0) * 10) / 10,
+    },
+    servingSizeG: parseServingG(product.serving_size),
+    imageUrl: product.image_front_small_url ?? null,
+    popularity: numberOr(product.unique_scans_n, 0) ?? 0,
+  };
+}
+
+/** Normalises a UPC/EAN/GTIN scanned by camera or typed from the package. */
+export function normalizeBarcode(raw: string): string | null {
+  const digits = raw.replace(/\D/g, '');
+  return digits.length >= 8 && digits.length <= 14 ? digits : null;
+}
+
 /**
  * Searches Open Food Facts for products matching `query`.
  *
@@ -81,7 +120,7 @@ export async function searchOpenFoodFacts(query: string, limit = 12): Promise<Of
     action: 'process',
     json: '1',
     page_size: String(Math.min(40, limit * 3)),
-    fields: 'code,product_name,product_name_de,brands,nutriments,serving_size,image_front_small_url,unique_scans_n',
+    fields: OFF_FIELDS,
   });
 
   try {
@@ -92,27 +131,9 @@ export async function searchOpenFoodFacts(query: string, limit = 12): Promise<Of
     const results: OffFood[] = [];
 
     for (const product of json.products ?? []) {
-      const nutriments = product.nutriments ?? {};
-      const kcal = numberOr(nutriments['energy-kcal_100g'], null) ?? numberOr(nutriments['energy-kcal'], null);
-      const name = (product.product_name_de || product.product_name || '').trim();
-
-      // No name or no energy value means the entry cannot be logged honestly.
-      if (!name || kcal === null || kcal <= 0 || kcal > 900) continue;
-
-      results.push({
-        code: product.code ?? name,
-        name,
-        brand: product.brands?.split(',')[0]?.trim() ?? '',
-        per100: {
-          kcal: Math.round(kcal),
-          proteinG: Math.round((numberOr(nutriments.proteins_100g, 0) ?? 0) * 10) / 10,
-          carbsG: Math.round((numberOr(nutriments.carbohydrates_100g, 0) ?? 0) * 10) / 10,
-          fatG: Math.round((numberOr(nutriments.fat_100g, 0) ?? 0) * 10) / 10,
-        },
-        servingSizeG: parseServingG(product.serving_size),
-        imageUrl: product.image_front_small_url ?? null,
-        popularity: numberOr(product.unique_scans_n, 0) ?? 0,
-      });
+      const mapped = toOffFood(product);
+      if (!mapped) continue;
+      results.push(mapped);
 
       if (results.length >= limit) break;
     }
@@ -126,6 +147,24 @@ export async function searchOpenFoodFacts(query: string, limit = 12): Promise<Of
   } catch {
     // Offline or rate-limited: the other sources still answer.
     return [];
+  }
+}
+
+/** Looks up exactly one product by UPC/EAN/GTIN barcode. */
+export async function findOpenFoodFactsByBarcode(rawBarcode: string): Promise<OffFood | null> {
+  const code = normalizeBarcode(rawBarcode);
+  if (!code) return null;
+
+  const params = new URLSearchParams({ fields: OFF_FIELDS });
+  try {
+    const json = await fetchJsonWithRetry<OffProductResponse>(
+      `https://de.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?${params}`,
+    );
+    if (!json || String(json.status ?? '0') !== '1' || !json.product) return null;
+    const product = toOffFood(json.product);
+    return product ? { ...product, code } : null;
+  } catch {
+    return null;
   }
 }
 
@@ -146,18 +185,23 @@ export function defaultPortionG(food: OffFood): number {
 }
 
 async function fetchWithRetry(params: URLSearchParams, attempts = 2): Promise<OffSearchResponse | null> {
+  return fetchJsonWithRetry<OffSearchResponse>(`https://de.openfoodfacts.org/cgi/search.pl?${params}`, attempts);
+}
+
+async function fetchJsonWithRetry<T>(url: string, attempts = 2): Promise<T | null> {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 7000);
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 7000);
-      const response = await fetch(`https://de.openfoodfacts.org/cgi/search.pl?${params}`, {
+      const response = await fetch(url, {
         signal: controller.signal,
         headers: { 'User-Agent': 'FORGE-SHMT-App/1.0 (personal fitness tracker)' },
       });
-      clearTimeout(timeout);
-      if (response.ok) return (await response.json()) as OffSearchResponse;
+      if (response.ok) return (await response.json()) as T;
     } catch {
       // fall through to the retry
+    } finally {
+      clearTimeout(timeout);
     }
     if (attempt < attempts - 1) await new Promise((resolve) => setTimeout(resolve, 400));
   }

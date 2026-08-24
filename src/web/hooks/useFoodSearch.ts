@@ -40,6 +40,7 @@ export function useFoodSearch(sources: {
         dataQuality: food.dataQuality,
         libraryId: food.id,
         libraryKind: 'food',
+        barcode: food.barcode,
       });
     }
 
@@ -132,6 +133,7 @@ export function useFoodSearch(sources: {
             dataQuality: 'estimated' as const,
             imageUrl: product.imageUrl,
             popularity: product.popularity,
+            barcode: product.code,
           };
         }),
       );

@@ -4,19 +4,17 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  Flame, Dumbbell, Plus, Trophy, Scale, Camera, ArrowRight, ListChecks, Activity,
+  Dumbbell, Plus, Trophy, Scale, Camera, ArrowRight, ListChecks, Activity,
 } from 'lucide-react';
 import { useTodayContext } from '@/web/hooks/TodayDataProvider';
 import { DayRings, type RingSpec } from '@/web/components/DayRings';
 import { DailyTimeline, mealToEvent, type TimelineEvent } from '@/web/components/DailyTimeline';
 import { QuickAddSheet } from '@/web/components/QuickAddSheet';
-import { QuickTextInput } from '@/web/components/QuickTextInput';
 import { SorenessPicker } from '@/web/components/SorenessPicker';
 import { GoalCard } from '@/web/components/GoalCard';
-import { RestOfDayCard } from '@/web/components/RestOfDayCard';
 import { DayStatsCard } from '@/web/components/DayStatsCard';
 import { OnboardingView } from '@/web/views/OnboardingView';
-import { evaluateRange, TONE_COLOR } from '@/domain/goalPhase';
+import { evaluateRange } from '@/domain/goalPhase';
 import { isDayInProgress } from '@/domain/dayEvaluation';
 import { saveBodyMetric } from '@/data/progress';
 import { startMiniSession } from '@/data/workouts';
@@ -110,11 +108,9 @@ export function DashboardView() {
     return <OnboardingView goals={data.goals} onDone={() => void reload()} />;
   }
 
-  const { targets, totals, metrics, dayStatus, readiness } = data;
+  const { targets, totals, metrics, readiness } = data;
   const inProgress = isDayInProgress(new Date().getHours());
   const kcalEval = evaluateRange(totals.kcal, targets.calories, { dayInProgress: inProgress });
-  const proteinEval = evaluateRange(totals.proteinG, targets.protein, { dayInProgress: inProgress, overTolerance: 9999 });
-  const proteinLeft = Math.max(0, targets.protein.min - totals.proteinG);
 
   // Each metric keeps its own colour so a glance says which one is short.
   const rings: RingSpec[] = [
@@ -195,13 +191,6 @@ export function DashboardView() {
     void addEntry(entry);
   }
 
-  function handleMetric(metric: 'steps' | 'water_ml' | 'sleep_h' | 'weight_kg', value: number) {
-    if (metric === 'steps') void setMetric('steps', value);
-    else if (metric === 'water_ml') void setMetric('water', (data?.metrics.waterMl ?? 0) + value);
-    else if (metric === 'sleep_h') void setMetric('sleep', value);
-    else void handleWeight(value);
-  }
-
   return (
     <>
       {doneBanner && (
@@ -234,20 +223,7 @@ export function DashboardView() {
 
       </section>
 
-      {/* ── What is still open today ──────────────────────────────────── */}
-      <RestOfDayCard
-        consumed={totals}
-        metrics={{ steps: metrics.steps, waterMl: metrics.waterMl }}
-        targets={targets}
-        entryCount={data.entries.length}
-        candidates={[
-          ...data.allFoods.map((f) => ({ id: f.id, name: f.name, macros: f.macros, kind: 'food' as const })),
-        ]}
-        onAdd={handleEntry}
-        onAddWater={addWater}
-      />
-
-      {/* ── Primary action + quick input (§36) ────────────────────────── */}
+      {/* ── Primary action (§36) ──────────────────────────────────────── */}
       <section className="stack-sm">
         {/* Training lives in the readiness card below and nowhere else. This
             row carried a second "Weiter" that outlived the session it pointed
@@ -255,14 +231,6 @@ export function DashboardView() {
         <button type="button" className="button" style={{ width: '100%' }} onClick={() => setSheetOpen(true)}>
           <Plus size={17} /> Eintragen
         </button>
-
-        <QuickTextInput
-          onAdd={handleEntry}
-          onMetric={handleMetric}
-          library={[
-            ...data.allFoods.map((f) => ({ id: f.id, kind: 'food' as const, name: f.name })),
-          ]}
-        />
       </section>
 
       {/* ── Reminders (§26/§27) — one line, not two cards ───────────── */}
@@ -331,7 +299,7 @@ export function DashboardView() {
               >
                 Mini-Session
               </button>
-              {readiness.preferMini && data.suggestedDay && (
+              {readiness.preferMini && readiness.state !== 'rest' && data.suggestedDay && (
                 <button
                   type="button"
                   className="button secondary compact"

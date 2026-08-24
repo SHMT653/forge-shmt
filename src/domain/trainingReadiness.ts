@@ -126,6 +126,25 @@ export function assessReadiness(input: ReadinessInput): Readiness {
     };
   }
 
+  // Recovery does not reset on Monday. If the last full session was yesterday
+  // and the body reports soreness today, the next hard session waits even when
+  // the weekly counter just rolled over.
+  if (daysSinceLast === 1 && todaySoreness === 'medium') {
+    return {
+      ...base, state: 'rest', offerStart: false, preferMini: true,
+      headline: 'Heute Recovery statt Training',
+      detail: 'Gestern trainiert und heute Muskelkater. Schlaf, Protein, Schritte und Mobility bringen heute mehr als die nächste harte Einheit.',
+    };
+  }
+
+  if (daysSinceLast === 1 && todaySoreness === 'light' && slack > 0) {
+    return {
+      ...base, state: 'rest', offerStart: true, preferMini: true,
+      headline: 'Locker bleiben',
+      detail: `Gestern trainiert, heute leichter Muskelkater. Wenn du etwas machst, dann kurz — die Woche hat noch ${slack} ${slack === 1 ? 'Ruhetag' : 'Ruhetage'} Luft.`,
+    };
+  }
+
   // Sustained soreness: the load has outrun recovery, and one light day does
   // not settle that. Only overruled when the week has no slack left.
   if (streak >= 3 && slack > 0) {

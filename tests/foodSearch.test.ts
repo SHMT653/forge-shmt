@@ -1,8 +1,20 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { defaultPortionG, offPortion, searchOpenFoodFacts, __clearSearchCache, type OffFood } from '@/data/foodSearch';
+import {
+  defaultPortionG,
+  findOpenFoodFactsByBarcode,
+  normalizeBarcode,
+  offPortion,
+  searchOpenFoodFacts,
+  __clearSearchCache,
+  type OffFood,
+} from '@/data/foodSearch';
 
 function offResponse(products: unknown[]) {
   return { ok: true, json: async () => ({ products }) } as unknown as Response;
+}
+
+function offProductResponse(product: unknown, status = 1) {
+  return { ok: true, json: async () => ({ status, product }) } as unknown as Response;
 }
 
 const skyr = {
@@ -79,6 +91,48 @@ describe('searchOpenFoodFacts', () => {
     const results = await searchOpenFoodFacts('skyr');
     expect(results[0]?.per100.kcal).toBe(64);
     expect(results[0]?.per100.proteinG).toBe(11.2);
+  });
+});
+
+describe('findOpenFoodFactsByBarcode', () => {
+  beforeEach(() => {
+    __clearSearchCache();
+    vi.restoreAllMocks();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('normalises package barcode text', () => {
+    expect(normalizeBarcode('4 001724 819394')).toBe('4001724819394');
+    expect(normalizeBarcode('abc')).toBeNull();
+  });
+
+  it('loads one product by barcode', async () => {
+    const fetchMock = vi.fn(async () => offProductResponse(skyr));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await findOpenFoodFactsByBarcode('4001724819394');
+
+    expect(result).toMatchObject({
+      code: '4001724819394',
+      name: 'Skyr Natur',
+      brand: 'Arla',
+      servingSizeG: 150,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/v2/product/4001724819394.json'), expect.anything());
+  });
+
+  it('does not call the network for an invalid barcode', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await findOpenFoodFactsByBarcode('12')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('returns null when the barcode is missing in Open Food Facts', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => offProductResponse(null, 0)));
+    expect(await findOpenFoodFactsByBarcode('4001724819394')).toBeNull();
   });
 });
 

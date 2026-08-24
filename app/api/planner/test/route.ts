@@ -10,10 +10,6 @@ import {
 } from '@/domain/planner';
 import type { NeoFreeSlot } from '@/services/neo/types';
 
-if (process.env.NODE_ENV === 'production') {
-  console.warn('[planner/test] Test endpoint is active in production — consider removing it.');
-}
-
 type TestResult = { name: string; passed: boolean; detail: string; logs: PlannerLog[] };
 
 /** Build a NeoFreeSlot from Berlin local times (UTC fields unused in pure logic tests) */
@@ -145,6 +141,10 @@ function runTests(): TestResult[] {
 // ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function GET() {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Planner test endpoint is disabled in production.' }, { status: 404 });
+  }
+
   const results = runTests();
   const passed  = results.filter((r) => r.passed).length;
   const total   = results.length;

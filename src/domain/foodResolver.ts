@@ -32,6 +32,10 @@ export type FoodCandidate = {
   /** Filled for library hits so the entry can reference the stored row. */
   libraryId?: string;
   libraryKind?: 'food' | 'recipe';
+  /** Product barcode when known, so scans and saved products share one path. */
+  barcode?: string | null;
+  /** True when this hit came from a barcode scan, not typed search. */
+  matchedByBarcode?: boolean;
   imageUrl?: string | null;
   popularity?: number;
 };

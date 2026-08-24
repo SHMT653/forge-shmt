@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Trash2, Check, Footprints, Moon, Scale, Dumbbell, Utensils } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Trash2, Check, Footprints, Moon, Scale, Dumbbell, Utensils, Camera } from 'lucide-react';
 import { Sheet } from './Sheet';
 import type { DayDetail } from '@/data/overview';
 import type { DayRating } from '@/domain/dayRating';
@@ -10,7 +10,14 @@ import { formatSleep } from '@/domain/health';
 import { slotForHour } from '@/domain/nutritionMath';
 import { TONE_COLOR } from '@/domain/goalPhase';
 import { parseDecimalOr } from '@/domain/numbers';
-import type { WorkoutKind } from '@/domain/types';
+import type { PhotoPose, WorkoutKind } from '@/domain/types';
+
+const POSES: { value: PhotoPose; label: string }[] = [
+  { value: 'front', label: 'Vorne' },
+  { value: 'side', label: 'Seitlich' },
+  { value: 'back', label: 'Rücken' },
+  { value: 'front_flexed', label: 'Angespannt' },
+];
 
 /**
  * Opens one day for review and correction.
@@ -31,6 +38,7 @@ export function DayEditorSheet({
   onSetSteps,
   onSetSleep,
   onSetWeight,
+  onAddPhoto,
 }: {
   date: string;
   rating: DayRating | undefined;
@@ -45,6 +53,7 @@ export function DayEditorSheet({
   onSetSteps: (date: string, steps: number) => Promise<void>;
   onSetSleep: (date: string, hours: number) => Promise<void>;
   onSetWeight: (date: string, kg: number) => Promise<void>;
+  onAddPhoto: (date: string, file: File, pose: PhotoPose, weightKg: number | null) => Promise<void>;
 }) {
   const [detail, setDetail] = useState<DayDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,6 +69,8 @@ export function DayEditorSheet({
   const [workoutMinutes, setWorkoutMinutes] = useState('');
   const [workoutKind, setWorkoutKind] = useState<WorkoutKind>('full');
   const [weight, setWeight] = useState('');
+  const [photoPose, setPhotoPose] = useState<PhotoPose>('front');
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = async () => {
     setLoading(true);
@@ -130,6 +141,13 @@ export function DayEditorSheet({
     });
   }
 
+  async function handlePhotoFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (photoInputRef.current) photoInputRef.current.value = '';
+    if (!file) return;
+    await run(() => onAddPhoto(date, file, photoPose, detail?.weightKg ?? null));
+  }
+
   const totals = (detail?.meals ?? []).reduce(
     (acc, meal) => ({ kcal: acc.kcal + meal.kcal, proteinG: acc.proteinG + meal.proteinG }),
     { kcal: 0, proteinG: 0 },
@@ -185,6 +203,12 @@ export function DayEditorSheet({
                 {detail?.sessions.length
                   ? detail.sessions.map((s) => `${s.dayName}${s.kind === 'mini' ? ' (Mini)' : ''}`).join(', ')
                   : '–'}
+              </span>
+            </div>
+            <div className="day-stat">
+              <span className="day-stat-label"><Camera size={14} /> Fotos</span>
+              <span className="day-stat-value">
+                {detail?.photos.length ? `${detail.photos.length} eingetragen` : '–'}
               </span>
             </div>
           </div>
@@ -296,6 +320,38 @@ export function DayEditorSheet({
             <QuickField label="Schritte" value={steps} onChange={setSteps} busy={busy} onSave={(v) => run(() => onSetSteps(date, v))} />
             <QuickField label="Schlaf (h)" value={sleep} onChange={setSleep} busy={busy} decimal onSave={(v) => run(() => onSetSleep(date, v))} />
             <QuickField label="Gewicht (kg)" value={weight} onChange={setWeight} busy={busy} decimal onSave={(v) => run(() => onSetWeight(date, v))} />
+          </div>
+
+          <div className="stack-sm">
+            <p className="section-label">Fortschrittsfoto nachtragen</p>
+            <div className="chip-row">
+              {POSES.map((pose) => (
+                <button
+                  key={pose.value}
+                  type="button"
+                  className={`chip${photoPose === pose.value ? ' active' : ''}`}
+                  disabled={busy}
+                  onClick={() => setPhotoPose(pose.value)}
+                >
+                  {pose.label}
+                </button>
+              ))}
+            </div>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoFile}
+              style={{ display: 'none' }}
+            />
+            <button
+              type="button"
+              className="button secondary block"
+              disabled={busy}
+              onClick={() => photoInputRef.current?.click()}
+            >
+              <Camera size={15} /> Foto für diesen Tag wählen
+            </button>
           </div>
         </>
       )}
