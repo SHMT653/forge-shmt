@@ -59,6 +59,7 @@ describe('app icons', () => {
       ['apple-touch-icon', 180], ['apple-touch-icon-light', 180], ['apple-touch-icon-dark', 180],
       ['icon-192', 192], ['icon-192-light', 192], ['icon-192-dark', 192],
       ['icon-512', 512], ['icon-512-light', 512], ['icon-512-dark', 512],
+      ['icon-192-maskable', 192], ['icon-512-maskable', 512],
     ] as const) {
       const file = png(`public/icons/${name}.png`);
       expect(file.width, name).toBe(size);
@@ -82,5 +83,27 @@ describe('app icons', () => {
     expect(layout).toMatch(/apple-touch-icon-dark\.png[\s\S]*?prefers-color-scheme: dark/);
     // A fallback for anything that ignores the query.
     expect(layout).toMatch(/apple-touch-icon\.png/);
+  });
+
+  it('gives maskable its own artwork rather than relabelling the full tile', () => {
+    // Declaring an edge-to-edge design maskable is what made the icon render as
+    // a small square on a plate: the launcher crops to the safe zone and pads
+    // whatever is left.
+    const full = readFileSync('public/icons/icon-512.png');
+    const maskable = readFileSync('public/icons/icon-512-maskable.png');
+    expect(full.equals(maskable)).toBe(false);
+
+    const manifest = readFileSync('app/manifest.ts', 'utf8');
+    expect(manifest).toMatch(/icon-512-maskable\.png[\s\S]*?purpose: 'maskable'/);
+    expect(manifest).not.toMatch(/icon-512\.png', sizes: '512x512', type: 'image\/png', purpose: 'maskable'/);
+  });
+
+  it('keeps the artwork clear of the mask', () => {
+    // A squircle eats the corners. Anything at the very edge of the tile is a
+    // pixel the phone will not show.
+    for (const name of ['apple-touch-icon', 'apple-touch-icon-light']) {
+      expect(cornerPixel(`public/icons/${name}.png`), name)
+        .toEqual(name.endsWith('light') ? [244, 244, 247] : [10, 10, 13]);
+    }
   });
 });

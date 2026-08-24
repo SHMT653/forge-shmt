@@ -16,15 +16,11 @@
  *    cache-first: their URL changes whenever their content does.
  */
 
-const CACHE = 'forge-shell-v3';
+const CACHE = 'forge-shell-v4';
 
-const PRECACHE = [
-  '/',
-  '/manifest.webmanifest',
-  '/brand-logo.png',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-];
+// Only the shell. Icons are deliberately absent: precaching them is the same
+// trap as serving them cache-first, one install earlier.
+const PRECACHE = ['/', '/brand-logo.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -56,9 +52,18 @@ function isImmutableAsset(url) {
   return url.pathname.startsWith('/_next/static/');
 }
 
-/** Fonts, icons, images — static files we ship, safe to serve stale. */
+/**
+ * Files we ship that are safe to serve stale — fonts and content images.
+ *
+ * NOT the app icons. Those live at fixed paths and their bytes change when the
+ * artwork does, so serving them cache-first pins a phone to whichever icon it
+ * saw first: a redesigned tile is uploaded, deployed, and never arrives. That
+ * is exactly what happened to the icon rebuild.
+ */
 function isStaticFile(url) {
-  return /\.(png|jpg|jpeg|svg|webp|ico|woff2?|webmanifest)$/i.test(url.pathname);
+  if (url.pathname.startsWith('/icons/')) return false;
+  if (url.pathname.endsWith('.webmanifest') || url.pathname === '/manifest.webmanifest') return false;
+  return /\.(png|jpg|jpeg|svg|webp|ico|woff2?)$/i.test(url.pathname);
 }
 
 function cacheFirst(request) {

@@ -154,6 +154,30 @@ def replace_border_background(rgb, w, h, target, tolerance=26):
     return filled
 
 
+def inset(rgb, w, h, background, pad):
+    """
+    Re-centres the artwork on a smaller footprint, leaving a margin.
+
+    Platforms crop icons: iOS masks to a squircle, Android to whatever the
+    launcher wants. A maskable icon has to keep everything that matters inside
+    the middle, or the corners get eaten. `pad` is the fraction of the width
+    given up on each side.
+    """
+    if pad <= 0:
+        return rgb
+    inner = max(1, round(w * (1 - 2 * pad)))
+    art = box_resize(rgb, w, h, inner)
+    out = bytearray()
+    for _ in range(w * h):
+        out += bytes(background)
+    offset = (w - inner) // 2
+    for y in range(inner):
+        dst = ((y + offset) * w + offset) * 3
+        src = y * inner * 3
+        out[dst:dst + inner * 3] = art[src:src + inner * 3]
+    return out
+
+
 def box_resize(rgb, w, h, size):
     """Area-average downscale. Good enough, and it needs no dependency."""
     out = bytearray(size * size * 3)
@@ -177,6 +201,12 @@ def box_resize(rgb, w, h, size):
 DARK = (10, 10, 13)      # matches the app background and the manifest theme
 LIGHT = (244, 244, 247)  # a near-white tile for a phone in light mode
 
+# iOS masks to a squircle: a little margin keeps the artwork off the curve.
+APPLE_PAD = 0.05
+# Maskable icons must survive an aggressive crop; the spec's safe zone is the
+# middle 80 %, so the artwork goes well inside that.
+MASKABLE_PAD = 0.17
+
 def main():
     source = sys.argv[1] if len(sys.argv) > 1 else 'public/logo.png'
     meta, pixels = read_png(source)
@@ -184,24 +214,37 @@ def main():
     channels = 4 if meta['color'] == 6 else 3
     print(f'{source}: {w}x{h}, {channels} channels')
 
+    variants = {}
     for name, background in (('dark', DARK), ('light', LIGHT)):
         rgb = flatten(pixels, w, h, channels, background)
         filled = replace_border_background(rgb, w, h, background)
         print(f'  {name}: repainted {filled} background pixels ({filled * 100 // (w * h)} %)')
-        for size, out in ((180, f'public/icons/apple-touch-icon-{name}.png'),
-                          (192, f'public/icons/icon-192-{name}.png'),
-                          (512, f'public/icons/icon-512-{name}.png')):
-            write_png(out, size, size, box_resize(rgb, w, h, size))
-            print(f'    → {out}')
+        variants[name] = (rgb, background)
 
-    # The unsuffixed names stay, for anything that asks without a media query.
-    dark = flatten(pixels, w, h, channels, DARK)
-    replace_border_background(dark, w, h, DARK)
-    for size, out in ((180, 'public/icons/apple-touch-icon.png'),
-                      (192, 'public/icons/icon-192.png'),
-                      (512, 'public/icons/icon-512.png')):
-        write_png(out, size, size, box_resize(dark, w, h, size))
-        print(f'    → {out} (default)')
+        # A small inset keeps the glitch pixels clear of the squircle mask.
+        tile = inset(rgb, w, h, background, APPLE_PAD)
+        write_png(f'public/icons/apple-touch-icon-{name}.png', 180, 180, box_resize(tile, w, h, 180))
+        for size in (192, 512):
+            write_png(f'public/icons/icon-{size}-{name}.png', size, size, box_resize(tile, w, h, size))
+        print(f'    → apple-touch-icon-{name}, icon-192-{name}, icon-512-{name}')
+
+    # Maskable is a different picture, not the same one relabelled: the launcher
+    # may crop anything outside the middle 80 %, so the artwork has to sit well
+    # inside that. Declaring an edge-to-edge design maskable is what made the
+    # tile render as a small square on a plate.
+    dark_rgb, dark_bg = variants['dark']
+    maskable = inset(dark_rgb, w, h, dark_bg, MASKABLE_PAD)
+    for size in (192, 512):
+        write_png(f'public/icons/icon-{size}-maskable.png', size, size, box_resize(maskable, w, h, size))
+    print('    → icon-192-maskable, icon-512-maskable')
+
+    # The unsuffixed names are the fallback for anything that ignores the media
+    # query. They are the dark tile, because the app itself is dark.
+    tile = inset(dark_rgb, w, h, dark_bg, APPLE_PAD)
+    write_png('public/icons/apple-touch-icon.png', 180, 180, box_resize(tile, w, h, 180))
+    for size in (192, 512):
+        write_png(f'public/icons/icon-{size}.png', size, size, box_resize(tile, w, h, size))
+    print('    → apple-touch-icon, icon-192, icon-512 (fallback: dark)')
 
 
 if __name__ == '__main__':
