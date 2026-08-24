@@ -15,10 +15,12 @@ import { dateKeyAddDays, toDateKey, todayKey } from '@/domain/dates';
 import { resolveTargets, type ResolvedTargets } from '@/domain/goalPhase';
 import { isDayInProgress } from '@/domain/dayEvaluation';
 import { rateDay, summarizeRatings, type DayRating } from '@/domain/dayRating';
-import type { Habit, Soreness, UserGoals } from '@/domain/types';
+import type { Habit, Soreness, TrainingPlan, UserGoals, WorkoutKind } from '@/domain/types';
 import { pickMetricHabits, setDayMetric } from '@/data/dailyMetrics';
 import { listHabits } from '@/data/habits';
 import { fluidFromEntry } from '@/domain/fluids';
+import { listPlans } from '@/data/plans';
+import { logPastWorkout } from '@/data/workouts';
 
 /** Grid bounds for a month view: whole weeks, Monday first. */
 export function monthGrid(anchor: string): { start: string; end: string; days: string[] } {
@@ -45,6 +47,8 @@ export function useCalendar() {
   // Held so a drink back-filled onto a past day credits that day's fluid.
   const [waterHabit, setWaterHabit] = useState<Habit | null>(null);
   const [waterByDate, setWaterByDate] = useState<Map<string, number>>(new Map());
+  // The active plan, so a back-filled workout can carry a real day and its sets.
+  const [activePlan, setActivePlan] = useState<TrainingPlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,15 +58,17 @@ export function useCalendar() {
     if (!user) return;
     setError(null);
     try {
-      const [userGoals, phase, aggregates, habitList] = await Promise.all([
+      const [userGoals, phase, aggregates, habitList, plans] = await Promise.all([
         getUserGoals(user.id),
         getActivePhase(user.id),
         loadDayAggregates(user.id, grid.start, grid.end),
         listHabits(user.id),
+        listPlans(user.id),
       ]);
       // Needed so a drink back-filled onto a past day credits that day's fluid.
       setWaterHabit(pickMetricHabits(habitList).water);
       setWaterByDate(new Map([...aggregates].map(([date, day]) => [date, day.waterMl ?? 0])));
+      setActivePlan(plans.find((plan) => plan.isActive) ?? null);
 
       const effective: UserGoals = phase
         ? {
@@ -143,6 +149,28 @@ export function useCalendar() {
     [user, load, waterHabit, waterByDate],
   );
 
+  /** A workout that happened on a past day but was never logged. */
+  const logWorkoutOn = useCallback(
+    async (
+      date: string,
+      input: { dayName: string; kind: WorkoutKind; durationMinutes: number; planDayId: string | null },
+    ) => {
+      if (!user) return;
+      const plan = activePlan;
+      const day = input.planDayId ? plan?.days.find((d) => d.id === input.planDayId) ?? null : null;
+      await logPastWorkout(user.id, date, {
+        planName: day ? plan?.name ?? '' : 'Nachgetragen',
+        dayName: input.dayName,
+        kind: input.kind,
+        durationMinutes: input.durationMinutes,
+        planId: day ? plan?.id ?? null : null,
+        day,
+      });
+      await load();
+    },
+    [user, activePlan, load],
+  );
+
   const removeMealOn = useCallback(
     async (date: string, entryId: string) => {
       if (!user) return;
@@ -203,6 +231,8 @@ export function useCalendar() {
     openDay,
     addMealOn,
     removeMealOn,
+    logWorkoutOn,
+    activePlan,
     setStepsOn,
     setSleepOn,
     setWeightOn,

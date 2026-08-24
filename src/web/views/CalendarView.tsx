@@ -141,6 +141,8 @@ export function CalendarView() {
           onSetSteps={calendar.setStepsOn}
           onSetSleep={calendar.setSleepOn}
           onSetWeight={calendar.setWeightOn}
+          onLogWorkout={calendar.logWorkoutOn}
+          planDays={calendar.activePlan?.days ?? []}
         />
       )}
     </>

@@ -21,8 +21,10 @@ const POSES: { value: PhotoPose; label: string }[] = [
 ];
 
 export function ProgressView() {
-  const { metrics, photos, goals, targets, weight, review, exercises, loading, error, addMetric, addPhoto, removePhoto } =
-    useProgress();
+  const {
+    metrics, photos, goals, targets, weight, exercises, stats, rangeDays, setRangeDays,
+    loading, error, addMetric, addPhoto, removePhoto,
+  } = useProgress();
 
   const [weightInput, setWeightInput] = useState('');
   const [saving, setSaving] = useState(false);
@@ -129,51 +131,64 @@ export function ProgressView() {
         </p>
       </section>
 
-      {/* ── Weekly review (§30) ───────────────────────────────────────── */}
-      {review && (
-        <section className="panel">
-          <div className="section-head">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <CalendarCheck size={16} color="var(--violet)" />
-              <p className="h3" style={{ fontSize: 15 }}>Woche {review.bounds.label}</p>
+      {/* ── Statistics, always on screen, over a span the user picks ──── */}
+      <section className="panel">
+        <div className="section-head">
+          <div>
+            <p className="section-label">Statistik</p>
+            <p className="h3" style={{ fontSize: 15 }}>{RANGE_LABEL[rangeDays] ?? `${rangeDays} Tage`}</p>
+          </div>
+        </div>
+
+        <div className="chip-row" style={{ marginBottom: 12 }}>
+          {RANGES.map((range) => (
+            <button
+              key={range.days}
+              type="button"
+              className={`chip${rangeDays === range.days ? ' active' : ''}`}
+              style={{ minHeight: 32, fontSize: 12 }}
+              onClick={() => setRangeDays(range.days)}
+              aria-pressed={rangeDays === range.days}
+            >
+              {range.label}
+            </button>
+          ))}
+        </div>
+
+        {!stats || stats.trackedDays === 0 ? (
+          <p className="muted-sm">
+            In diesem Zeitraum ist nichts erfasst. Trag über den Kalender nach, was fehlt.
+          </p>
+        ) : (
+          <>
+            <div className="stat-grid">
+              <Stat label="Ø Kalorien" value={fmt(stats.avgKcal)} unit="kcal" />
+              <Stat label="Ø Protein" value={fmt(stats.avgProtein)} unit="g" />
+              <Stat label="Ø Schritte" value={fmt(stats.avgSteps)} />
+              <Stat label="Ø Schlaf" value={stats.avgSleepH !== null ? stats.avgSleepH.toLocaleString('de-DE') : '–'} unit="h" />
+              <Stat label="Ø Trinken" value={stats.avgWaterMl !== null ? (stats.avgWaterMl / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 }) : '–'} unit="l" />
+              <Stat label="Einheiten / Woche" value={stats.workoutsPerWeek !== null ? stats.workoutsPerWeek.toLocaleString('de-DE') : '–'} />
+              <Stat label="Trainingstage" value={String(stats.trainingDays)} unit={`von ${stats.days}`} />
+              <Stat label="Erfasste Tage" value={String(stats.trackedDays)} unit={`von ${stats.days}`} />
             </div>
-          </div>
 
-          <div className="split-4" style={{ marginBottom: 12 }}>
-            <ReviewStat label="Ø kcal" value={review.avgKcal !== null ? Math.round(review.avgKcal).toLocaleString('de-DE') : '–'} />
-            <ReviewStat label="Ø Protein" value={review.avgProtein !== null ? `${Math.round(review.avgProtein)} g` : '–'} />
-            <ReviewStat label="Ø Schritte" value={review.avgSteps !== null ? Math.round(review.avgSteps).toLocaleString('de-DE') : '–'} />
-            <ReviewStat
-              label="Training"
-              value={`${review.fullWorkouts}${review.miniSessions > 0 ? ` +${review.miniSessions}` : ''}`}
-            />
-          </div>
+            <div className="stack-sm" style={{ marginTop: 12 }}>
+              <Bar
+                label="Kalorien im Zielbereich"
+                hit={stats.daysInCalorieRange}
+                of={stats.nutritionDays}
+              />
+              <Bar label="Proteinziel erreicht" hit={stats.daysProteinHit} of={stats.nutritionDays} />
+              <Bar label="Schrittziel erreicht" hit={stats.daysStepGoalHit} of={stats.trackedDays} />
+            </div>
 
-          <div className="stack-sm" style={{ marginBottom: 12 }}>
-            <p className="muted-sm">
-              {review.daysInCalorieRange} von {review.daysLogged} erfassten Tagen im Kalorien-Zielbereich ·{' '}
-              {review.daysProteinHit} Tage Proteinziel erreicht
+            <p className="muted-sm" style={{ marginTop: 10 }}>
+              Längste Serie ohne Lücke: {stats.longestStreak} {stats.longestStreak === 1 ? 'Tag' : 'Tage'}.
+              {stats.miniSessions > 0 ? ` ${stats.fullWorkouts} volle Einheiten, ${stats.miniSessions} Mini.` : ` ${stats.fullWorkouts} volle Einheiten.`}
             </p>
-            {review.weightDelta !== null && (
-              <p className="muted-sm">Gewichtstrend diese Woche: {formatKg(review.weightDelta, true)}</p>
-            )}
-            {review.highlight && (
-              <p className="muted-sm" style={{ color: 'var(--teal)' }}>
-                {review.highlight.name}: {review.highlight.summary}
-                {review.highlight.percent !== null ? ` (+${review.highlight.percent} %)` : ''}
-              </p>
-            )}
-          </div>
-
-          <div className="note-card">
-            <span className="note-icon" aria-hidden><TrendingUp size={17} /></span>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <p className="note-label">Deine Woche</p>
-              <p className="note-text">{review.summaryText}</p>
-            </div>
-          </div>
-        </section>
-      )}
+          </>
+        )}
+      </section>
 
       {/* ── Exercise progression (§61) ────────────────────────────────── */}
       <section className="panel">
@@ -372,15 +387,6 @@ function ChangeCard({ label, change }: { label: string; change: { deltaKg: numbe
   );
 }
 
-function ReviewStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="metric-card">
-      <span className="metric-value" style={{ fontSize: 17 }}>{value}</span>
-      <span className="metric-label">{label}</span>
-    </div>
-  );
-}
-
 // ── BIA input (§29) ─────────────────────────────────────────────────────────
 
 const BIA_FIELDS: { key: keyof BiaValues; label: string; unit: string }[] = [
@@ -456,5 +462,50 @@ function BiaSheet({
         ))}
       </div>
     </Sheet>
+  );
+}
+
+const RANGES = [
+  { days: 7,   label: '7 Tage' },
+  { days: 30,  label: '30 Tage' },
+  { days: 90,  label: '3 Monate' },
+  { days: 365, label: '1 Jahr' },
+] as const;
+
+const RANGE_LABEL: Record<number, string> = {
+  7: 'Letzte 7 Tage', 30: 'Letzte 30 Tage', 90: 'Letzte 3 Monate', 365: 'Letztes Jahr',
+};
+
+function fmt(value: number | null): string {
+  return value === null ? '–' : Math.round(value).toLocaleString('de-DE');
+}
+
+function Stat({ label, value, unit }: { label: string; value: string; unit?: string }) {
+  return (
+    <div className="stat-cell">
+      <p className="stat-cell-label">{label}</p>
+      <p className="stat-cell-value">
+        {value}
+        {unit && <span className="stat-cell-unit"> {unit}</span>}
+      </p>
+    </div>
+  );
+}
+
+/** How often a target was met, as a share of the days it could have been. */
+function Bar({ label, hit, of }: { label: string; hit: number; of: number }) {
+  const share = of > 0 ? hit / of : 0;
+  return (
+    <div>
+      <div className="row-between" style={{ marginBottom: 4 }}>
+        <span className="muted-sm">{label}</span>
+        <span className="muted-sm">
+          {of > 0 ? `${hit} / ${of}` : '–'}
+        </span>
+      </div>
+      <div className="stat-bar" aria-hidden>
+        <span style={{ width: `${Math.round(share * 100)}%` }} />
+      </div>
+    </div>
   );
 }

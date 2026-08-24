@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, Moon, User, Target, ShieldCheck, Calculator } from 'lucide-react';
+import { Trash2, LogOut, Moon, User, Target, ShieldCheck, Calculator } from 'lucide-react';
 import { useAuth } from '@/web/hooks/useAuth';
 import { useSettings } from '@/web/hooks/useSettings';
 import { signOut } from '@/services/supabase/auth';
@@ -18,6 +18,7 @@ import { todayKey } from '@/domain/dates';
 import type { ActivityLevel, Gender, GoalType, UserGoals } from '@/domain/types';
 import type { ProgramId, FastingProtocol } from '@/domain/programs';
 import { parseDecimal, parseDecimalOr } from '@/domain/numbers';
+import { DataDeleteCard } from '@/web/components/DataDeleteCard';
 
 const WEEKDAYS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
 
@@ -692,6 +693,12 @@ export function SettingsView() {
         <button type="button" className="button danger compact" onClick={handleSignOut} disabled={signingOut}>
           <LogOut size={16} /> {signingOut ? 'Wird abgemeldet …' : 'Abmelden'}
         </button>
+
+        {/* ── Deleting stored data (§14) ── */}
+        <div style={{ marginTop: 18 }}>
+          <CardHead icon={Trash2} tone="violet" title="Gespeicherte Daten" />
+          <DataDeleteCard />
+        </div>
       </section>
     </>
   );

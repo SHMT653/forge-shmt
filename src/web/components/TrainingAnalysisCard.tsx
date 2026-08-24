@@ -40,15 +40,10 @@ export function TrainingAnalysisCard() {
       </div>
 
       {analysis.nextFocus && (
-        <div className="note-card" style={{ marginBottom: 12 }}>
-          <span className="note-icon" aria-hidden><TrendingUp size={16} /></span>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <p className="note-label">Als Nächstes</p>
-            <p className="note-text">
-              {REGION_LABEL[analysis.nextFocus.region]} — {analysis.nextFocus.reason}
-            </p>
-          </div>
-        </div>
+        <p className="muted-sm" style={{ marginBottom: 12 }}>
+          <strong style={{ color: 'var(--text)' }}>Am wenigsten abgedeckt:</strong>{' '}
+          {REGION_LABEL[analysis.nextFocus.region]} — {analysis.nextFocus.reason}
+        </p>
       )}
 
       {/* Region split: the one-glance read on a lopsided plan */}

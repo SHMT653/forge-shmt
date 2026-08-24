@@ -47,8 +47,6 @@ export function NutritionView() {
   const proteinEval = evaluateRange(totals.proteinG, targets.protein, { dayInProgress: inProgress, overTolerance: 9999 });
   const waterEval = evaluateGoal(state.water.todayMl, state.water.goalMl, inProgress);
 
-  const proteinLeft = Math.max(0, targets.protein.min - totals.proteinG);
-  const kcalLeft = targets.calories.max - totals.kcal;
 
   /** Resolve library references to their stored macros before saving. */
   function handleEntry(entry: MealEntryInput) {
@@ -130,24 +128,6 @@ export function NutritionView() {
         )}
       </section>
 
-      {/* ── What still fits today (§14) ───────────────────────────────── */}
-      <section className="note-card">
-        <span className="note-icon" aria-hidden><Utensils size={17} /></span>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <p className="note-label">Heute sinnvoll</p>
-          <p className="note-text">
-            {state.meals.length === 0
-              ? 'Noch nichts eingetragen. Trag deine erste Mahlzeit ein, dann rechne ich dir den Rest aus.'
-              : proteinLeft > 5 && kcalLeft > 150
-                ? `Protein fehlen noch etwa ${Math.round(proteinLeft)} g. Kalorisch hast du noch rund ${Math.round(kcalLeft).toLocaleString('de-DE')} kcal Spielraum.`
-                : proteinLeft > 5
-                  ? `Noch ${Math.round(proteinLeft)} g Protein — der kalorische Spielraum ist aber knapp. Etwas Mageres passt noch.`
-                  : kcalLeft > 300
-                    ? `Protein sitzt. Du hast noch etwa ${Math.round(kcalLeft).toLocaleString('de-DE')} kcal im Zielbereich.`
-                    : 'Kalorien und Protein liegen beide im Rahmen.'}
-          </p>
-        </div>
-      </section>
 
       {/* ── Input ─────────────────────────────────────────────────────── */}
       <section className="stack-sm">

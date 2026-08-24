@@ -10,6 +10,7 @@ import { formatSleep } from '@/domain/health';
 import { slotForHour } from '@/domain/nutritionMath';
 import { TONE_COLOR } from '@/domain/goalPhase';
 import { parseDecimalOr } from '@/domain/numbers';
+import type { WorkoutKind } from '@/domain/types';
 
 /**
  * Opens one day for review and correction.
@@ -24,6 +25,8 @@ export function DayEditorSheet({
   load,
   onClose,
   onAddMeal,
+  onLogWorkout,
+  planDays,
   onRemoveMeal,
   onSetSteps,
   onSetSleep,
@@ -34,6 +37,10 @@ export function DayEditorSheet({
   load: (date: string) => Promise<DayDetail | null>;
   onClose: () => void;
   onAddMeal: (date: string, entry: MealEntryInput) => Promise<void>;
+  /** Records a workout that already happened on that day. */
+  onLogWorkout: (date: string, input: { dayName: string; kind: WorkoutKind; durationMinutes: number; planDayId: string | null }) => Promise<void>;
+  /** Days of the active plan, so a back-filled workout can carry its name. */
+  planDays: readonly { id: string; name: string }[];
   onRemoveMeal: (date: string, id: string) => Promise<void>;
   onSetSteps: (date: string, steps: number) => Promise<void>;
   onSetSleep: (date: string, hours: number) => Promise<void>;
@@ -48,6 +55,10 @@ export function DayEditorSheet({
   const [mealProtein, setMealProtein] = useState('');
   const [steps, setSteps] = useState('');
   const [sleep, setSleep] = useState('');
+  const [workoutDay, setWorkoutDay] = useState('');
+  const [workoutName, setWorkoutName] = useState('');
+  const [workoutMinutes, setWorkoutMinutes] = useState('');
+  const [workoutKind, setWorkoutKind] = useState<WorkoutKind>('full');
   const [weight, setWeight] = useState('');
 
   const refresh = async () => {
@@ -73,6 +84,23 @@ export function DayEditorSheet({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function submitWorkout() {
+    const picked = planDays.find((d) => d.id === workoutDay);
+    const name = picked?.name ?? workoutName.trim();
+    if (!name) return;
+    await run(async () => {
+      await onLogWorkout(date, {
+        dayName: name,
+        kind: workoutKind,
+        durationMinutes: parseDecimalOr(workoutMinutes, 45),
+        planDayId: picked?.id ?? null,
+      });
+      setWorkoutName('');
+      setWorkoutMinutes('');
+      setWorkoutDay('');
+    });
   }
 
   async function submitMeal() {
@@ -204,6 +232,61 @@ export function DayEditorSheet({
               <input className="input compact" inputMode="numeric" placeholder="kcal" value={mealKcal} onChange={(e) => setMealKcal(e.target.value)} aria-label="Kalorien" />
               <input className="input compact" inputMode="decimal" placeholder="Protein" value={mealProtein} onChange={(e) => setMealProtein(e.target.value)} aria-label="Protein" />
               <button type="button" className="button compact" disabled={busy || (!mealKcal && !mealProtein)} onClick={submitMeal}>
+                <Check size={15} />
+              </button>
+            </div>
+          </div>
+
+          {/* ── A workout that happened but was never logged ─────────── */}
+          <div className="stack-sm">
+            <p className="section-label">Training nachtragen</p>
+            {planDays.length > 0 ? (
+              <select
+                className="input"
+                value={workoutDay}
+                onChange={(e) => setWorkoutDay(e.target.value)}
+                aria-label="Trainingstag"
+              >
+                <option value="">Freie Eingabe</option>
+                {planDays.map((day) => (
+                  <option key={day.id} value={day.id}>{day.name}</option>
+                ))}
+              </select>
+            ) : null}
+            {workoutDay === '' && (
+              <input
+                className="input"
+                placeholder="z. B. Oberkörper"
+                value={workoutName}
+                onChange={(e) => setWorkoutName(e.target.value)}
+                aria-label="Name des Trainings"
+              />
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8 }}>
+              <input
+                className="input compact"
+                inputMode="numeric"
+                placeholder="Minuten"
+                value={workoutMinutes}
+                onChange={(e) => setWorkoutMinutes(e.target.value)}
+                aria-label="Dauer in Minuten"
+              />
+              <select
+                className="input compact"
+                value={workoutKind}
+                onChange={(e) => setWorkoutKind(e.target.value === 'mini' ? 'mini' : 'full')}
+                aria-label="Art des Trainings"
+              >
+                <option value="full">Volle Einheit</option>
+                <option value="mini">Mini-Session</option>
+              </select>
+              <button
+                type="button"
+                className="button compact"
+                disabled={busy || (workoutDay === '' && !workoutName.trim())}
+                onClick={submitWorkout}
+                aria-label="Training eintragen"
+              >
                 <Check size={15} />
               </button>
             </div>

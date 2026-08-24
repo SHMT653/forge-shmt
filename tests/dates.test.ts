@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dateKeyAddDays, formatRelativeDay, toDateKey, todayKey } from '@/domain/dates';
-import { eachDayOfWeek, weekBoundsFor } from '@/domain/weeklyReview';
+import { eachDayOfWeek, weekBoundsFor } from '@/domain/weeks';
 
 describe('local date handling (§52)', () => {
   it('keys a date by its LOCAL day, not UTC', () => {

@@ -31,7 +31,7 @@ import { dateKeyAddDays, todayKey } from '@/domain/dates';
 import { resolveTargets, type ResolvedTargets } from '@/domain/goalPhase';
 import { summarizeWeight, isPhotoDue, isWeighInDue, type WeightSummary } from '@/domain/weightTrend';
 import { combineQuality, slotForHour } from '@/domain/nutritionMath';
-import { weekBoundsFor } from '@/domain/weeklyReview';
+import { weekBoundsFor } from '@/domain/weeks';
 import {
   buildDayStatus,
   scoreDay,
