@@ -72,7 +72,12 @@ type FdcNutrient = {
 const OFF_FIELDS = 'code,product_name,product_name_de,brands,nutriments,serving_size,image_front_small_url,unique_scans_n';
 const SEARCH_TIMEOUT_MS = 7000;
 const BARCODE_TIMEOUT_MS = 4000;
-const FDC_API_KEY = process.env.NEXT_PUBLIC_USDA_FDC_API_KEY ?? process.env.NEXT_PUBLIC_FDC_API_KEY ?? 'DEMO_KEY';
+const FDC_API_KEY =
+  process.env.USDA_FDC_API_KEY ??
+  process.env.FDC_API_KEY ??
+  process.env.NEXT_PUBLIC_USDA_FDC_API_KEY ??
+  process.env.NEXT_PUBLIC_FDC_API_KEY ??
+  'DEMO_KEY';
 
 const FOOD_FACTS_ENDPOINTS = [
   { label: 'Open Food Facts World', baseUrl: 'https://world.openfoodfacts.org' },
@@ -247,6 +252,40 @@ export async function findOpenFoodFactsByBarcode(rawBarcode: string): Promise<Of
   } catch {
     return null;
   }
+}
+
+type BarcodeApiResponse = { product?: OffFood | null };
+
+/**
+ * Browser-facing barcode lookup.
+ *
+ * Client code goes through Forge's API route first so CORS quirks and private
+ * USDA keys stay server-side. The direct lookup remains as a fallback for local
+ * tests, offline development and any deployment where the route is unavailable.
+ */
+export async function findProductByBarcode(rawBarcode: string): Promise<OffFood | null> {
+  const code = normalizeBarcode(rawBarcode);
+  if (!code) return null;
+
+  if (typeof window !== 'undefined') {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), BARCODE_TIMEOUT_MS + 1500);
+    try {
+      const response = await fetch(`/api/food/barcode?code=${encodeURIComponent(code)}`, {
+        signal: controller.signal,
+      });
+      if (response.ok) {
+        const json = (await response.json()) as BarcodeApiResponse;
+        return json.product ?? null;
+      }
+    } catch {
+      // Fall back to the direct public endpoints below.
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
+  return findOpenFoodFactsByBarcode(code);
 }
 
 /** Macros for a portion of an OFF product, which are always per 100 g. */

@@ -1,7 +1,6 @@
 'use client';
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
 import {
   Utensils, Droplets, Footprints, Moon, Scale, Dumbbell, Search, Sparkles,
   Plus, Check, X, Star, ScanBarcode, Camera, Upload, Flashlight, FlashlightOff,
@@ -11,7 +10,7 @@ import { useFoodSearch } from '@/web/hooks/useFoodSearch';
 import { scaleCandidate, type ScoredCandidate } from '@/domain/foodResolver';
 import { slotForHour } from '@/domain/nutritionMath';
 import { formatLiters, formatHours } from '@/domain/dayEvaluation';
-import { barcodeLookupVariants, defaultPortionG, findOpenFoodFactsByBarcode, normalizeBarcode, offPortion, type OffFood } from '@/data/foodSearch';
+import { barcodeLookupVariants, defaultPortionG, findProductByBarcode, normalizeBarcode, offPortion, type OffFood } from '@/data/foodSearch';
 import type { MealEntry, MealEntryInput } from '@/data/nutrition';
 import type { FoodItemInput } from '@/data/foodLibrary';
 import type { FoodItem } from '@/domain/types';
@@ -577,7 +576,7 @@ function BarcodePanel({
           return;
         }
 
-        const product = await findOpenFoodFactsByBarcode(code);
+        const product = await findProductByBarcode(code);
         if (product) {
           onFound(candidateFromOff(product));
           setStatus(`${product.name} gefunden.`);
@@ -626,9 +625,8 @@ function BarcodePanel({
       return;
     }
 
-    flushSync(() => setCameraOpen(true));
     setStatus(null);
-    await scannerRef.current?.start();
+    setCameraOpen(true);
   }
 
   return (
@@ -874,6 +872,7 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
   const runningRef = useRef(false);
   const closedRef = useRef(false);
   const detectedRef = useRef(false);
+  const startTokenRef = useRef(0);
   const nativeErrorCountRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -894,6 +893,7 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
   }, []);
 
   const stopScan = useCallback(() => {
+    startTokenRef.current += 1;
     startingRef.current = false;
     clearNativeLoop();
     controlsRef.current?.stop();
@@ -973,6 +973,8 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
 
     if (runningRef.current) stopScan();
 
+    const token = startTokenRef.current + 1;
+    startTokenRef.current = token;
     setError(null);
     detectedRef.current = false;
     nativeErrorCountRef.current = 0;
@@ -983,15 +985,23 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
       if (!video) return;
 
       const stream = await requestBarcodeCameraStream();
-      if (closedRef.current) {
+      if (closedRef.current || startTokenRef.current !== token) {
         stopMediaStream(stream);
         return;
       }
 
       await attachCameraStream(video, stream);
+      if (closedRef.current || startTokenRef.current !== token) {
+        stopScan();
+        return;
+      }
       setTorchAvailable(await prepareCameraStream(stream));
 
       const nativeDetector = await createNativeBarcodeDetector();
+      if (closedRef.current || startTokenRef.current !== token) {
+        stopScan();
+        return;
+      }
       if (nativeDetector) {
         setScanRunning(true);
         scheduleNativeScan(nativeDetector, stream, video);
@@ -1011,6 +1021,14 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
     start: startScan,
     stop: stopScan,
   }), [startScan, stopScan]);
+
+  useEffect(() => {
+    if (visible) {
+      void startScan();
+    } else {
+      stopScan();
+    }
+  }, [startScan, stopScan, visible]);
 
   const toggleTorch = useCallback(async () => {
     const next = !torchOn;
@@ -1067,7 +1085,7 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
             }
           }}
         >
-          {running ? 'Stoppen' : 'Weiter'}
+          {running ? 'Stoppen' : 'Neu starten'}
         </button>
         {torchAvailable && (
           <button type="button" className="button ghost compact" disabled={!running} onClick={() => void toggleTorch()}>

@@ -32,12 +32,26 @@ export function DashboardView() {
     useTodayContext();
   const { user } = useAuth();
   const router = useRouter();
-  // Pull fresh health data on mount and on app resume (§12). Resolves to a
-  // no-op in the browser.
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const [doneBanner, setDoneBanner] = useState<{ exercises: number } | null>(null);
+
+  // Pull fresh health data when the installed app comes back to the foreground.
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return;
+
+    const refreshVisible = () => {
+      if (document.visibilityState === 'visible') void reload();
+    };
+
+    document.addEventListener('visibilitychange', refreshVisible);
+    window.addEventListener('focus', refreshVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', refreshVisible);
+      window.removeEventListener('focus', refreshVisible);
+    };
+  }, [reload]);
 
   // Post-workout redirect banner
   useEffect(() => {
@@ -63,10 +77,14 @@ export function DashboardView() {
             name: entry.name,
             macros: { kcal: entry.kcal, proteinG: entry.proteinG, carbsG: entry.carbsG, fatG: entry.fatG },
             dataQuality: entry.dataQuality,
+            kcalMin: entry.kcalMin,
+            kcalMax: entry.kcalMax,
             servings: entry.servings,
             slot: entry.slot,
             source: entry.source,
             foodItemId: entry.foodItemId,
+            recipeId: entry.recipeId,
+            batchId: entry.batchId,
           }),
       }),
     );

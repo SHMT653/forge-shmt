@@ -156,7 +156,10 @@ export async function uploadProgressPhoto(
   const { error } = await supabase
     .from('forge_progress_photos')
     .insert({ user_id: userId, taken_at: takenAt, storage_path: path, pose, weight_kg: weightKg });
-  if (error) throw error;
+  if (error) {
+    await supabase.storage.from(PHOTO_BUCKET).remove([path]);
+    throw error;
+  }
 }
 
 export async function deleteProgressPhoto(userId: string, photoId: string, storagePath: string): Promise<void> {

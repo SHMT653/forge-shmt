@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { resolveTargets } from '@/domain/goalPhase';
 import { assessReadiness, type Readiness } from '@/domain/trainingReadiness';
 import { buildDayStatus, scoreDay, type DayContext } from '@/domain/dayEvaluation';
 import type { UserGoals } from '@/domain/types';
+import type { MealEntry } from '@/data/nutrition';
 
 /**
  * The dashboard is the screen that opens every time and the one that survived
@@ -83,7 +84,12 @@ vi.mock('@/data/workouts', () => ({ startMiniSession: vi.fn() }));
 
 import { DashboardView } from '@/web/views/DashboardView';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  (context as any).data = data;
+  context.addEntry = vi.fn();
+  context.reload = vi.fn();
+});
 
 describe('DashboardView', () => {
   it('renders without the data that was removed from under it', () => {
@@ -109,6 +115,56 @@ describe('DashboardView', () => {
     // at, which is how an abandoned workout stayed reachable.
     render(<DashboardView />);
     expect(screen.queryByRole('link', { name: /Weiter/ })).toBeNull();
+  });
+
+  it('refreshes when the installed app returns to the foreground', () => {
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    render(<DashboardView />);
+
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    expect(context.reload).toHaveBeenCalledTimes(1);
+    visibility.mockRestore();
+  });
+
+  it('duplicates meals without losing provenance or estimate ranges', () => {
+    const addEntry = vi.fn();
+    const meal: MealEntry = {
+      id: 'm1',
+      logDate: '2026-08-19',
+      name: 'Chili',
+      kcal: 720,
+      proteinG: 48,
+      carbsG: 80,
+      fatG: 24,
+      loggedAt: '2026-08-19T12:00:00.000Z',
+      dataQuality: 'estimated',
+      kcalMin: 650,
+      kcalMax: 800,
+      servings: 1.5,
+      slot: 'lunch',
+      source: 'prep',
+      foodItemId: null,
+      recipeId: 'recipe-1',
+      batchId: 'batch-1',
+    };
+    context.addEntry = addEntry;
+    (context as any).data = { ...data, entries: [meal] };
+
+    render(<DashboardView />);
+    fireEvent.click(screen.getByRole('button', { name: 'Duplizieren' }));
+
+    expect(addEntry).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Chili',
+      dataQuality: 'estimated',
+      kcalMin: 650,
+      kcalMax: 800,
+      servings: 1.5,
+      slot: 'lunch',
+      source: 'prep',
+      recipeId: 'recipe-1',
+      batchId: 'batch-1',
+    }));
   });
 
   it('asks about soreness while it is unanswered', () => {
