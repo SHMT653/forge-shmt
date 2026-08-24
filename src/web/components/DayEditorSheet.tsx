@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { Trash2, Check, Footprints, Moon, Scale, Dumbbell, Utensils } from 'lucide-react';
 import { Sheet } from './Sheet';
-import { SourceBadge } from './SourceBadge';
 import type { DayDetail } from '@/data/overview';
 import type { DayRating } from '@/domain/dayRating';
 import type { MealEntryInput, } from '@/data/nutrition';
@@ -140,14 +139,12 @@ export function DayEditorSheet({
               <span className="day-stat-label"><Footprints size={14} /> Schritte</span>
               <span className="day-stat-value">
                 {detail?.steps ? detail.steps.toLocaleString('de-DE') : '–'}
-                {detail?.stepsSource === 'apple_health' && <SourceBadge source="apple_health" />}
               </span>
             </div>
             <div className="day-stat">
               <span className="day-stat-label"><Moon size={14} /> Schlaf</span>
               <span className="day-stat-value">
                 {formatSleep(detail?.sleepMinutes ?? null)}
-                {detail?.sleepSource === 'apple_health' && <SourceBadge source="apple_health" />}
               </span>
             </div>
             <div className="day-stat">

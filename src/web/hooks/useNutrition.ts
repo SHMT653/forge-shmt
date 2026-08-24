@@ -14,12 +14,8 @@ import {
   type MealEntryInput,
 } from '@/data/nutrition';
 import {
-  createBatch,
-  consumeBatchPortions,
   createFoodItem,
-  listActiveBatches,
   listFoodItems,
-  listRecipes,
   markFoodUsed,
   rememberFoodFromEntry,
   toggleFoodFavorite,
@@ -38,8 +34,6 @@ export type NutritionState = {
   meals: MealEntry[];
   recentMeals: MealEntry[];
   foods: FoodItem[];
-  recipes: Recipe[];
-  batches: MealPrepBatch[];
   totals: Macros;
   quality: DataQuality;
   goals: UserGoals;
@@ -59,8 +53,6 @@ export function useNutrition() {
     meals: [],
     recentMeals: [],
     foods: [],
-    recipes: [],
-    batches: [],
     totals: EMPTY_TOTALS,
     quality: 'verified',
     goals: GOALS_DEFAULTS,
@@ -75,15 +67,13 @@ export function useNutrition() {
     if (!user) return;
     const today = todayKey();
     try {
-      const [meals, habitList, logs, goals, recentMeals, foods, recipes, batches, weekLogs] = await Promise.all([
+      const [meals, habitList, logs, goals, recentMeals, foods, weekLogs] = await Promise.all([
         listMealEntries(user.id, today),
         ensureDefaultHabits(user.id),
         listHabitLogsForRange(user.id, today),
         getUserGoals(user.id),
         listRecentUniqueMeals(user.id),
         listFoodItems(user.id),
-        listRecipes(user.id),
-        listActiveBatches(user.id),
         listNutritionLogs(user.id, dateKeyAddDays(today, -6), today),
       ]);
 
@@ -99,8 +89,6 @@ export function useNutrition() {
         meals,
         recentMeals,
         foods,
-        recipes,
-        batches,
         totals: sumMacros(meals.map((m) => ({ kcal: m.kcal, proteinG: m.proteinG, carbsG: m.carbsG, fatG: m.fatG }))),
         quality: combineQuality(meals.map((m) => m.dataQuality)),
         goals,
@@ -165,7 +153,6 @@ export function useNutrition() {
         const food = state.foods.find((f) => f.id === withSlot.foodItemId);
         await markFoodUsed(user.id, withSlot.foodItemId, food?.useCount ?? 0);
       }
-      if (withSlot.batchId) await consumeBatchPortions(user.id, withSlot.batchId, withSlot.servings ?? 1);
       await syncNutritionTotals(user.id, today);
       void load();
     },
@@ -231,21 +218,12 @@ export function useNutrition() {
     [user, load],
   );
 
-  const cookBatch = useCallback(
-    async (recipeId: string, portions: number) => {
-      if (!user) return;
-      await createBatch(user.id, recipeId, portions, todayKey());
-      void load();
-    },
-    [user, load],
-  );
-
   const favorites = useMemo(
     () => state.foods.filter((f) => f.favorite || f.useCount > 0).slice(0, 12),
     [state.foods],
   );
 
-  return { state, favorites, addMeal, removeMeal, editMeal, addWater, saveAsFood, setFavorite, cookBatch, reload: load };
+  return { state, favorites, addMeal, removeMeal, editMeal, addWater, saveAsFood, setFavorite, reload: load };
 }
 
 function totalsOf(meals: readonly MealEntry[]): Macros {

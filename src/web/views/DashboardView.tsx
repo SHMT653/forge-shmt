@@ -13,17 +13,14 @@ import { QuickAddSheet } from '@/web/components/QuickAddSheet';
 import { QuickTextInput } from '@/web/components/QuickTextInput';
 import { SorenessPicker } from '@/web/components/SorenessPicker';
 import { GoalCard } from '@/web/components/GoalCard';
-import { SourceBadge } from '@/web/components/SourceBadge';
 import { RestOfDayCard } from '@/web/components/RestOfDayCard';
 import { DayStatsCard } from '@/web/components/DayStatsCard';
 import { OnboardingView } from '@/web/views/OnboardingView';
 import { evaluateRange, TONE_COLOR } from '@/domain/goalPhase';
 import { isDayInProgress } from '@/domain/dayEvaluation';
-import { macrosForServings } from '@/domain/nutritionMath';
 import { saveBodyMetric } from '@/data/progress';
 import { startMiniSession } from '@/data/workouts';
 import { suggestMiniSession } from '@/domain/miniSessions';
-import { useHealth } from '@/web/hooks/useHealth';
 import { useAuth } from '@/web/hooks/useAuth';
 import { todayKey } from '@/domain/dates';
 import type { MealEntryInput } from '@/data/nutrition';
@@ -39,7 +36,6 @@ export function DashboardView() {
   const router = useRouter();
   // Pull fresh health data on mount and on app resume (§12). Resolves to a
   // no-op in the browser.
-  const health = useHealth({ autoSync: true });
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -73,7 +69,6 @@ export function DashboardView() {
             slot: entry.slot,
             source: entry.source,
             foodItemId: entry.foodItemId,
-            recipeId: entry.recipeId,
           }),
       }),
     );
@@ -180,13 +175,6 @@ export function DashboardView() {
 
   /** Resolves a quick-add proposal against real stored macros where possible. */
   function handleEntry(entry: MealEntryInput) {
-    if (entry.recipeId) {
-      const recipe = data?.allRecipes.find((r) => r.id === entry.recipeId);
-      if (recipe) {
-        void addEntry({ ...entry, macros: macrosForServings(recipe, entry.servings ?? 1), dataQuality: 'verified' });
-        return;
-      }
-    }
     if (entry.foodItemId) {
       const food = data?.allFoods.find((f) => f.id === entry.foodItemId);
       if (food) {
@@ -244,13 +232,6 @@ export function DashboardView() {
           }
         />
 
-        {(metrics.sources.steps === 'apple_health' || metrics.sources.sleep === 'apple_health') && (
-          <p className="muted-sm" style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <SourceBadge source="apple_health" />
-            Schritte und Schlaf kommen automatisch aus Apple Health
-            {health.state.syncing ? ' · wird aktualisiert …' : ''}
-          </p>
-        )}
       </section>
 
       {/* ── What is still open today ──────────────────────────────────── */}
@@ -261,7 +242,6 @@ export function DashboardView() {
         entryCount={data.entries.length}
         candidates={[
           ...data.allFoods.map((f) => ({ id: f.id, name: f.name, macros: f.macros, kind: 'food' as const })),
-          ...data.allRecipes.map((r) => ({ id: r.id, name: r.name, macros: r.perServing, kind: 'recipe' as const })),
         ]}
         onAdd={handleEntry}
         onAddWater={addWater}
@@ -295,7 +275,6 @@ export function DashboardView() {
           onMetric={handleMetric}
           library={[
             ...data.allFoods.map((f) => ({ id: f.id, kind: 'food' as const, name: f.name })),
-            ...data.allRecipes.map((r) => ({ id: r.id, kind: 'recipe' as const, name: r.name })),
           ]}
         />
       </section>
@@ -404,11 +383,8 @@ export function DashboardView() {
         <QuickAddSheet
           onClose={() => setSheetOpen(false)}
           favoriteFoods={data.favoriteFoods}
-          favoriteRecipes={data.favoriteRecipes}
           allFoods={data.allFoods}
-          allRecipes={data.allRecipes}
           recentMeals={data.recentMeals}
-          batches={data.batches}
           currentWater={metrics.waterMl}
           currentSteps={metrics.steps}
           currentSleep={metrics.sleepH}

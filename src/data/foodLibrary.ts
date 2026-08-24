@@ -204,25 +204,6 @@ function assembleRecipe(row: RecipeRow, ingredientRows: IngredientRow[]): Recipe
   };
 }
 
-export async function listRecipes(userId: string): Promise<Recipe[]> {
-  const supabase = getSupabaseClient();
-  const { data: recipes, error } = await supabase
-    .from('forge_recipes')
-    .select('id, name, total_servings, serving_label, is_meal_prep, favorite, notes, use_count')
-    .eq('user_id', userId)
-    .order('favorite', { ascending: false })
-    .order('name', { ascending: true });
-  if (error) throw error;
-  if (!recipes?.length) return [];
-
-  const { data: ingredients, error: ingError } = await supabase
-    .from('forge_recipe_ingredients')
-    .select('id, recipe_id, food_item_id, name, amount_label, kcal, protein_g, carbs_g, fat_g, order_index')
-    .in('recipe_id', recipes.map((r) => r.id));
-  if (ingError) throw ingError;
-
-  return recipes.map((r) => assembleRecipe(r as RecipeRow, (ingredients ?? []) as IngredientRow[]));
-}
 
 export type RecipeInput = {
   name: string;
@@ -234,44 +215,7 @@ export type RecipeInput = {
   ingredients: { foodItemId?: string | null; name: string; amountLabel?: string; macros: Macros }[];
 };
 
-export async function createRecipe(userId: string, input: RecipeInput): Promise<string> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from('forge_recipes')
-    .insert({
-      user_id: userId,
-      name: input.name,
-      total_servings: input.totalServings,
-      serving_label: input.servingLabel ?? 'Portion',
-      is_meal_prep: input.isMealPrep ?? false,
-      favorite: input.favorite ?? false,
-      notes: input.notes ?? '',
-    })
-    .select('id')
-    .single();
-  if (error) throw error;
 
-  await replaceIngredients(data.id, input.ingredients);
-  return data.id;
-}
-
-export async function updateRecipe(userId: string, recipeId: string, input: RecipeInput): Promise<void> {
-  const supabase = getSupabaseClient();
-  const { error } = await supabase
-    .from('forge_recipes')
-    .update({
-      name: input.name,
-      total_servings: input.totalServings,
-      serving_label: input.servingLabel ?? 'Portion',
-      is_meal_prep: input.isMealPrep ?? false,
-      favorite: input.favorite ?? false,
-      notes: input.notes ?? '',
-    })
-    .eq('id', recipeId)
-    .eq('user_id', userId);
-  if (error) throw error;
-  await replaceIngredients(recipeId, input.ingredients);
-}
 
 async function replaceIngredients(recipeId: string, ingredients: RecipeInput['ingredients']): Promise<void> {
   const supabase = getSupabaseClient();
@@ -295,84 +239,17 @@ async function replaceIngredients(recipeId: string, ingredients: RecipeInput['in
   if (error) throw error;
 }
 
-export async function deleteRecipe(userId: string, recipeId: string): Promise<void> {
-  const supabase = getSupabaseClient();
-  const { error } = await supabase.from('forge_recipes').delete().eq('id', recipeId).eq('user_id', userId);
-  if (error) throw error;
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Meal prep batches (§13)
 // ═══════════════════════════════════════════════════════════════════════════
 
-export async function listActiveBatches(userId: string): Promise<MealPrepBatch[]> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from('forge_meal_prep_batches')
-    .select('id, recipe_id, cooked_on, total_portions, portions_used, active, forge_recipes(name)')
-    .eq('user_id', userId)
-    .eq('active', true)
-    .order('cooked_on', { ascending: false });
-  if (error) throw error;
 
-  return (data ?? []).map((row) => {
-    const total = num(row.total_portions);
-    const used = num(row.portions_used);
-    const related = row.forge_recipes as unknown as { name?: string } | { name?: string }[] | null;
-    const name = Array.isArray(related) ? (related[0]?.name ?? '') : (related?.name ?? '');
-    return {
-      id: row.id,
-      recipeId: row.recipe_id,
-      recipeName: name,
-      cookedOn: row.cooked_on,
-      totalPortions: total,
-      portionsUsed: used,
-      portionsLeft: Math.max(0, total - used),
-      active: row.active,
-    };
-  });
-}
-
-export async function createBatch(
-  userId: string,
-  recipeId: string,
-  totalPortions: number,
-  cookedOn: string,
-): Promise<void> {
-  const supabase = getSupabaseClient();
-  const { error } = await supabase.from('forge_meal_prep_batches').insert({
-    user_id: userId,
-    recipe_id: recipeId,
-    total_portions: totalPortions,
-    cooked_on: cookedOn,
-  });
-  if (error) throw error;
-}
 
 /**
  * Consumes portions from a batch. When the batch runs out it is deactivated
  * rather than deleted, so past meal entries keep pointing at something real.
  */
-export async function consumeBatchPortions(userId: string, batchId: string, portions: number): Promise<void> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from('forge_meal_prep_batches')
-    .select('total_portions, portions_used')
-    .eq('id', batchId)
-    .eq('user_id', userId)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) return;
-
-  const total = num(data.total_portions);
-  const nextUsed = Math.min(total, num(data.portions_used) + portions);
-  const { error: updateError } = await supabase
-    .from('forge_meal_prep_batches')
-    .update({ portions_used: nextUsed, active: nextUsed < total })
-    .eq('id', batchId)
-    .eq('user_id', userId);
-  if (updateError) throw updateError;
-}
 
 export async function closeBatch(userId: string, batchId: string): Promise<void> {
   const supabase = getSupabaseClient();

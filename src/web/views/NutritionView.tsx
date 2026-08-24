@@ -13,7 +13,7 @@ import { DailyTimeline, mealToEvent, type TimelineEvent } from '@/web/components
 import { evaluateRange, evaluateGoal, TONE_COLOR } from '@/domain/goalPhase';
 import { isDayInProgress, formatLiters } from '@/domain/dayEvaluation';
 import {
-  MEAL_SLOTS, MEAL_SLOT_LABEL, MEAL_SLOT_ICON, macrosForServings, sumMacros,
+  MEAL_SLOTS, MEAL_SLOT_LABEL, MEAL_SLOT_ICON, sumMacros,
 } from '@/domain/nutritionMath';
 import type { MealEntryInput } from '@/data/nutrition';
 import type { MealSlot } from '@/domain/types';
@@ -21,7 +21,7 @@ import type { MealSlot } from '@/domain/types';
 const WATER_STEPS = [250, 500, 750];
 
 export function NutritionView() {
-  const { state, favorites, addMeal, removeMeal, addWater, saveAsFood, cookBatch } = useNutrition();
+  const { state, favorites, addMeal, removeMeal, addWater, saveAsFood } = useNutrition();
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const meals = state.meals;
@@ -52,13 +52,6 @@ export function NutritionView() {
 
   /** Resolve library references to their stored macros before saving. */
   function handleEntry(entry: MealEntryInput) {
-    if (entry.recipeId) {
-      const recipe = state.recipes.find((r) => r.id === entry.recipeId);
-      if (recipe) {
-        void addMeal({ ...entry, macros: macrosForServings(recipe, entry.servings ?? 1), dataQuality: 'verified' });
-        return;
-      }
-    }
     if (entry.foodItemId) {
       const food = state.foods.find((f) => f.id === entry.foodItemId);
       if (food) {
@@ -168,7 +161,6 @@ export function NutritionView() {
           compact
           library={[
             ...state.foods.map((f) => ({ id: f.id, kind: 'food' as const, name: f.name })),
-            ...state.recipes.map((r) => ({ id: r.id, kind: 'recipe' as const, name: r.name })),
           ]}
         />
       </section>
@@ -204,65 +196,6 @@ export function NutritionView() {
       )}
 
       {/* ── Meal prep (§13) ───────────────────────────────────────────── */}
-      {(state.batches.length > 0 || state.recipes.some((r) => r.isMealPrep)) && (
-        <section className="panel soft">
-          <div className="section-head">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Box size={15} color="var(--violet)" />
-              <p className="h3" style={{ fontSize: 15 }}>Meal Prep</p>
-            </div>
-          </div>
-
-          <div className="stack-sm">
-            {state.batches.map((batch) => {
-              const recipe = state.recipes.find((r) => r.id === batch.recipeId);
-              return (
-                <div key={batch.id} className="row-between">
-                  <div style={{ minWidth: 0 }}>
-                    <p className="h3" style={{ fontSize: 14 }}>{batch.recipeName}</p>
-                    <p className="muted-sm">
-                      {batch.portionsLeft} / {batch.totalPortions} Portionen verfügbar · gekocht am {batch.cookedOn}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="button secondary compact"
-                    disabled={!recipe || batch.portionsLeft <= 0}
-                    onClick={() => recipe && void addMeal({
-                      name: `${batch.recipeName} (Meal Prep)`,
-                      macros: macrosForServings(recipe, 1),
-                      dataQuality: 'verified',
-                      recipeId: recipe.id,
-                      batchId: batch.id,
-                      servings: 1,
-                      source: 'prep',
-                    })}
-                  >
-                    1 Portion
-                  </button>
-                </div>
-              );
-            })}
-
-            {state.recipes.filter((r) => r.isMealPrep && !state.batches.some((b) => b.recipeId === r.id)).map((recipe) => (
-              <div key={recipe.id} className="row-between">
-                <div style={{ minWidth: 0 }}>
-                  <p className="h3" style={{ fontSize: 14 }}>{recipe.name}</p>
-                  <p className="muted-sm">Kein offener Batch</p>
-                </div>
-                <button
-                  type="button"
-                  className="button secondary compact"
-                  onClick={() => void cookBatch(recipe.id, recipe.totalServings)}
-                >
-                  <ChefHat size={14} /> Gekocht
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
       {/* ── Meals by slot (§14) ───────────────────────────────────────── */}
       <section className="panel">
         <div className="section-head">
@@ -353,11 +286,8 @@ export function NutritionView() {
         <QuickAddSheet
           onClose={() => setSheetOpen(false)}
           favoriteFoods={favorites}
-          favoriteRecipes={state.recipes}
           allFoods={state.foods}
-          allRecipes={state.recipes}
           recentMeals={state.recentMeals}
-          batches={state.batches}
           currentWater={state.water.todayMl}
           currentSteps={0}
           currentSleep={0}

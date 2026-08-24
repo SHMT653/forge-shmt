@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { QuickAddSheet } from './QuickAddSheet';
 import { useTodayContext } from '@/web/hooks/TodayDataProvider';
-import { macrosForServings } from '@/domain/nutritionMath';
 import { saveBodyMetric } from '@/data/progress';
 import { startMiniSession } from '@/data/workouts';
 import { suggestMiniSession } from '@/domain/miniSessions';
@@ -30,13 +29,6 @@ export function QuickActionBar() {
 
   function handleEntry(entry: MealEntryInput) {
     if (!data) return;
-    if (entry.recipeId) {
-      const recipe = data.allRecipes.find((r) => r.id === entry.recipeId);
-      if (recipe) {
-        void addEntry({ ...entry, macros: macrosForServings(recipe, entry.servings ?? 1), dataQuality: 'verified' });
-        return;
-      }
-    }
     if (entry.foodItemId) {
       const food = data.allFoods.find((f) => f.id === entry.foodItemId);
       if (food) {
@@ -94,11 +86,8 @@ export function QuickActionBar() {
         <QuickAddSheet
           onClose={() => setAddOpen(false)}
           favoriteFoods={data.favoriteFoods}
-          favoriteRecipes={data.favoriteRecipes}
           allFoods={data.allFoods}
-          allRecipes={data.allRecipes}
           recentMeals={data.recentMeals}
-          batches={data.batches}
           currentWater={data.metrics.waterMl}
           currentSteps={data.metrics.steps}
           currentSleep={data.metrics.sleepH}

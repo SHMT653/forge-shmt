@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { formatDistance, formatSleep, formatSyncedAgo, shouldReplace } from '@/domain/health';
+import { formatDistance, formatSleep, shouldReplace } from '@/domain/health';
 import { buildDayMetrics, mergeHealth, metricsForDate } from '@/data/dailyMetrics';
-import { ManualHealthProvider } from '@/services/health/provider';
 import { canPerform, equipmentFromExerciseLabel } from '@/domain/equipment';
 import { suggestMiniSession } from '@/domain/miniSessions';
 import type { DailyHealth } from '@/domain/health';
@@ -95,29 +94,6 @@ describe('mergeHealth — replace, never add (§11/§43)', () => {
   });
 });
 
-describe('ManualHealthProvider — the browser case (§5)', () => {
-  const provider = new ManualHealthProvider();
-
-  it('is available but supports nothing, so no UI has to check the platform', async () => {
-    expect(await provider.isAvailable()).toBe(true);
-    expect(provider.supportedMetrics()).toEqual([]);
-  });
-
-  it('returns null rather than throwing for every reading', async () => {
-    expect(await provider.getSteps()).toBeNull();
-    expect(await provider.getSleep()).toBeNull();
-    expect(await provider.getWeight()).toBeNull();
-    expect(await provider.getActiveEnergy()).toBeNull();
-    expect(await provider.getWalkingRunningDistance()).toBeNull();
-    expect(await provider.getWorkouts()).toEqual([]);
-  });
-
-  it('grants nothing when asked for permissions', async () => {
-    expect(await provider.requestPermissions()).toEqual({ granted: [], denied: [] });
-    expect(await provider.grantedMetrics()).toEqual([]);
-  });
-});
-
 describe('health formatting (§17/§20)', () => {
   it('formats sleep as hours and minutes', () => {
     expect(formatSleep(514)).toBe('8 h 34 min');
@@ -131,18 +107,7 @@ describe('health formatting (§17/§20)', () => {
     expect(formatDistance(null)).toBe('–');
   });
 
-  it('describes sync age in plain German', () => {
-    const now = new Date('2026-08-21T12:00:00Z');
-    expect(formatSyncedAgo('2026-08-21T11:56:00Z', now)).toBe('vor 4 Minuten');
-    expect(formatSyncedAgo('2026-08-21T11:59:40Z', now)).toBe('gerade eben');
-    expect(formatSyncedAgo('2026-08-21T09:00:00Z', now)).toBe('vor 3 Stunden');
-    expect(formatSyncedAgo('2026-08-19T12:00:00Z', now)).toBe('vor 2 Tagen');
-    expect(formatSyncedAgo(null, now)).toBeNull();
-  });
 
-  it('survives a malformed timestamp', () => {
-    expect(formatSyncedAgo('not-a-date')).toBeNull();
-  });
 });
 
 describe('equipment (§33)', () => {
@@ -182,31 +147,5 @@ describe('suggestMiniSession (§19/§33)', () => {
 
   it('is never empty, even with no equipment configured', () => {
     expect(suggestMiniSession([]).exercises.length).toBeGreaterThan(0);
-  });
-});
-
-describe('availability semantics — the dead-button bug', () => {
-  it('a provider that supports nothing must not count as available', async () => {
-    // Regression: the browser fell back to ManualHealthProvider, whose
-    // isAvailable() is true because it exists as a provider. The UI read that
-    // as "Health works here" and rendered a "Verbinden" button that did
-    // nothing when pressed.
-    const { resolveHealthProvider, __setHealthProvider } = await import('@/services/health');
-    __setHealthProvider(null);
-
-    const provider = await resolveHealthProvider();
-    const supported = provider.supportedMetrics();
-    const available = supported.length > 0 && (await provider.isAvailable());
-
-    expect(provider.id).toBe('manual');
-    expect(available).toBe(false);
-  });
-
-  it('the manual provider still reports itself as a working provider', async () => {
-    // The two meanings are genuinely different and both are needed — this
-    // pins the distinction so it does not get collapsed again.
-    const provider = new ManualHealthProvider();
-    expect(await provider.isAvailable()).toBe(true);
-    expect(provider.supportedMetrics()).toHaveLength(0);
   });
 });

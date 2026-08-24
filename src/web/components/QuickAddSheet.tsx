@@ -6,11 +6,11 @@ import { Sheet } from './Sheet';
 import { QuickTextInput } from './QuickTextInput';
 import { useFoodSearch } from '@/web/hooks/useFoodSearch';
 import { scaleCandidate, type ScoredCandidate } from '@/domain/foodResolver';
-import { macrosForServings, MEAL_SLOT_ICON, roundMacros, scaleMacros, slotForHour } from '@/domain/nutritionMath';
+import { MEAL_SLOT_ICON, roundMacros, scaleMacros, slotForHour } from '@/domain/nutritionMath';
 import { formatLiters, formatHours } from '@/domain/dayEvaluation';
 import type { MealEntry, MealEntryInput } from '@/data/nutrition';
 import type { FoodItemInput } from '@/data/foodLibrary';
-import type { FoodItem, MealPrepBatch, Recipe } from '@/domain/types';
+import type { FoodItem } from '@/domain/types';
 import { parseDecimalOr } from '@/domain/numbers';
 
 type Mode = 'food' | 'water' | 'steps' | 'sleep' | 'weight' | 'training';
@@ -33,25 +33,19 @@ export type QuickAddHandlers = {
 export function QuickAddSheet({
   onClose,
   favoriteFoods,
-  favoriteRecipes,
-  batches,
   currentWater,
   currentSteps,
   currentSleep,
   currentWeight,
   recentMeals = [],
   allFoods,
-  allRecipes,
   handlers,
 }: {
   onClose: () => void;
   favoriteFoods: readonly FoodItem[];
-  favoriteRecipes: readonly Recipe[];
-  batches: readonly MealPrepBatch[];
   recentMeals?: readonly MealEntry[];
   /** Full library for searching; the favourites above are only the chips. */
   allFoods?: readonly FoodItem[];
-  allRecipes?: readonly Recipe[];
   currentWater: number;
   currentSteps: number;
   currentSleep: number;
@@ -86,11 +80,8 @@ export function QuickAddSheet({
       {mode === 'food' && (
         <FoodPanel
           favoriteFoods={favoriteFoods}
-          favoriteRecipes={favoriteRecipes}
-          batches={batches}
           recentMeals={recentMeals}
           allFoods={allFoods ?? favoriteFoods}
-          allRecipes={allRecipes ?? favoriteRecipes}
           busy={busy}
           onAdd={(entry, keepOpen) => run(() => handlers.onAddEntry(entry), keepOpen)}
           {...(handlers.onSaveFood ? { onSaveFood: handlers.onSaveFood } : {})}
@@ -196,21 +187,15 @@ function ModeTile({ icon, label, active, onClick }: { icon: React.ReactNode; lab
 
 function FoodPanel({
   favoriteFoods,
-  favoriteRecipes,
-  batches,
   recentMeals,
   allFoods,
-  allRecipes,
   busy,
   onAdd,
   onSaveFood,
 }: {
   favoriteFoods: readonly FoodItem[];
-  favoriteRecipes: readonly Recipe[];
-  batches: readonly MealPrepBatch[];
   recentMeals: readonly MealEntry[];
   allFoods: readonly FoodItem[];
-  allRecipes: readonly Recipe[];
   busy: boolean;
   onAdd: (entry: MealEntryInput, keepOpen?: boolean) => void;
   onSaveFood?: (input: FoodItemInput) => Promise<void> | void;
@@ -220,7 +205,7 @@ function FoodPanel({
   const [manualName, setManualName] = useState('');
   const [selected, setSelected] = useState<ScoredCandidate | null>(null);
 
-  const search = useFoodSearch({ foods: allFoods, recipes: allRecipes, recentMeals });
+  const search = useFoodSearch({ foods: allFoods, recipes: [], recentMeals });
   const slot = slotForHour(new Date().getHours());
 
   function addOwnFood(food: FoodItem) {
@@ -230,32 +215,6 @@ function FoodPanel({
       dataQuality: food.dataQuality,
       foodItemId: food.id,
       source: 'favorite',
-      slot,
-    }, true);
-  }
-
-  function addRecipe(recipe: Recipe, servings: number) {
-    onAdd({
-      name: `${recipe.name}${servings !== 1 ? ` (${servings} ${recipe.servingLabel})` : ''}`,
-      macros: macrosForServings(recipe, servings),
-      dataQuality: 'verified',
-      recipeId: recipe.id,
-      servings,
-      source: 'recipe',
-      slot,
-    }, true);
-  }
-
-  function addBatch(batch: MealPrepBatch, recipe: Recipe | undefined) {
-    if (!recipe) return;
-    onAdd({
-      name: `${batch.recipeName} (Meal Prep)`,
-      macros: macrosForServings(recipe, 1),
-      dataQuality: 'verified',
-      recipeId: recipe.id,
-      batchId: batch.id,
-      servings: 1,
-      source: 'prep',
       slot,
     }, true);
   }
@@ -318,31 +277,6 @@ function FoodPanel({
     <div className="stack-sm">
       <QuickTextInput onAdd={(entry) => onAdd(entry, true)} />
 
-      {/* Meal prep batches first — they are time-sensitive */}
-      {batches.length > 0 && (
-        <div className="stack-sm">
-          <p className="section-label">Meal Prep</p>
-          <div className="chip-row">
-            {batches.map((batch) => {
-              const recipe = allRecipes.find((r) => r.id === batch.recipeId);
-              return (
-                <button
-                  key={batch.id}
-                  type="button"
-                  className="chip"
-                  disabled={busy || !recipe}
-                  onClick={() => addBatch(batch, recipe)}
-                >
-                  <Box size={14} />
-                  {batch.recipeName}
-                  <span className="chip-meta">{batch.portionsLeft} / {batch.totalPortions}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Favourites — one tap (§37) */}
       {favoriteFoods.length > 0 && !search.query && (
         <div className="stack-sm">
@@ -391,14 +325,7 @@ function FoodPanel({
                   meta={describeCandidate(candidate)}
                   estimated={candidate.dataQuality !== 'verified'}
                   own={candidate.source === 'library'}
-                  onClick={() => {
-                    // Recipes offer portions; everything else offers grams.
-                    if (candidate.libraryKind === 'recipe') {
-                      const recipe = allRecipes.find((r) => r.id === candidate.libraryId);
-                      if (recipe) { setSelected(candidate); return; }
-                    }
-                    setSelected(candidate);
-                  }}
+                  onClick={() => setSelected(candidate)}
                   disabled={busy}
                 />
               ))}
@@ -418,15 +345,6 @@ function FoodPanel({
       )}
 
       {/* Recipes shown when the box is empty */}
-      {!search.query && favoriteRecipes.length > 0 && (
-        <div className="stack-sm">
-          <p className="section-label">Rezepte</p>
-          {favoriteRecipes.slice(0, 4).map((recipe) => (
-            <RecipeRow key={recipe.id} recipe={recipe} disabled={busy} onAdd={(servings) => addRecipe(recipe, servings)} />
-          ))}
-        </div>
-      )}
-
       {/* Manual */}
       <details>
         <summary style={{ cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 700, padding: '4px 0' }}>
@@ -580,30 +498,6 @@ function ResultRow({
 }
 
 /** Recipes can be logged in fractional portions (§12). */
-function RecipeRow({ recipe, onAdd, disabled }: { recipe: Recipe; onAdd: (servings: number) => void; disabled?: boolean }) {
-  const per = recipe.perServing;
-  return (
-    <div className="habit-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-      <div className="row-between">
-        <div style={{ minWidth: 0 }}>
-          <p className="h3" style={{ fontSize: 14 }}>{MEAL_SLOT_ICON.lunch} {recipe.name}</p>
-          <p className="muted-sm">
-            {Math.round(per.kcal)} kcal · {Math.round(per.proteinG)} g P pro {recipe.servingLabel}
-          </p>
-        </div>
-      </div>
-      <div className="chip-row">
-        {[0.5, 1, 1.5, 2].map((servings) => (
-          <button key={servings} type="button" className="chip" disabled={disabled} onClick={() => onAdd(servings)}>
-            {servings.toLocaleString('de-DE')} {recipe.servingLabel}
-            <span className="chip-meta">{Math.round(roundMacros(scaleMacros(per, servings)).kcal)} kcal</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ── Generic numeric entry ───────────────────────────────────────────────────
 
 function NumberPanel({

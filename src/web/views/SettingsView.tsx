@@ -13,7 +13,6 @@ import { calculateMacros, GOAL_TYPE_LABELS, ACTIVITY_LABELS } from '@/domain/mac
 import { GOAL_CATEGORIES, FASTING_PROTOCOLS, getProgram } from '@/domain/programs';
 import { PHASES, PHASE_ORDER, resolveTargets, type PhaseType } from '@/domain/goalPhase';
 import { EQUIPMENT, TRAINING_FOCUS, type EquipmentId, type TrainingFocusId } from '@/domain/equipment';
-import { HealthCard } from '@/web/components/HealthCard';
 import { startPhase } from '@/data/goalPhases';
 import { todayKey } from '@/domain/dates';
 import type { ActivityLevel, Gender, GoalType, UserGoals } from '@/domain/types';
@@ -542,7 +541,6 @@ export function SettingsView() {
       </section>
 
       {/* Apple Health (§9) — renders a plain explanation in the browser */}
-      <HealthCard />
 
       {/* Goal selection — specific goals in categories */}
       <section className="panel">
