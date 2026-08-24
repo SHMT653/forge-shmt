@@ -93,6 +93,17 @@ describe('service worker request routing', () => {
     // a rebuilt tile was deployed and simply never arrived. They still fall
     // back to cache when offline — they just stop winning against the network.
     for (const icon of [
+      'apple-touch-icon.png',
+      'icon-16.png',
+      'icon-32.png',
+      'icon-192.png',
+      'icon-512.png',
+      'icon-maskable-512.png',
+    ]) {
+      expect(route(`https://forge.test/${icon}`), icon).toBe('network-first');
+    }
+
+    for (const icon of [
       'app-icon.svg',
       'maskable-icon.svg',
       'favicon-16.png',

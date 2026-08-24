@@ -24,7 +24,7 @@ DARK_HEX = '#08070c'
 LIGHT_HEX = '#f4f5fb'
 ALPHA_THRESHOLD = 8
 
-LOCKUP_SCALE = 0.70
+LOCKUP_SCALE = 0.76
 MARK_SCALE = 0.84
 MASKABLE_SCALE = 0.60
 
@@ -295,6 +295,7 @@ def write_adaptive_svg(path, artwork, artwork_w, artwork_h, scale, rounded=False
 
 def main():
     source = sys.argv[1] if len(sys.argv) > 1 else 'public/logo.png'
+    public_dir = Path('public')
     out_dir = Path('public/icons')
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -314,11 +315,16 @@ def main():
     mark = to_rgba(mark, mark_w, mark_h, channels)
     print(f'  mark crop: {mark_bbox} -> {mark_w}x{mark_h}')
 
-    write_png(out_dir / 'lockup.png', 512, 512, compose_icon(lockup, lockup_w, lockup_h, 512, LOCKUP_SCALE), 4)
+    lockup_512 = compose_icon(lockup, lockup_w, lockup_h, 512, LOCKUP_SCALE)
+    write_png(out_dir / 'lockup.png', 512, 512, lockup_512, 4)
     write_png(out_dir / 'mark.png', 512, 512, compose_icon(mark, mark_w, mark_h, 512, MARK_SCALE), 4)
     write_png(out_dir / 'mark-256.png', 256, 256, compose_icon(mark, mark_w, mark_h, 256, MARK_SCALE), 4)
-    write_png(out_dir / 'favicon-32.png', 32, 32, compose_icon(mark, mark_w, mark_h, 32, MARK_SCALE), 4)
-    write_png(out_dir / 'favicon-16.png', 16, 16, compose_icon(mark, mark_w, mark_h, 16, MARK_SCALE), 4)
+    favicon_32 = compose_icon(mark, mark_w, mark_h, 32, MARK_SCALE)
+    favicon_16 = compose_icon(mark, mark_w, mark_h, 16, MARK_SCALE)
+    write_png(out_dir / 'favicon-32.png', 32, 32, favicon_32, 4)
+    write_png(out_dir / 'favicon-16.png', 16, 16, favicon_16, 4)
+    write_png(public_dir / 'icon-32.png', 32, 32, favicon_32, 4)
+    write_png(public_dir / 'icon-16.png', 16, 16, favicon_16, 4)
     print('  wrote transparent lockup and favicon assets')
 
     write_adaptive_svg(out_dir / 'app-icon.svg', lockup, lockup_w, lockup_h, LOCKUP_SCALE)
@@ -334,16 +340,19 @@ def main():
         write_png(out_dir / f'apple-touch-icon-{name}.png', 180, 180, apple, 4)
         print(f'  wrote {name} PNG variants')
 
-    fallback = compose_icon(lockup, lockup_w, lockup_h, 180, LOCKUP_SCALE, FALLBACK)
+    fallback = compose_icon(lockup, lockup_w, lockup_h, 180, LOCKUP_SCALE)
     write_png(out_dir / 'apple-touch-icon.png', 180, 180, fallback, 4)
+    write_png(public_dir / 'apple-touch-icon.png', 180, 180, fallback, 4)
     for size in (192, 512):
         transparent = compose_icon(lockup, lockup_w, lockup_h, size, LOCKUP_SCALE)
         write_png(out_dir / f'icon-{size}.png', size, size, transparent, 4)
+        write_png(public_dir / f'icon-{size}.png', size, size, transparent, 4)
 
         maskable = compose_icon(lockup, lockup_w, lockup_h, size, MASKABLE_SCALE, FALLBACK)
         write_png(out_dir / f'icon-{size}-maskable.png', size, size, maskable, 4)
         if size == 512:
             write_png(out_dir / 'maskable-512.png', size, size, maskable, 4)
+            write_png(public_dir / 'icon-maskable-512.png', size, size, maskable, 4)
 
     print('  wrote fallback and maskable PNG variants')
 

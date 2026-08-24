@@ -63,6 +63,16 @@ function isImmutableAsset(url) {
 function isStaticFile(url) {
   if (url.pathname.startsWith('/icons/')) return false;
   if (
+    [
+      '/apple-touch-icon.png',
+      '/icon-16.png',
+      '/icon-32.png',
+      '/icon-192.png',
+      '/icon-512.png',
+      '/icon-maskable-512.png',
+    ].includes(url.pathname)
+  ) return false;
+  if (
     url.pathname.endsWith('.webmanifest') ||
     url.pathname === '/manifest.webmanifest' ||
     url.pathname === '/manifest.json'
