@@ -110,7 +110,7 @@ export function DashboardView() {
     return <OnboardingView goals={data.goals} onDone={() => void reload()} />;
   }
 
-  const { targets, totals, metrics, dayStatus } = data;
+  const { targets, totals, metrics, dayStatus, readiness } = data;
   const inProgress = isDayInProgress(new Date().getHours());
   const kcalEval = evaluateRange(totals.kcal, targets.calories, { dayInProgress: inProgress });
   const proteinEval = evaluateRange(totals.proteinG, targets.protein, { dayInProgress: inProgress, overTolerance: 9999 });
@@ -249,26 +249,12 @@ export function DashboardView() {
 
       {/* ── Primary action + quick input (§36) ────────────────────────── */}
       <section className="stack-sm">
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" className="button" style={{ flex: 1 }} onClick={() => setSheetOpen(true)}>
-            <Plus size={17} /> Eintragen
-          </button>
-          {data.activeSession ? (
-            <Link href={`/workout/${data.activeSession.id}`} className="button secondary">
-              <Activity size={17} /> Weiter
-            </Link>
-          ) : (
-            <button
-              type="button"
-              className="button secondary"
-              onClick={handleStartWorkout}
-              disabled={starting || !data.suggestedDay}
-              aria-label="Training starten"
-            >
-              <Dumbbell size={17} />
-            </button>
-          )}
-        </div>
+        {/* Training lives in the readiness card below and nowhere else. This
+            row carried a second "Weiter" that outlived the session it pointed
+            at, which is how an abandoned workout stayed reachable. */}
+        <button type="button" className="button" style={{ width: '100%' }} onClick={() => setSheetOpen(true)}>
+          <Plus size={17} /> Eintragen
+        </button>
 
         <QuickTextInput
           onAdd={handleEntry}
@@ -311,29 +297,54 @@ export function DashboardView() {
           </span>
         </div>
 
-        {data.coach.training.trainedToday ? (
-          <p className="copy" style={{ margin: 0, fontSize: 13 }}>Heute erledigt. Gut gemacht.</p>
-        ) : (
-          <div className="stack-sm">
-            <p className="copy" style={{ margin: 0, fontSize: 13 }}>
-              {data.suggestedDay ? `Geplant: ${data.suggestedDay.name}` : 'Noch kein Plan aktiv.'}
-            </p>
-            <div style={{ display: 'flex', gap: 8 }}>
+        {/* What to do today, and the arithmetic behind it — week slack against
+            what the body has been reporting (§ domain/trainingReadiness). */}
+        <div className="readiness">
+          <p className={`readiness-headline tone-${readiness.state}`}>{readiness.headline}</p>
+          <p className="readiness-detail">{readiness.detail}</p>
+
+          {readiness.state === 'running' && data.activeSession && (
+            <Link href={`/workout/${data.activeSession.id}`} className="button compact" style={{ marginTop: 10 }}>
+              <Activity size={15} /> Weitermachen
+            </Link>
+          )}
+
+          {readiness.offerStart && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              {!readiness.preferMini && (
+                <button
+                  type="button"
+                  className="button compact"
+                  onClick={handleStartWorkout}
+                  disabled={starting || !data.suggestedDay}
+                  style={{ flex: 1 }}
+                >
+                  {starting ? '…' : 'Training starten'}
+                </button>
+              )}
               <button
                 type="button"
-                className="button compact"
-                onClick={handleStartWorkout}
-                disabled={starting || !data.suggestedDay}
+                className={`button compact${readiness.preferMini ? '' : ' secondary'}`}
+                onClick={handleStartMini}
+                disabled={starting}
                 style={{ flex: 1 }}
               >
-                {starting ? '…' : 'Training starten'}
-              </button>
-              <button type="button" className="button secondary compact" onClick={handleStartMini} disabled={starting} style={{ flex: 1 }}>
                 Mini-Session
               </button>
+              {readiness.preferMini && data.suggestedDay && (
+                <button
+                  type="button"
+                  className="button secondary compact"
+                  onClick={handleStartWorkout}
+                  disabled={starting}
+                  style={{ flex: 1 }}
+                >
+                  Trotzdem voll
+                </button>
+              )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div style={{ marginTop: 12 }}>
           <SorenessPicker value={data.checkin?.soreness ?? null} onChange={(next) => void setSoreness(next)} />

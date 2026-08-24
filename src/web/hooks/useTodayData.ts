@@ -16,7 +16,7 @@ import {
   type MealEntryInput,
 } from '@/data/nutrition';
 import { createFoodItem, listFoodItems, markFoodUsed, rememberFoodFromEntry, type FoodItemInput } from '@/data/foodLibrary';
-import { getCheckin, saveCheckin } from '@/data/checkins';
+import { getCheckin, listCheckins, saveCheckin } from '@/data/checkins';
 import { getTodayCardioKcal } from '@/data/cardio';
 import { getUserGoals } from '@/data/profile';
 import { listBodyMetrics, listProgressPhotos } from '@/data/progress';
@@ -24,6 +24,8 @@ import { buildDayMetrics, mergeHealth, metricsForDate, pickMetricHabits, setDayM
 import { listDailyHealth, setHealthMetric } from '@/data/dailyHealth';
 import { getActivePhase } from '@/data/goalPhases';
 import { errorMessage } from '@/domain/errors';
+import { assessReadiness, type Readiness } from '@/domain/trainingReadiness';
+import { fluidFromEntry } from '@/domain/fluids';
 import { consecutiveDayStreak } from '@/domain/streaks';
 import { dateKeyAddDays, todayKey } from '@/domain/dates';
 import { resolveTargets, type ResolvedTargets } from '@/domain/goalPhase';
@@ -96,6 +98,9 @@ export type TodayData = {
   todayLogs: Map<string, HabitLog>;
   metrics: DayMetrics;
   checkin: DailyCheckin | null;
+  /** The last two weeks of check-ins, for the soreness streak. */
+  recentCheckins: DailyCheckin[];
+  readiness: Readiness;
   entries: MealEntry[];
   totals: Macros;
   caloriesBurned: { steps: number; workout: number; cardio: number; total: number };
@@ -137,7 +142,7 @@ export function useTodayData() {
 
       const [
         plans, activeSession, habits, habitLogs, entries, goals, metrics, completedDates,
-        recentSessions, cardioKcal, foods, checkin, photos, weekLogs,
+        recentSessions, cardioKcal, foods, checkin, recentCheckins, photos, weekLogs,
         healthDays, activePhase, recentMeals,
       ] = await Promise.all([
         listPlans(user.id),
@@ -152,6 +157,7 @@ export function useTodayData() {
         getTodayCardioKcal(user.id, today),
         listFoodItems(user.id),
         getCheckin(user.id, today),
+        listCheckins(user.id, dateKeyAddDays(today, -14)),
         listProgressPhotos(user.id),
         listNutritionLogs(user.id, dateKeyAddDays(today, -6), today),
         listDailyHealth(user.id, since, today),
@@ -276,6 +282,7 @@ export function useTodayData() {
         todayLogs,
         metrics: dayMetrics,
         checkin,
+        recentCheckins,
         entries,
         totals,
         caloriesBurned: {
@@ -294,6 +301,18 @@ export function useTodayData() {
         coach,
         dayStatus: buildDayStatus(coach),
         dayScore: scoreDay(coach),
+        readiness: assessReadiness({
+          today,
+          weekEnd: weekBoundsFor(today).end,
+          fullWorkoutsThisWeek,
+          miniSessionsThisWeek,
+          weeklyTarget: targets.weeklyTrainingGoal,
+          lastWorkoutDate: lastCompleted?.completedAt?.slice(0, 10) ?? null,
+          trainedToday: completedDates.includes(today),
+          hasActiveSession: activeSession !== null,
+          sorenessHistory: recentCheckins.map((c) => ({ date: c.logDate, soreness: c.soreness })),
+          plannedDayName: suggestedDay?.name ?? null,
+        }),
         weighInDue: isWeighInDue(weight.latestDate, today, goals.weighInWeekday),
         photoDue: isPhotoDue(lastPhoto, today, goals.photoIntervalDays),
       });
@@ -380,6 +399,20 @@ export function useTodayData() {
       // eats it, it is one tap instead of four numbers (§12).
       await rememberFoodFromEntry(user.id, entry);
 
+      // A drink counts toward the fluid target too, not only the calorie one.
+      const libraryFood = entry.foodItemId
+        ? data?.allFoods.find((f) => f.id === entry.foodItemId)
+        : undefined;
+      const fluid = fluidFromEntry({
+        name: entry.name,
+        servings: entry.servings ?? null,
+        ...(libraryFood ? { servingLabel: libraryFood.servingLabel, servingG: libraryFood.servingG } : {}),
+      });
+      if (fluid && metricHabits.water) {
+        const current = data?.metrics.waterMl ?? 0;
+        await setDayMetric(user.id, metricHabits.water, today, current + fluid.ml);
+      }
+
       if (entry.foodItemId) {
         const food = data?.allFoods.find((f) => f.id === entry.foodItemId);
         await markFoodUsed(user.id, entry.foodItemId, food?.useCount ?? 0);
@@ -387,7 +420,7 @@ export function useTodayData() {
       await syncNutritionTotals(user.id, today);
       await load();
     },
-    [user, data?.allFoods, load],
+    [user, data?.allFoods, data?.metrics.waterMl, metricHabits.water, load],
   );
 
   const removeEntry = useCallback(

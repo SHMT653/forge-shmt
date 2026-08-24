@@ -29,6 +29,7 @@ import { dateKeyAddDays, todayKey } from '@/domain/dates';
 import { resolveTargets, type ResolvedTargets } from '@/domain/goalPhase';
 import { combineQuality, slotForHour, sumMacros } from '@/domain/nutritionMath';
 import type { DataQuality, FoodItem, Habit, Macros, MealPrepBatch, Recipe, UserGoals } from '@/domain/types';
+import { fluidFromEntry } from '@/domain/fluids';
 
 export type NutritionState = {
   meals: MealEntry[];
@@ -149,14 +150,25 @@ export function useNutrition() {
       await addMealEntry(user.id, today, withSlot);
       // Typed by hand once is enough; next time it is a tap (§12).
       await rememberFoodFromEntry(user.id, withSlot);
+
+      const food = withSlot.foodItemId ? state.foods.find((f) => f.id === withSlot.foodItemId) : undefined;
       if (withSlot.foodItemId) {
-        const food = state.foods.find((f) => f.id === withSlot.foodItemId);
         await markFoodUsed(user.id, withSlot.foodItemId, food?.useCount ?? 0);
+      }
+
+      // A drink counts toward the fluid target too, not only the calorie one.
+      const fluid = fluidFromEntry({
+        name: withSlot.name,
+        servings: withSlot.servings ?? null,
+        ...(food ? { servingLabel: food.servingLabel, servingG: food.servingG } : {}),
+      });
+      if (fluid && state.water.habit) {
+        await setDayMetric(user.id, state.water.habit, today, state.water.todayMl + fluid.ml);
       }
       await syncNutritionTotals(user.id, today);
       void load();
     },
-    [user, state.foods, load],
+    [user, state.foods, state.water.habit, state.water.todayMl, load],
   );
 
   const removeMeal = useCallback(

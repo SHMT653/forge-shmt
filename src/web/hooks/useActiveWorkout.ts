@@ -88,9 +88,9 @@ export function useActiveWorkout(sessionId: string) {
   }, [session]);
 
   const abandon = useCallback(async () => {
-    if (!session) return;
-    await abandonSession(session.id);
-  }, [session]);
+    if (!session || !user) return;
+    await abandonSession(user.id, session.id);
+  }, [session, user]);
 
   return { session, loading, error, lastPerformance, saveSet, addSet, finish, abandon, reload: load };
 }

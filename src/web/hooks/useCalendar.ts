@@ -15,7 +15,10 @@ import { dateKeyAddDays, toDateKey, todayKey } from '@/domain/dates';
 import { resolveTargets, type ResolvedTargets } from '@/domain/goalPhase';
 import { isDayInProgress } from '@/domain/dayEvaluation';
 import { rateDay, summarizeRatings, type DayRating } from '@/domain/dayRating';
-import type { Soreness, UserGoals } from '@/domain/types';
+import type { Habit, Soreness, UserGoals } from '@/domain/types';
+import { pickMetricHabits, setDayMetric } from '@/data/dailyMetrics';
+import { listHabits } from '@/data/habits';
+import { fluidFromEntry } from '@/domain/fluids';
 
 /** Grid bounds for a month view: whole weeks, Monday first. */
 export function monthGrid(anchor: string): { start: string; end: string; days: string[] } {
@@ -39,6 +42,9 @@ export function useCalendar() {
   const [ratings, setRatings] = useState<Map<string, DayRating>>(new Map());
   const [targets, setTargets] = useState<ResolvedTargets | null>(null);
   const [goals, setGoals] = useState<UserGoals | null>(null);
+  // Held so a drink back-filled onto a past day credits that day's fluid.
+  const [waterHabit, setWaterHabit] = useState<Habit | null>(null);
+  const [waterByDate, setWaterByDate] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,11 +54,15 @@ export function useCalendar() {
     if (!user) return;
     setError(null);
     try {
-      const [userGoals, phase, aggregates] = await Promise.all([
+      const [userGoals, phase, aggregates, habitList] = await Promise.all([
         getUserGoals(user.id),
         getActivePhase(user.id),
         loadDayAggregates(user.id, grid.start, grid.end),
+        listHabits(user.id),
       ]);
+      // Needed so a drink back-filled onto a past day credits that day's fluid.
+      setWaterHabit(pickMetricHabits(habitList).water);
+      setWaterByDate(new Map([...aggregates].map(([date, day]) => [date, day.waterMl ?? 0])));
 
       const effective: UserGoals = phase
         ? {
@@ -120,10 +130,17 @@ export function useCalendar() {
       // A meal typed while back-filling last Tuesday is just as worth
       // remembering as one typed today.
       await rememberFoodFromEntry(user.id, entry);
+
+      // And a drink back-filled onto that day counts toward its fluid target.
+      const fluid = fluidFromEntry({ name: entry.name, servings: entry.servings ?? null });
+      if (fluid && waterHabit) {
+        await setDayMetric(user.id, waterHabit, date, (waterByDate.get(date) ?? 0) + fluid.ml);
+      }
+
       await syncNutritionTotals(user.id, date);
       await load();
     },
-    [user, load],
+    [user, load, waterHabit, waterByDate],
   );
 
   const removeMealOn = useCallback(

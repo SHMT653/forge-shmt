@@ -1,5 +1,6 @@
 import { getSupabaseClient } from '@/services/supabase/client';
 import { snapshotExercise, type ExerciseSnapshot, type LastPerformance } from '@/domain/progression';
+import { isSessionStillRunning } from '@/domain/dates';
 import type { PlanDay, SessionExercise, SetEntry, WorkoutKind, WorkoutSession } from '@/domain/types';
 
 const SESSION_COLUMNS = 'id, plan_id, plan_name, day_name, started_at, completed_at, duration_seconds, kind';
@@ -164,11 +165,19 @@ export async function startWorkoutSession(
   return session.id;
 }
 
+/**
+ * The session the user is in the middle of, if any.
+ *
+ * Bounded by time: an unfinished row used to count as active forever, so a
+ * single abandoned workout left "läuft" and a "Weiter" button on the dashboard
+ * permanently. Older unfinished sessions stay in the database — they are simply
+ * not treated as running (§ dates.isSessionStillRunning).
+ */
 export async function getActiveSession(userId: string): Promise<WorkoutSession | null> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('forge_workout_sessions')
-    .select('id')
+    .select('id, started_at')
     .eq('user_id', userId)
     .is('completed_at', null)
     .order('started_at', { ascending: false })
@@ -176,6 +185,7 @@ export async function getActiveSession(userId: string): Promise<WorkoutSession |
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
+  if (!isSessionStillRunning(data.started_at as string)) return null;
   return fetchSessionDetail(data.id);
 }
 
@@ -282,10 +292,26 @@ export async function finishSession(sessionId: string, durationSeconds: number):
   if (error) throw error;
 }
 
-export async function abandonSession(sessionId: string): Promise<void> {
+/**
+ * Abandoning is a real deletion, and it is verified.
+ *
+ * A delete that row-level security filters out returns success having removed
+ * nothing, which looked identical to working — the session simply came back.
+ * Asking for the deleted row back makes that case an error the UI can report
+ * instead of silently leaving the workout in place.
+ */
+export async function abandonSession(userId: string, sessionId: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { error } = await supabase.from('forge_workout_sessions').delete().eq('id', sessionId);
+  const { data, error } = await supabase
+    .from('forge_workout_sessions')
+    .delete()
+    .eq('id', sessionId)
+    .eq('user_id', userId)
+    .select('id');
   if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error('Das Training konnte nicht abgebrochen werden. Versuch es noch einmal.');
+  }
 }
 
 /**

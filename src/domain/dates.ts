@@ -44,3 +44,18 @@ export function formatFullDate(key: string): string {
     year: 'numeric',
   });
 }
+
+/**
+ * Whether a workout started at `startedAt` can still plausibly be running.
+ *
+ * An unfinished session used to count as active forever, so one abandoned
+ * workout left "Tag 1 — läuft" and a "Weiter" button on the dashboard for the
+ * rest of time. Nobody trains for twelve hours; past that the session was
+ * abandoned, whether or not it was abandoned on purpose.
+ */
+export function isSessionStillRunning(startedAt: string, now = new Date()): boolean {
+  const started = new Date(startedAt).getTime();
+  if (!Number.isFinite(started)) return false;
+  const hours = (now.getTime() - started) / 3_600_000;
+  return hours >= 0 && hours < 12;
+}
