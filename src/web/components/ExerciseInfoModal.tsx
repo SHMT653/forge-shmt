@@ -73,7 +73,7 @@ export function ExerciseInfoModal({ name, onClose }: { name: string; onClose: ()
 
         {guide && entry && (
           <div className="picker-detail" style={{ border: 'none', padding: 0 }}>
-            <ExerciseFormSvg pattern={guide.pattern} patternLabel={guide.patternLabel} />
+            <ExerciseFormSvg name={name} pattern={guide.pattern} patternLabel={guide.patternLabel} />
 
             {entry.muscles.length > 0 && (
               <div style={{ maxWidth: 230, margin: '0 auto 10px' }}>

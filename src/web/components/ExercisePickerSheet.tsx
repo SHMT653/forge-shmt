@@ -245,7 +245,7 @@ function ExerciseRow({
 
       {open && (
         <div className="picker-detail">
-          <ExerciseFormSvg pattern={guide.pattern} patternLabel={guide.patternLabel} />
+          <ExerciseFormSvg name={entry.name} pattern={guide.pattern} patternLabel={guide.patternLabel} />
 
           {entry.muscles.length > 0 && (
             <div style={{ maxWidth: 210, margin: '0 auto 10px' }}>
