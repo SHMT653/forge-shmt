@@ -13,15 +13,19 @@ export const metadata: Metadata = {
     title: 'FORGE',
   },
   /**
-   * Light and dark tiles, chosen by the phone's appearance setting.
+   * One tile for the home screen, and it is the dark one.
    *
-   * The three apple-touch-icons that used to ship were byte-identical copies of
-   * one file, so there was never a light variant to pick. They also carried a
-   * flat #1a191c background that matched neither the app nor anything else on
-   * the home screen, which is what made the tile read as a grey patch.
+   * iOS does not evaluate `media` on an apple-touch-icon link — it takes the
+   * first one it finds. Offering a light variant therefore adapted to nothing;
+   * it handed a dark-mode phone a white tile, which is worse than not adapting
+   * at all. The home screen gets exactly one icon and it matches the app.
    *
-   * The unsuffixed files stay last as the fallback for anything that ignores
-   * the media query.
+   * A web clip's icon is also captured when the shortcut is added and never
+   * re-rendered, so following the system theme afterwards is not something any
+   * arrangement of these links can deliver.
+   *
+   * The favicon links keep both variants: browsers do honour `media` there,
+   * and a tab icon is re-read on every load rather than frozen once.
    */
   icons: {
     icon: [
@@ -32,11 +36,7 @@ export const metadata: Metadata = {
       { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
       { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
-    apple: [
-      { url: '/icons/apple-touch-icon-light.png', sizes: '180x180', type: 'image/png', media: '(prefers-color-scheme: light)' },
-      { url: '/icons/apple-touch-icon-dark.png', sizes: '180x180', type: 'image/png', media: '(prefers-color-scheme: dark)' },
-      { url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
-    ],
+    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
   },
 };
 

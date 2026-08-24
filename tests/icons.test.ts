@@ -77,12 +77,27 @@ describe('app icons', () => {
     expect(cornerPixel('public/icons/apple-touch-icon.png')).toEqual([10, 10, 13]);
   });
 
-  it('links both variants behind a colour-scheme query', () => {
+  it('offers the home screen exactly one icon', () => {
+    // iOS ignores `media` on an apple-touch-icon and takes the first link it
+    // finds. With a light variant listed first, a dark-mode phone got a white
+    // tile — worse than not adapting at all.
     const layout = readFileSync('app/layout.tsx', 'utf8');
-    expect(layout).toMatch(/apple-touch-icon-light\.png[\s\S]*?prefers-color-scheme: light/);
-    expect(layout).toMatch(/apple-touch-icon-dark\.png[\s\S]*?prefers-color-scheme: dark/);
-    // A fallback for anything that ignores the query.
-    expect(layout).toMatch(/apple-touch-icon\.png/);
+    const apple = /apple: \[(.*?)\],/s.exec(layout)?.[1] ?? '';
+    expect(apple).toMatch(/apple-touch-icon\.png/);
+    expect(apple).not.toMatch(/apple-touch-icon-light/);
+    expect(apple).not.toMatch(/apple-touch-icon-dark/);
+    expect(apple).not.toMatch(/prefers-color-scheme/);
+  });
+
+  it('keeps both variants for the tab icon, where the query does work', () => {
+    const layout = readFileSync('app/layout.tsx', 'utf8');
+    const favicons = /icon: \[(.*?)\],/s.exec(layout)?.[1] ?? '';
+    expect(favicons).toMatch(/icon-192-light\.png[\s\S]*?prefers-color-scheme: light/);
+    expect(favicons).toMatch(/icon-192-dark\.png[\s\S]*?prefers-color-scheme: dark/);
+  });
+
+  it('makes the one home-screen tile the dark one', () => {
+    expect(cornerPixel('public/icons/apple-touch-icon.png')).toEqual([10, 10, 13]);
   });
 
   it('gives maskable its own artwork rather than relabelling the full tile', () => {
