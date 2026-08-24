@@ -95,6 +95,11 @@ describe('service worker request routing', () => {
     for (const icon of [
       'app-icon.svg',
       'maskable-icon.svg',
+      'favicon-16.png',
+      'favicon-32.png',
+      'lockup.png',
+      'mark.png',
+      'mark-256.png',
       'apple-touch-icon.png',
       'apple-touch-icon-dark.png',
       'apple-touch-icon-light.png',

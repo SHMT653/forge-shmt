@@ -2,11 +2,10 @@
 """
 Builds the Forge app icons from public/logo.png.
 
-The public logo includes a wordmark and a lot of transparent padding. That is
-good for branding, but bad for launcher icons: the mark looks too small and the
-text becomes unreadable. This generator crops the visible Forge mark from the
-upper part of the artwork, then places it on the same adaptive light/dark tile
-system used by NEO.
+The public logo includes the Forge mark, the FORGE wordmark, and transparent
+padding. NEO ships both a transparent lockup and adaptive light/dark tiles, so
+Forge does the same: the full lockup is used for installed app icons, while the
+small favicons keep only the mark.
 
 Pure standard library: zlib for PNG, base64 for the embedded SVG artwork.
 """
@@ -24,8 +23,9 @@ DARK_HEX = '#08070c'
 LIGHT_HEX = '#f4f5fb'
 ALPHA_THRESHOLD = 8
 
-APP_SCALE = 0.82
-MASKABLE_SCALE = 0.70
+LOCKUP_SCALE = 0.90
+MARK_SCALE = 0.84
+MASKABLE_SCALE = 0.76
 
 
 def read_png(path):
@@ -152,6 +152,19 @@ def crop(pixels, w, channels, bbox):
     return out, out_w, out_h
 
 
+def to_rgba(pixels, w, h, channels):
+    if channels == 4:
+        return pixels
+
+    out = bytearray(w * h * 4)
+    for i in range(w * h):
+        src = i * channels
+        dst = i * 4
+        out[dst:dst + 3] = pixels[src:src + 3]
+        out[dst + 3] = 255
+    return out
+
+
 def resize(pixels, w, h, out_w, out_h, channels):
     """
     Area-average resize. RGB is averaged premultiplied by alpha so the
@@ -229,9 +242,41 @@ def svg_image_box(mark_w, mark_h, size, scale):
     return (size - art_w) // 2, (size - art_h) // 2, art_w, art_h
 
 
-def write_adaptive_svg(path, mark, mark_w, mark_h, scale, rounded=False):
-    x, y, width, height = svg_image_box(mark_w, mark_h, 512, scale)
-    mark_png = base64.b64encode(png_bytes(mark_w, mark_h, mark, 4)).decode('ascii')
+def compose_icon(artwork, artwork_w, artwork_h, size, scale, background=None):
+    if background is None:
+        out = bytearray(size * size * 4)
+    else:
+        out = bytearray()
+        for _ in range(size * size):
+            out += bytes((*background, 255))
+
+    art_w, art_h = fit_dimensions(artwork_w, artwork_h, size, scale)
+    art = resize(artwork, artwork_w, artwork_h, art_w, art_h, 4)
+    offset_x = (size - art_w) // 2
+    offset_y = (size - art_h) // 2
+
+    for y in range(art_h):
+        for x in range(art_w):
+            src = (y * art_w + x) * 4
+            dst = ((offset_y + y) * size + offset_x + x) * 4
+            src_a = art[src + 3] / 255
+            dst_a = out[dst + 3] / 255
+            out_a = src_a + dst_a * (1 - src_a)
+
+            if out_a == 0:
+                out[dst:dst + 4] = b'\x00\x00\x00\x00'
+                continue
+
+            for c in range(3):
+                out[dst + c] = round((art[src + c] * src_a + out[dst + c] * dst_a * (1 - src_a)) / out_a)
+            out[dst + 3] = round(out_a * 255)
+
+    return out
+
+
+def write_adaptive_svg(path, artwork, artwork_w, artwork_h, scale, rounded=False):
+    x, y, width, height = svg_image_box(artwork_w, artwork_h, 512, scale)
+    artwork_png = base64.b64encode(png_bytes(artwork_w, artwork_h, artwork, 4)).decode('ascii')
     radius = ' rx="112"' if rounded else ''
     Path(path).write_text(
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">\n'
@@ -241,7 +286,7 @@ def write_adaptive_svg(path, mark, mark_w, mark_h, scale, rounded=False):
         f'    @media (prefers-color-scheme: light) {{ .tile {{ fill: {LIGHT_HEX}; }} }}\n'
         '  </style>\n'
         f'  <rect class="tile" width="512" height="512"{radius} />\n'
-        f'  <image href="data:image/png;base64,{mark_png}" x="{x}" y="{y}" width="{width}" height="{height}" />\n'
+        f'  <image href="data:image/png;base64,{artwork_png}" x="{x}" y="{y}" width="{width}" height="{height}" />\n'
         '</svg>\n',
         encoding='utf-8',
     )
@@ -256,35 +301,48 @@ def main():
     channels = 4 if meta['color'] == 6 else 3
     print(f'{source}: {meta["w"]}x{meta["h"]}, {channels} channels')
 
-    # The wordmark starts below this cut in the current Forge artwork.
-    mark_limit_y = round(meta['h'] * 0.565)
-    bbox = alpha_bbox(pixels, meta['w'], meta['h'], channels, max_y=mark_limit_y)
-    mark, mark_w, mark_h = crop(pixels, meta['w'], channels, bbox)
-    print(f'  mark crop: {bbox} -> {mark_w}x{mark_h}')
+    lockup_bbox = alpha_bbox(pixels, meta['w'], meta['h'], channels)
+    lockup, lockup_w, lockup_h = crop(pixels, meta['w'], channels, lockup_bbox)
+    lockup = to_rgba(lockup, lockup_w, lockup_h, channels)
+    print(f'  lockup crop: {lockup_bbox} -> {lockup_w}x{lockup_h}')
 
-    write_adaptive_svg(out_dir / 'app-icon.svg', mark, mark_w, mark_h, APP_SCALE)
-    write_adaptive_svg(out_dir / 'maskable-icon.svg', mark, mark_w, mark_h, MASKABLE_SCALE, rounded=True)
+    # The wordmark starts below this cut; favicons need only the symbol.
+    mark_limit_y = round(meta['h'] * 0.565)
+    mark_bbox = alpha_bbox(pixels, meta['w'], meta['h'], channels, max_y=mark_limit_y)
+    mark, mark_w, mark_h = crop(pixels, meta['w'], channels, mark_bbox)
+    mark = to_rgba(mark, mark_w, mark_h, channels)
+    print(f'  mark crop: {mark_bbox} -> {mark_w}x{mark_h}')
+
+    write_png(out_dir / 'lockup.png', 512, 512, compose_icon(lockup, lockup_w, lockup_h, 512, LOCKUP_SCALE), 4)
+    write_png(out_dir / 'mark.png', 512, 512, compose_icon(mark, mark_w, mark_h, 512, MARK_SCALE), 4)
+    write_png(out_dir / 'mark-256.png', 256, 256, compose_icon(mark, mark_w, mark_h, 256, MARK_SCALE), 4)
+    write_png(out_dir / 'favicon-32.png', 32, 32, compose_icon(mark, mark_w, mark_h, 32, MARK_SCALE), 4)
+    write_png(out_dir / 'favicon-16.png', 16, 16, compose_icon(mark, mark_w, mark_h, 16, MARK_SCALE), 4)
+    print('  wrote transparent lockup and favicon assets')
+
+    write_adaptive_svg(out_dir / 'app-icon.svg', lockup, lockup_w, lockup_h, LOCKUP_SCALE)
+    write_adaptive_svg(out_dir / 'maskable-icon.svg', lockup, lockup_w, lockup_h, MASKABLE_SCALE, rounded=True)
     print('  wrote adaptive SVG icons')
 
     for name, background in (('dark', DARK), ('light', LIGHT)):
         for size in (192, 512):
-            icon = compose_tile(mark, mark_w, mark_h, size, background, APP_SCALE)
-            write_png(out_dir / f'app-icon-{name}-{size}.png', size, size, icon)
-            write_png(out_dir / f'icon-{size}-{name}.png', size, size, icon)
-        apple = compose_tile(mark, mark_w, mark_h, 180, background, APP_SCALE)
-        write_png(out_dir / f'apple-touch-icon-{name}.png', 180, 180, apple)
+            icon = compose_icon(lockup, lockup_w, lockup_h, size, LOCKUP_SCALE, background)
+            write_png(out_dir / f'app-icon-{name}-{size}.png', size, size, icon, 4)
+            write_png(out_dir / f'icon-{size}-{name}.png', size, size, icon, 4)
+        apple = compose_icon(lockup, lockup_w, lockup_h, 180, LOCKUP_SCALE, background)
+        write_png(out_dir / f'apple-touch-icon-{name}.png', 180, 180, apple, 4)
         print(f'  wrote {name} PNG variants')
 
-    fallback = compose_tile(mark, mark_w, mark_h, 180, DARK, APP_SCALE)
-    write_png(out_dir / 'apple-touch-icon.png', 180, 180, fallback)
+    fallback = compose_icon(lockup, lockup_w, lockup_h, 180, LOCKUP_SCALE, DARK)
+    write_png(out_dir / 'apple-touch-icon.png', 180, 180, fallback, 4)
     for size in (192, 512):
-        fallback = compose_tile(mark, mark_w, mark_h, size, DARK, APP_SCALE)
-        write_png(out_dir / f'icon-{size}.png', size, size, fallback)
+        transparent = compose_icon(lockup, lockup_w, lockup_h, size, LOCKUP_SCALE)
+        write_png(out_dir / f'icon-{size}.png', size, size, transparent, 4)
 
-        maskable = compose_tile(mark, mark_w, mark_h, size, DARK, MASKABLE_SCALE)
-        write_png(out_dir / f'icon-{size}-maskable.png', size, size, maskable)
+        maskable = compose_icon(lockup, lockup_w, lockup_h, size, MASKABLE_SCALE, DARK)
+        write_png(out_dir / f'icon-{size}-maskable.png', size, size, maskable, 4)
         if size == 512:
-            write_png(out_dir / 'maskable-512.png', size, size, maskable)
+            write_png(out_dir / 'maskable-512.png', size, size, maskable, 4)
 
     print('  wrote fallback and maskable PNG variants')
 

@@ -6,9 +6,8 @@ const DARK_TILE: [number, number, number] = [8, 7, 12];
 const LIGHT_TILE: [number, number, number] = [244, 245, 251];
 
 /**
- * The shipped apple-touch-icons were three byte-identical copies of one file,
- * all with an alpha channel and a background that matched nothing. Nobody
- * noticed because an icon has no types and no test.
+ * The app icon follows the same contract as NEO: transparent lockups for plain
+ * icon slots, plus RGBA light/dark tiles for installed app surfaces.
  */
 
 function png(path: string) {
@@ -49,17 +48,19 @@ describe('app icons', () => {
     expect(light.bytes.equals(dark.bytes)).toBe(false);
   });
 
-  it('has no alpha channel, so iOS cannot pick its own backdrop', () => {
-    // colorType 2 is RGB; 6 would be RGBA.
-    for (const name of ['apple-touch-icon', 'apple-touch-icon-light', 'apple-touch-icon-dark',
+  it('uses RGBA PNGs like NEO, including transparent lockup icons', () => {
+    for (const name of ['favicon-16', 'favicon-32', 'lockup', 'mark', 'mark-256',
+                        'apple-touch-icon', 'apple-touch-icon-light', 'apple-touch-icon-dark',
                         'app-icon-light-192', 'app-icon-dark-192', 'app-icon-light-512', 'app-icon-dark-512',
                         'icon-192', 'icon-512', 'maskable-512']) {
-      expect(png(`public/icons/${name}.png`).colorType, name).toBe(2);
+      expect(png(`public/icons/${name}.png`).colorType, name).toBe(6);
     }
   });
 
   it('is the size each filename claims', () => {
     for (const [name, size] of [
+      ['favicon-16', 16], ['favicon-32', 32],
+      ['lockup', 512], ['mark', 512], ['mark-256', 256],
       ['apple-touch-icon', 180], ['apple-touch-icon-light', 180], ['apple-touch-icon-dark', 180],
       ['app-icon-light-192', 192], ['app-icon-dark-192', 192],
       ['app-icon-light-512', 512], ['app-icon-dark-512', 512],
@@ -94,9 +95,9 @@ describe('app icons', () => {
   it('keeps both variants for the tab icon, where the query does work', () => {
     const layout = readFileSync('app/layout.tsx', 'utf8');
     const favicons = /icon: \[(.*?)\],/s.exec(layout)?.[1] ?? '';
-    expect(favicons).toMatch(/app-icon\.svg/);
-    expect(favicons).toMatch(/app-icon-light-192\.png[\s\S]*?prefers-color-scheme: light/);
-    expect(favicons).toMatch(/app-icon-dark-192\.png[\s\S]*?prefers-color-scheme: dark/);
+    expect(favicons).toMatch(/favicon-16\.png[\s\S]*?favicon-32\.png[\s\S]*?icon-192\.png[\s\S]*?icon-512\.png/);
+    expect(favicons).toMatch(/app-icon-light-512\.png[\s\S]*?prefers-color-scheme: light/);
+    expect(favicons).toMatch(/app-icon-dark-512\.png[\s\S]*?prefers-color-scheme: dark/);
   });
 
   it('keeps the unsuffixed home-screen fallback dark', () => {

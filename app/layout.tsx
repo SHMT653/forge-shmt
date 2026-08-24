@@ -12,18 +12,18 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
     title: 'FORGE',
   },
-  // Tabs and capable launchers get the adaptive SVG first; PNGs stay as
-  // explicit light/dark fallbacks for platforms with stricter icon handling.
+  // Same icon contract as NEO: transparent icons first, then explicit
+  // light/dark app tiles for platforms that honour media queries.
   icons: {
     icon: [
-      { url: '/icons/app-icon.svg', sizes: 'any', type: 'image/svg+xml' },
-      { url: '/icons/app-icon-light-192.png', sizes: '192x192', type: 'image/png', media: '(prefers-color-scheme: light)' },
-      { url: '/icons/app-icon-dark-192.png', sizes: '192x192', type: 'image/png', media: '(prefers-color-scheme: dark)' },
-      { url: '/icons/app-icon-light-512.png', sizes: '512x512', type: 'image/png', media: '(prefers-color-scheme: light)' },
-      { url: '/icons/app-icon-dark-512.png', sizes: '512x512', type: 'image/png', media: '(prefers-color-scheme: dark)' },
+      { url: '/icons/favicon-16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/icons/favicon-32.png', sizes: '32x32', type: 'image/png' },
       { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
       { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { url: '/icons/app-icon-light-512.png', sizes: '512x512', type: 'image/png', media: '(prefers-color-scheme: light)' },
+      { url: '/icons/app-icon-dark-512.png', sizes: '512x512', type: 'image/png', media: '(prefers-color-scheme: dark)' },
     ],
+    shortcut: '/icons/favicon-32.png',
     apple: [
       { url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
       { url: '/icons/apple-touch-icon-light.png', sizes: '180x180', type: 'image/png', media: '(prefers-color-scheme: light)' },
