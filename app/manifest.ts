@@ -5,26 +5,20 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'FORGE — by SHMT',
     short_name: 'FORGE',
     description: 'Dein persönliches Fortschrittssystem für Körper, Training und Ernährung.',
+    id: '/',
     start_url: '/',
+    scope: '/',
     display: 'standalone',
-    background_color: '#0a0a0d',
-    theme_color: '#0a0a0d',
-    // Two different pictures, not one relabelled twice.
-    //
-    // `any` is the full tile. `maskable` is a separate file with the artwork
-    // pulled well inside the safe zone, because a launcher may crop anything
-    // outside the middle 80 %. Pointing `maskable` at an edge-to-edge design —
-    // which is what this did — is what made the icon render as a small square
-    // sitting on a plate.
-    //
-    // Both are the dark tile: the manifest has no media query, and the app
-    // itself is dark. Light-mode phones get the light tile through the
-    // apple-touch-icon and favicon links in the layout.
+    lang: 'de',
+    dir: 'ltr',
+    background_color: '#08070c',
+    theme_color: '#08070c',
     icons: [
-      { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-      { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-      { src: '/icons/icon-192-maskable.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-      { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      { src: '/icons/app-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+      { src: '/icons/app-icon-dark-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/icons/app-icon-dark-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/icons/maskable-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+      { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   };
 }

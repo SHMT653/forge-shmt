@@ -92,8 +92,21 @@ describe('service worker request routing', () => {
     // artwork does. Cache-first pinned every phone to the icon it saw first, so
     // a rebuilt tile was deployed and simply never arrived. They still fall
     // back to cache when offline — they just stop winning against the network.
-    for (const icon of ['apple-touch-icon', 'apple-touch-icon-dark', 'apple-touch-icon-light', 'icon-192', 'icon-512']) {
-      expect(route(`https://forge.test/icons/${icon}.png`), icon).toBe('network-first');
+    for (const icon of [
+      'app-icon.svg',
+      'maskable-icon.svg',
+      'apple-touch-icon.png',
+      'apple-touch-icon-dark.png',
+      'apple-touch-icon-light.png',
+      'app-icon-dark-192.png',
+      'app-icon-light-192.png',
+      'app-icon-dark-512.png',
+      'app-icon-light-512.png',
+      'icon-192.png',
+      'icon-512.png',
+      'maskable-512.png',
+    ]) {
+      expect(route(`https://forge.test/icons/${icon}`), icon).toBe('network-first');
     }
   });
 

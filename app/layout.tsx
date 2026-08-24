@@ -9,45 +9,39 @@ export const metadata: Metadata = {
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'default',
+    statusBarStyle: 'black-translucent',
     title: 'FORGE',
   },
-  /**
-   * One tile for the home screen, and it is the dark one.
-   *
-   * iOS does not evaluate `media` on an apple-touch-icon link — it takes the
-   * first one it finds. Offering a light variant therefore adapted to nothing;
-   * it handed a dark-mode phone a white tile, which is worse than not adapting
-   * at all. The home screen gets exactly one icon and it matches the app.
-   *
-   * A web clip's icon is also captured when the shortcut is added and never
-   * re-rendered, so following the system theme afterwards is not something any
-   * arrangement of these links can deliver.
-   *
-   * The favicon links keep both variants: browsers do honour `media` there,
-   * and a tab icon is re-read on every load rather than frozen once.
-   */
+  // Tabs and capable launchers get the adaptive SVG first; PNGs stay as
+  // explicit light/dark fallbacks for platforms with stricter icon handling.
   icons: {
     icon: [
-      { url: '/icons/icon-192-light.png', sizes: '192x192', type: 'image/png', media: '(prefers-color-scheme: light)' },
-      { url: '/icons/icon-192-dark.png', sizes: '192x192', type: 'image/png', media: '(prefers-color-scheme: dark)' },
-      { url: '/icons/icon-512-light.png', sizes: '512x512', type: 'image/png', media: '(prefers-color-scheme: light)' },
-      { url: '/icons/icon-512-dark.png', sizes: '512x512', type: 'image/png', media: '(prefers-color-scheme: dark)' },
+      { url: '/icons/app-icon.svg', sizes: 'any', type: 'image/svg+xml' },
+      { url: '/icons/app-icon-light-192.png', sizes: '192x192', type: 'image/png', media: '(prefers-color-scheme: light)' },
+      { url: '/icons/app-icon-dark-192.png', sizes: '192x192', type: 'image/png', media: '(prefers-color-scheme: dark)' },
+      { url: '/icons/app-icon-light-512.png', sizes: '512x512', type: 'image/png', media: '(prefers-color-scheme: light)' },
+      { url: '/icons/app-icon-dark-512.png', sizes: '512x512', type: 'image/png', media: '(prefers-color-scheme: dark)' },
       { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
       { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
-    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+    apple: [
+      { url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+      { url: '/icons/apple-touch-icon-light.png', sizes: '180x180', type: 'image/png', media: '(prefers-color-scheme: light)' },
+      { url: '/icons/apple-touch-icon-dark.png', sizes: '180x180', type: 'image/png', media: '(prefers-color-scheme: dark)' },
+    ],
   },
 };
 
 export const viewport: Viewport = {
   // The status bar follows the phone too, so the tile and the chrome agree.
+  colorScheme: 'light dark',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f4f4f7' },
-    { media: '(prefers-color-scheme: dark)', color: '#0a0a0d' },
+    { media: '(prefers-color-scheme: light)', color: '#f4f5fb' },
+    { media: '(prefers-color-scheme: dark)', color: '#08070c' },
   ],
   width: 'device-width',
   initialScale: 1,
+  maximumScale: 1,
   viewportFit: 'cover',
 };
 

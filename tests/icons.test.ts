@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 
+const DARK_TILE: [number, number, number] = [8, 7, 12];
+const LIGHT_TILE: [number, number, number] = [244, 245, 251];
+
 /**
  * The shipped apple-touch-icons were three byte-identical copies of one file,
  * all with an alpha channel and a background that matched nothing. Nobody
@@ -49,7 +52,8 @@ describe('app icons', () => {
   it('has no alpha channel, so iOS cannot pick its own backdrop', () => {
     // colorType 2 is RGB; 6 would be RGBA.
     for (const name of ['apple-touch-icon', 'apple-touch-icon-light', 'apple-touch-icon-dark',
-                        'icon-192', 'icon-512']) {
+                        'app-icon-light-192', 'app-icon-dark-192', 'app-icon-light-512', 'app-icon-dark-512',
+                        'icon-192', 'icon-512', 'maskable-512']) {
       expect(png(`public/icons/${name}.png`).colorType, name).toBe(2);
     }
   });
@@ -57,9 +61,11 @@ describe('app icons', () => {
   it('is the size each filename claims', () => {
     for (const [name, size] of [
       ['apple-touch-icon', 180], ['apple-touch-icon-light', 180], ['apple-touch-icon-dark', 180],
+      ['app-icon-light-192', 192], ['app-icon-dark-192', 192],
+      ['app-icon-light-512', 512], ['app-icon-dark-512', 512],
       ['icon-192', 192], ['icon-192-light', 192], ['icon-192-dark', 192],
       ['icon-512', 512], ['icon-512-light', 512], ['icon-512-dark', 512],
-      ['icon-192-maskable', 192], ['icon-512-maskable', 512],
+      ['icon-192-maskable', 192], ['icon-512-maskable', 512], ['maskable-512', 512],
     ] as const) {
       const file = png(`public/icons/${name}.png`);
       expect(file.width, name).toBe(size);
@@ -69,35 +75,32 @@ describe('app icons', () => {
   });
 
   it('paints each tile in the colour its name promises', () => {
-    // The old icon's #1a191c is what made the tile read as a grey patch next to
-    // everything else on the home screen.
-    expect(cornerPixel('public/icons/apple-touch-icon-dark.png')).toEqual([10, 10, 13]);
-    expect(cornerPixel('public/icons/apple-touch-icon-light.png')).toEqual([244, 244, 247]);
+    expect(cornerPixel('public/icons/apple-touch-icon-dark.png')).toEqual(DARK_TILE);
+    expect(cornerPixel('public/icons/app-icon-dark-512.png')).toEqual(DARK_TILE);
+    expect(cornerPixel('public/icons/apple-touch-icon-light.png')).toEqual(LIGHT_TILE);
+    expect(cornerPixel('public/icons/app-icon-light-512.png')).toEqual(LIGHT_TILE);
     // The fallback is the dark one, because the app itself is dark.
-    expect(cornerPixel('public/icons/apple-touch-icon.png')).toEqual([10, 10, 13]);
+    expect(cornerPixel('public/icons/apple-touch-icon.png')).toEqual(DARK_TILE);
   });
 
-  it('offers the home screen exactly one icon', () => {
-    // iOS ignores `media` on an apple-touch-icon and takes the first link it
-    // finds. With a light variant listed first, a dark-mode phone got a white
-    // tile — worse than not adapting at all.
+  it('keeps the stable apple fallback before optional light/dark variants', () => {
     const layout = readFileSync('app/layout.tsx', 'utf8');
     const apple = /apple: \[(.*?)\],/s.exec(layout)?.[1] ?? '';
-    expect(apple).toMatch(/apple-touch-icon\.png/);
-    expect(apple).not.toMatch(/apple-touch-icon-light/);
-    expect(apple).not.toMatch(/apple-touch-icon-dark/);
-    expect(apple).not.toMatch(/prefers-color-scheme/);
+    expect(apple).toMatch(/apple-touch-icon\.png[\s\S]*?apple-touch-icon-light\.png[\s\S]*?apple-touch-icon-dark\.png/);
+    expect(apple).toMatch(/apple-touch-icon-light\.png[\s\S]*?prefers-color-scheme: light/);
+    expect(apple).toMatch(/apple-touch-icon-dark\.png[\s\S]*?prefers-color-scheme: dark/);
   });
 
   it('keeps both variants for the tab icon, where the query does work', () => {
     const layout = readFileSync('app/layout.tsx', 'utf8');
     const favicons = /icon: \[(.*?)\],/s.exec(layout)?.[1] ?? '';
-    expect(favicons).toMatch(/icon-192-light\.png[\s\S]*?prefers-color-scheme: light/);
-    expect(favicons).toMatch(/icon-192-dark\.png[\s\S]*?prefers-color-scheme: dark/);
+    expect(favicons).toMatch(/app-icon\.svg/);
+    expect(favicons).toMatch(/app-icon-light-192\.png[\s\S]*?prefers-color-scheme: light/);
+    expect(favicons).toMatch(/app-icon-dark-192\.png[\s\S]*?prefers-color-scheme: dark/);
   });
 
-  it('makes the one home-screen tile the dark one', () => {
-    expect(cornerPixel('public/icons/apple-touch-icon.png')).toEqual([10, 10, 13]);
+  it('keeps the unsuffixed home-screen fallback dark', () => {
+    expect(cornerPixel('public/icons/apple-touch-icon.png')).toEqual(DARK_TILE);
   });
 
   it('gives maskable its own artwork rather than relabelling the full tile', () => {
@@ -109,7 +112,9 @@ describe('app icons', () => {
     expect(full.equals(maskable)).toBe(false);
 
     const manifest = readFileSync('app/manifest.ts', 'utf8');
-    expect(manifest).toMatch(/icon-512-maskable\.png[\s\S]*?purpose: 'maskable'/);
+    expect(manifest).toMatch(/app-icon\.svg[\s\S]*?purpose: 'any'/);
+    expect(manifest).toMatch(/maskable-icon\.svg[\s\S]*?purpose: 'maskable'/);
+    expect(manifest).toMatch(/maskable-512\.png[\s\S]*?purpose: 'maskable'/);
     expect(manifest).not.toMatch(/icon-512\.png', sizes: '512x512', type: 'image\/png', purpose: 'maskable'/);
   });
 
@@ -118,7 +123,7 @@ describe('app icons', () => {
     // pixel the phone will not show.
     for (const name of ['apple-touch-icon', 'apple-touch-icon-light']) {
       expect(cornerPixel(`public/icons/${name}.png`), name)
-        .toEqual(name.endsWith('light') ? [244, 244, 247] : [10, 10, 13]);
+        .toEqual(name.endsWith('light') ? LIGHT_TILE : DARK_TILE);
     }
   });
 });
