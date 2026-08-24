@@ -3,10 +3,11 @@ import type { Macros } from '@/domain/types';
 /**
  * Text search against Open Food Facts.
  *
- * OFF is an open, crowdsourced database of roughly three million products with
- * a German-market subdomain. That makes it the right "unmengen an Essen"
+ * OFF is an open, crowdsourced database with a worldwide endpoint and localized
+ * country/language endpoints. That makes it the right "unmengen an Essen"
  * source: free, no key, no per-request cost, and it already backs the barcode
- * scanner in this app.
+ * scanner in this app. Exact barcode scans use both world + German endpoints;
+ * text search stays German-first so the results still feel local.
  *
  * The trade-off is data quality. Anyone can contribute, so entries range from
  * complete and accurate to a name with no nutrition at all. Everything here is
@@ -47,6 +48,18 @@ type OffProduct = {
 };
 
 const OFF_FIELDS = 'code,product_name,product_name_de,brands,nutriments,serving_size,image_front_small_url,unique_scans_n';
+const SEARCH_TIMEOUT_MS = 7000;
+const BARCODE_TIMEOUT_MS = 4000;
+
+const FOOD_FACTS_ENDPOINTS = [
+  { label: 'Open Food Facts World', baseUrl: 'https://world.openfoodfacts.org' },
+  { label: 'Open Food Facts DE', baseUrl: 'https://de.openfoodfacts.org' },
+] as const;
+
+const SEARCH_ENDPOINTS = [
+  FOOD_FACTS_ENDPOINTS[1],
+  FOOD_FACTS_ENDPOINTS[0],
+] as const;
 
 // A session-scoped cache. Open Food Facts asks callers to be gentle, and the
 // same query gets retyped constantly while the user edits the field.
@@ -103,8 +116,9 @@ export function normalizeBarcode(raw: string): string | null {
 /**
  * Searches Open Food Facts for products matching `query`.
  *
- * Uses the German subdomain so German-market products rank first — searching
- * "Skyr" on the world endpoint returns mostly Icelandic and Danish entries.
+ * Uses the German subdomain first so German-market products rank first —
+ * searching "Skyr" on the world endpoint returns mostly Icelandic and Danish
+ * entries. If the German endpoint is empty, the world endpoint fills the gap.
  */
 export async function searchOpenFoodFacts(query: string, limit = 12): Promise<OffFood[]> {
   const needle = query.trim();
@@ -126,7 +140,10 @@ export async function searchOpenFoodFacts(query: string, limit = 12): Promise<Of
   try {
     // Observed in practice: the endpoint intermittently drops a request under
     // load. One retry turns a visibly empty result list into a hit.
-    const json = await fetchWithRetry(params);
+    let json = await fetchSearchWithRetry(SEARCH_ENDPOINTS[0], params);
+    if (!json || (json.products ?? []).length === 0) {
+      json = await fetchSearchWithRetry(SEARCH_ENDPOINTS[1], params);
+    }
     if (!json) return [];
     const results: OffFood[] = [];
 
@@ -157,12 +174,10 @@ export async function findOpenFoodFactsByBarcode(rawBarcode: string): Promise<Of
 
   const params = new URLSearchParams({ fields: OFF_FIELDS });
   try {
-    const json = await fetchJsonWithRetry<OffProductResponse>(
-      `https://de.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?${params}`,
+    const products = await Promise.all(
+      FOOD_FACTS_ENDPOINTS.map((endpoint) => fetchBarcodeProduct(endpoint, code, params)),
     );
-    if (!json || String(json.status ?? '0') !== '1' || !json.product) return null;
-    const product = toOffFood(json.product);
-    return product ? { ...product, code } : null;
+    return products.find((product): product is OffFood => product !== null) ?? null;
   } catch {
     return null;
   }
@@ -184,14 +199,37 @@ export function defaultPortionG(food: OffFood): number {
   return food.servingSizeG ?? 100;
 }
 
-async function fetchWithRetry(params: URLSearchParams, attempts = 2): Promise<OffSearchResponse | null> {
-  return fetchJsonWithRetry<OffSearchResponse>(`https://de.openfoodfacts.org/cgi/search.pl?${params}`, attempts);
+async function fetchSearchWithRetry(
+  endpoint: (typeof FOOD_FACTS_ENDPOINTS)[number],
+  params: URLSearchParams,
+  attempts = 2,
+): Promise<OffSearchResponse | null> {
+  return fetchJsonWithRetry<OffSearchResponse>(
+    `${endpoint.baseUrl}/cgi/search.pl?${params}`,
+    attempts,
+    SEARCH_TIMEOUT_MS,
+  );
 }
 
-async function fetchJsonWithRetry<T>(url: string, attempts = 2): Promise<T | null> {
+async function fetchBarcodeProduct(
+  endpoint: (typeof FOOD_FACTS_ENDPOINTS)[number],
+  code: string,
+  params: URLSearchParams,
+): Promise<OffFood | null> {
+  const json = await fetchJsonWithRetry<OffProductResponse>(
+    `${endpoint.baseUrl}/api/v2/product/${encodeURIComponent(code)}.json?${params}`,
+    1,
+    BARCODE_TIMEOUT_MS,
+  );
+  if (!json || String(json.status ?? '0') !== '1' || !json.product) return null;
+  const product = toOffFood({ ...json.product, code: json.product.code ?? code });
+  return product ? { ...product, code } : null;
+}
+
+async function fetchJsonWithRetry<T>(url: string, attempts = 2, timeoutMs = SEARCH_TIMEOUT_MS): Promise<T | null> {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 7000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetch(url, {
         signal: controller.signal,

@@ -74,6 +74,20 @@ describe('searchOpenFoodFacts', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('falls back to the world endpoint when German search is empty', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(offResponse([]))
+      .mockResolvedValueOnce(offResponse([skyr]));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const results = await searchOpenFoodFacts('skyr');
+
+    expect(results.map((result) => result.name)).toEqual(['Skyr Natur']);
+    expect(fetchMock).toHaveBeenNthCalledWith(1, expect.stringContaining('de.openfoodfacts.org'), expect.anything());
+    expect(fetchMock).toHaveBeenNthCalledWith(2, expect.stringContaining('world.openfoodfacts.org'), expect.anything());
+  });
+
   it('returns an empty list when offline rather than throwing', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
     expect(await searchOpenFoodFacts('skyr')).toEqual([]);
@@ -121,6 +135,20 @@ describe('findOpenFoodFactsByBarcode', () => {
       servingSizeG: 150,
     });
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/v2/product/4001724819394.json'), expect.anything());
+  });
+
+  it('checks the second product endpoint when the first has no hit', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(offProductResponse(null, 0))
+      .mockResolvedValueOnce(offProductResponse(skyr));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await findOpenFoodFactsByBarcode('4001724819394');
+
+    expect(result?.name).toBe('Skyr Natur');
+    expect(fetchMock).toHaveBeenNthCalledWith(1, expect.stringContaining('world.openfoodfacts.org'), expect.anything());
+    expect(fetchMock).toHaveBeenNthCalledWith(2, expect.stringContaining('de.openfoodfacts.org'), expect.anything());
   });
 
   it('does not call the network for an invalid barcode', async () => {

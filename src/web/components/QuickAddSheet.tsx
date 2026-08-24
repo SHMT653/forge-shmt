@@ -20,6 +20,7 @@ type Mode = 'food' | 'water' | 'steps' | 'sleep' | 'weight' | 'training';
 
 const WATER_STEPS = [250, 500, 750];
 const SLEEP_OPTIONS = [7, 7.5, 8, 8.5, 9, 9.5, 10];
+const BARCODE_CAMERA_READY_KEY = 'forge-barcode-camera-ready';
 
 type ManualUnit = 'portion' | 'g' | 'ml' | 'piece' | 'glass' | 'can' | 'bottle' | 'pack';
 
@@ -331,6 +332,7 @@ function FoodPanel({
       <BarcodePanel
         allFoods={allFoods}
         busy={busy}
+        scanPaused={selected !== null}
         onFound={(candidate) => {
           search.reset();
           setSelected(candidate);
@@ -495,10 +497,12 @@ function candidateFromOff(product: OffFood): ScoredCandidate {
 function BarcodePanel({
   allFoods,
   busy,
+  scanPaused,
   onFound,
 }: {
   allFoods: readonly FoodItem[];
   busy: boolean;
+  scanPaused: boolean;
   onFound: (candidate: ScoredCandidate) => void;
 }) {
   const [barcode, setBarcode] = useState('');
@@ -506,6 +510,30 @@ function BarcodePanel({
   const [lookingUp, setLookingUp] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function openIfAlreadyAllowed() {
+      if (busy || scanPaused || lookingUp || cameraOpen || typeof navigator === 'undefined') return;
+      if (readRememberedBarcodeCamera()) {
+        setCameraOpen(true);
+        return;
+      }
+
+      try {
+        const permission = await navigator.permissions?.query({ name: 'camera' as PermissionName });
+        if (!cancelled && permission?.state === 'granted') setCameraOpen(true);
+      } catch {
+        // Safari support is partial; the normal camera button remains available.
+      }
+    }
+
+    void openIfAlreadyAllowed();
+    return () => {
+      cancelled = true;
+    };
+  }, [busy, cameraOpen, lookingUp, scanPaused]);
 
   const lookup = useCallback(
     async (raw: string) => {
@@ -578,10 +606,10 @@ function BarcodePanel({
         <button
           type="button"
           className="button secondary compact"
-          disabled={busy || lookingUp}
+          disabled={busy || lookingUp || scanPaused}
           onClick={() => setCameraOpen((open) => !open)}
         >
-          <Camera size={15} /> Kamera
+          <Camera size={15} /> {cameraOpen ? 'Ausblenden' : 'Scannen'}
         </button>
       </div>
 
@@ -629,6 +657,7 @@ function BarcodePanel({
       {cameraOpen && (
         <CameraScanner
           onDetected={handleDetected}
+          onReady={rememberBarcodeCamera}
           onClose={() => setCameraOpen(false)}
         />
       )}
@@ -650,14 +679,44 @@ async function decodeBarcodeFromImageFile(file: File): Promise<string | null> {
   }
 }
 
-function CameraScanner({ onDetected, onClose }: { onDetected: (raw: string) => void; onClose: () => void }) {
+function readRememberedBarcodeCamera(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(BARCODE_CAMERA_READY_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function rememberBarcodeCamera(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(BARCODE_CAMERA_READY_KEY, '1');
+  } catch {
+    // Private mode can block storage; the scanner still works without memory.
+  }
+}
+
+function CameraScanner({
+  onDetected,
+  onReady,
+  onClose,
+}: {
+  onDetected: (raw: string) => void;
+  onReady: () => void;
+  onClose: () => void;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
+  const startingRef = useRef(false);
+  const closedRef = useRef(false);
+  const detectedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [running, setRunning] = useState(false);
 
   const stopScan = useCallback(() => {
+    startingRef.current = false;
     controlsRef.current?.stop();
     controlsRef.current = null;
     const stream = videoRef.current?.srcObject;
@@ -666,17 +725,16 @@ function CameraScanner({ onDetected, onClose }: { onDetected: (raw: string) => v
     setRunning(false);
   }, []);
 
-  useEffect(() => {
-    return stopScan;
-  }, [stopScan]);
-
-  async function startScan() {
+  const startScan = useCallback(async () => {
+    if (startingRef.current || controlsRef.current) return;
     if (!navigator.mediaDevices?.getUserMedia) {
       setError('Kamera ist hier nicht verfügbar.');
       return;
     }
 
     setError(null);
+    detectedRef.current = false;
+    startingRef.current = true;
     setStarting(true);
     try {
       const video = videoRef.current;
@@ -688,7 +746,8 @@ function CameraScanner({ onDetected, onClose }: { onDetected: (raw: string) => v
         video,
         (result, _error, scanControls) => {
           const raw = result?.getText();
-          if (!raw) return;
+          if (!raw || detectedRef.current) return;
+          detectedRef.current = true;
           scanControls.stop();
           controlsRef.current = null;
           const stream = videoRef.current?.srcObject;
@@ -698,14 +757,29 @@ function CameraScanner({ onDetected, onClose }: { onDetected: (raw: string) => v
           onDetected(raw);
         },
       );
+      if (closedRef.current) {
+        controls.stop();
+        return;
+      }
       controlsRef.current = controls;
       setRunning(true);
+      onReady();
     } catch {
       setError('Kamera konnte nicht gestartet werden. Nutze Barcode-Foto oder gib die Nummer ein.');
     } finally {
+      startingRef.current = false;
       setStarting(false);
     }
-  }
+  }, [onDetected, onReady]);
+
+  useEffect(() => {
+    closedRef.current = false;
+    void startScan();
+    return () => {
+      closedRef.current = true;
+      stopScan();
+    };
+  }, [startScan, stopScan]);
 
   return (
     <div className="panel" style={{ marginTop: 10, padding: 10 }}>
@@ -719,16 +793,27 @@ function CameraScanner({ onDetected, onClose }: { onDetected: (raw: string) => v
         />
       </div>
       <div className="button-row" style={{ marginTop: 8 }}>
-        <button type="button" className="button compact" disabled={starting || running} onClick={() => void startScan()}>
-          {starting ? 'Startet …' : running ? 'Kamera läuft' : 'Kamera starten'}
+        <button
+          type="button"
+          className="button ghost compact"
+          disabled={starting}
+          onClick={() => {
+            if (running) {
+              stopScan();
+            } else {
+              void startScan();
+            }
+          }}
+        >
+          {running ? 'Stoppen' : 'Weiter'}
         </button>
-        <button type="button" className="button ghost compact" disabled={!running} onClick={stopScan}>
-          Stoppen
-        </button>
+        <span className="muted-sm" style={{ flex: 1 }}>
+          {starting ? 'Scanner startet …' : running ? 'Scanner läuft' : 'Scanner pausiert'}
+        </span>
       </div>
       {error && <p className="muted-sm" style={{ marginTop: 8, color: 'var(--danger)' }}>{error}</p>}
       <button type="button" className="button ghost compact" style={{ marginTop: 8, padding: 0 }} onClick={onClose}>
-        Kamera schließen
+        Scanner schließen
       </button>
     </div>
   );
