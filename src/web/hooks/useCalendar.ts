@@ -148,7 +148,12 @@ export function useCalendar() {
       await rememberFoodFromEntry(user.id, entry);
 
       // And a drink back-filled onto that day counts toward its fluid target.
-      const fluid = fluidFromEntry({ name: entry.name, servings: entry.servings ?? null });
+      const fluid = fluidFromEntry({
+        name: entry.name,
+        servings: entry.servings ?? null,
+        servingLabel: entry.servingLabel ?? null,
+        servingG: entry.servingG ?? null,
+      });
       if (fluid && waterHabit) {
         await setDayMetric(user.id, waterHabit, date, (waterByDate.get(date) ?? 0) + fluid.ml);
       }

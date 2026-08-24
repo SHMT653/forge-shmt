@@ -18,6 +18,8 @@ export type RememberCandidate = {
   name: string;
   macros: Macros;
   servings?: number | undefined;
+  servingLabel?: string | undefined;
+  servingG?: number | null | undefined;
   dataQuality?: DataQuality | undefined;
   /** Set when the entry already came from the library, a recipe or a batch. */
   foodItemId?: string | null | undefined;
@@ -57,6 +59,12 @@ export function perPortion(macros: Macros, servings: number | undefined): Macros
     carbsG: Math.round((macros.carbsG / count) * 10) / 10,
     fatG: Math.round((macros.fatG / count) * 10) / 10,
   };
+}
+
+export function servingForRememberedFood(entry: RememberCandidate): { servingLabel: string; servingG: number | null } {
+  const servingLabel = entry.servingLabel?.trim() || '1 Portion';
+  const servingG = entry.servingG && Number.isFinite(entry.servingG) && entry.servingG > 0 ? entry.servingG : null;
+  return { servingLabel, servingG };
 }
 
 /**

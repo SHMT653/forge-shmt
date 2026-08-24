@@ -137,6 +137,9 @@ export type MealEntryInput = {
   kcalMin?: number | null;
   kcalMax?: number | null;
   servings?: number;
+  /** Used when a typed entry is remembered as the user's own food item. */
+  servingLabel?: string;
+  servingG?: number | null;
   slot?: MealSlot | null;
   source?: EntrySource;
   foodItemId?: string | null;

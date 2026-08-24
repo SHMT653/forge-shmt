@@ -1,7 +1,7 @@
 import { getSupabaseClient } from '@/services/supabase/client';
 import type { DataQuality, FoodItem, Macros, MealPrepBatch, Recipe, RecipeIngredient } from '@/domain/types';
 import { sumMacros, scaleMacros, EMPTY_MACROS } from '@/domain/nutritionMath';
-import { foodKey, perPortion, shouldRemember, type RememberCandidate } from '@/domain/foodMemory';
+import { foodKey, perPortion, servingForRememberedFood, shouldRemember, type RememberCandidate } from '@/domain/foodMemory';
 
 const FOOD_COLUMNS =
   'id, name, brand, serving_label, serving_g, kcal, protein_g, carbs_g, fat_g, ' +
@@ -286,9 +286,12 @@ export async function rememberFoodFromEntry(userId: string, entry: RememberCandi
 
     const existing = (data ?? []).map((row) => foodKey((row as { name: string }).name));
     if (!shouldRemember(entry, existing)) return;
+    const serving = servingForRememberedFood(entry);
 
     await createFoodItem(userId, {
       name: entry.name.trim(),
+      servingLabel: serving.servingLabel,
+      servingG: serving.servingG,
       macros: perPortion(entry.macros, entry.servings),
       ...(entry.dataQuality ? { dataQuality: entry.dataQuality } : {}),
     });

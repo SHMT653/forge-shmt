@@ -14,12 +14,25 @@ import { defaultPortionG, findOpenFoodFactsByBarcode, normalizeBarcode, offPorti
 import type { MealEntry, MealEntryInput } from '@/data/nutrition';
 import type { FoodItemInput } from '@/data/foodLibrary';
 import type { FoodItem } from '@/domain/types';
-import { parseDecimalOr } from '@/domain/numbers';
+import { parseDecimalOr, parsePositive } from '@/domain/numbers';
 
 type Mode = 'food' | 'water' | 'steps' | 'sleep' | 'weight' | 'training';
 
 const WATER_STEPS = [250, 500, 750];
 const SLEEP_OPTIONS = [7, 7.5, 8, 8.5, 9, 9.5, 10];
+
+type ManualUnit = 'portion' | 'g' | 'ml' | 'piece' | 'glass' | 'can' | 'bottle' | 'pack';
+
+const MANUAL_UNITS: { value: ManualUnit; label: string; plural: string; placeholder: string }[] = [
+  { value: 'portion', label: 'Portion', plural: 'Portionen', placeholder: '1' },
+  { value: 'g', label: 'g', plural: 'g', placeholder: '100' },
+  { value: 'ml', label: 'ml', plural: 'ml', placeholder: '250' },
+  { value: 'piece', label: 'Stück', plural: 'Stück', placeholder: '1' },
+  { value: 'glass', label: 'Glas', plural: 'Gläser', placeholder: '1' },
+  { value: 'can', label: 'Dose', plural: 'Dosen', placeholder: '1' },
+  { value: 'bottle', label: 'Flasche', plural: 'Flaschen', placeholder: '1' },
+  { value: 'pack', label: 'Packung', plural: 'Packungen', placeholder: '1' },
+];
 
 export type QuickAddHandlers = {
   onAddEntry: (entry: MealEntryInput) => Promise<void> | void;
@@ -186,6 +199,28 @@ function ModeTile({ icon, label, active, onClick }: { icon: React.ReactNode; lab
   );
 }
 
+function formatManualAmount(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return String(rounded).replace('.', ',');
+}
+
+function manualUnitOption(unit: ManualUnit) {
+  return MANUAL_UNITS.find((option) => option.value === unit) ?? MANUAL_UNITS[0]!;
+}
+
+function manualServing(unit: ManualUnit, amountInput: string): { label: string; grams: number | null } | null {
+  const amount = parsePositive(amountInput);
+  if (unit === 'g' || unit === 'ml') {
+    if (amount === null) return null;
+    return { label: `${formatManualAmount(amount)} ${unit}`, grams: amount };
+  }
+
+  const option = manualUnitOption(unit);
+  const count = amount ?? 1;
+  const label = count === 1 ? `1 ${option.label}` : `${formatManualAmount(count)} ${option.plural}`;
+  return { label, grams: null };
+}
+
 // ── Food ────────────────────────────────────────────────────────────────────
 
 function FoodPanel({
@@ -206,6 +241,8 @@ function FoodPanel({
   const [manualKcal, setManualKcal] = useState('');
   const [manualProtein, setManualProtein] = useState('');
   const [manualName, setManualName] = useState('');
+  const [manualAmount, setManualAmount] = useState('');
+  const [manualUnit, setManualUnit] = useState<ManualUnit>('portion');
   const [selected, setSelected] = useState<ScoredCandidate | null>(null);
 
   const search = useFoodSearch({ foods: allFoods, recipes: [], recentMeals });
@@ -264,6 +301,8 @@ function FoodPanel({
     const kcal = parseDecimalOr(manualKcal, 0);
     const proteinG = parseDecimalOr(manualProtein, 0);
     if (!kcal && !proteinG) return;
+    const serving = manualServing(manualUnit, manualAmount);
+    if (!serving) return;
     const remaining = Math.max(0, kcal - proteinG * 4);
     onAdd({
       name: manualName.trim() || `${kcal} kcal`,
@@ -276,10 +315,16 @@ function FoodPanel({
       // The user typed these numbers, so kcal/protein are trusted; the
       // carb/fat split is inferred, which the nutrition screen makes clear.
       dataQuality: 'verified',
+      servings: 1,
+      servingLabel: serving.label,
+      servingG: serving.grams,
       source: 'manual',
       slot,
     });
   }
+
+  const manualUnitDetails = manualUnitOption(manualUnit);
+  const manualMissingAmount = (manualUnit === 'g' || manualUnit === 'ml') && parsePositive(manualAmount) === null;
 
   return (
     <div className="stack-sm">
@@ -377,7 +422,31 @@ function FoodPanel({
             <input className="input" inputMode="numeric" placeholder="kcal" value={manualKcal} onChange={(e) => setManualKcal(e.target.value)} aria-label="Kalorien" />
             <input className="input" inputMode="decimal" placeholder="Protein g" value={manualProtein} onChange={(e) => setManualProtein(e.target.value)} aria-label="Protein" />
           </div>
-          <button type="button" className="button block" disabled={busy || (!manualKcal && !manualProtein)} onClick={submitManual}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <input
+              className="input"
+              inputMode="decimal"
+              placeholder={`Menge (${manualUnitDetails.placeholder})`}
+              value={manualAmount}
+              onChange={(e) => setManualAmount(e.target.value)}
+              aria-label="Menge"
+            />
+            <select
+              className="select"
+              value={manualUnit}
+              onChange={(e) => {
+                const next = e.target.value as ManualUnit;
+                setManualUnit(next);
+                setManualAmount((current) => current || manualUnitOption(next).placeholder);
+              }}
+              aria-label="Einheit"
+            >
+              {MANUAL_UNITS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+          <button type="button" className="button block" disabled={busy || (!manualKcal && !manualProtein) || manualMissingAmount} onClick={submitManual}>
             <Check size={16} /> Hinzufügen
           </button>
         </div>

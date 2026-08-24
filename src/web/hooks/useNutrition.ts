@@ -160,7 +160,8 @@ export function useNutrition() {
       const fluid = fluidFromEntry({
         name: withSlot.name,
         servings: withSlot.servings ?? null,
-        ...(food ? { servingLabel: food.servingLabel, servingG: food.servingG } : {}),
+        servingLabel: food?.servingLabel ?? withSlot.servingLabel ?? null,
+        servingG: food?.servingG ?? withSlot.servingG ?? null,
       });
       if (fluid && state.water.habit) {
         await setDayMetric(user.id, state.water.habit, today, state.water.todayMl + fluid.ml);

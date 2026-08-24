@@ -404,7 +404,7 @@ export function useTodayData() {
 
       // Anything typed by hand is worth remembering: the next time the user
       // eats it, it is one tap instead of four numbers (§12).
-      await rememberFoodFromEntry(user.id, entry);
+      await rememberFoodFromEntry(user.id, withSlot);
 
       // A drink counts toward the fluid target too, not only the calorie one.
       const libraryFood = entry.foodItemId
@@ -413,7 +413,8 @@ export function useTodayData() {
       const fluid = fluidFromEntry({
         name: entry.name,
         servings: entry.servings ?? null,
-        ...(libraryFood ? { servingLabel: libraryFood.servingLabel, servingG: libraryFood.servingG } : {}),
+        servingLabel: libraryFood?.servingLabel ?? entry.servingLabel ?? null,
+        servingG: libraryFood?.servingG ?? entry.servingG ?? null,
       });
       if (fluid && metricHabits.water) {
         const current = data?.metrics.waterMl ?? 0;

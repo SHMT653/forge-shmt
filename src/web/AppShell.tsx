@@ -62,7 +62,7 @@ function isActive(pathname: string, href: string): boolean {
 function Brand() {
   return (
     <div className="brand">
-      <Image src="/brand-logo.png" alt="FORGE" width={50} height={50} className="brand-logo" />
+      <Image src="/icons/mark.png" alt="FORGE" width={50} height={50} className="brand-logo" />
       <div className="brand-copy">
         <p className="brand-title">FORGE</p>
         <p className="brand-subtitle">by SHMT</p>

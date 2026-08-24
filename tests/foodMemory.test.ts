@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { foodKey, perPortion, shouldRemember } from '@/domain/foodMemory';
+import { foodKey, perPortion, servingForRememberedFood, shouldRemember } from '@/domain/foodMemory';
 
 const macros = { kcal: 280, proteinG: 8, carbsG: 45, fatG: 6 };
 
@@ -68,5 +68,22 @@ describe('perPortion', () => {
 
   it('handles half portions', () => {
     expect(perPortion({ kcal: 140, proteinG: 4, carbsG: 22, fatG: 3 }, 0.5).kcal).toBe(280);
+  });
+});
+
+describe('servingForRememberedFood', () => {
+  it('keeps the typed serving unit for remembered foods', () => {
+    expect(servingForRememberedFood({ name: 'Cola', macros, servingLabel: '250 ml', servingG: 250 }))
+      .toEqual({ servingLabel: '250 ml', servingG: 250 });
+  });
+
+  it('falls back to one portion without a typed unit', () => {
+    expect(servingForRememberedFood({ name: 'Müsli', macros }))
+      .toEqual({ servingLabel: '1 Portion', servingG: null });
+  });
+
+  it('ignores unusable gram values', () => {
+    expect(servingForRememberedFood({ name: 'Skyr', macros, servingLabel: '100 g', servingG: 0 }))
+      .toEqual({ servingLabel: '100 g', servingG: null });
   });
 });
