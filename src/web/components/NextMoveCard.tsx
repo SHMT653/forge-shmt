@@ -96,7 +96,7 @@ function MoveAction({
 
   if (href) {
     return (
-      <Link href={href} className={className} style={{ flex: 1 }}>
+      <Link href={href} prefetch={false} className={className} style={{ flex: 1 }}>
         <Icon size={15} /> {label}
       </Link>
     );

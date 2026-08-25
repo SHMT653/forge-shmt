@@ -147,6 +147,7 @@ function Drawer({ open, onClose, pathname, user }: {
             <Link
               key={href}
               href={href}
+              prefetch={false}
               className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}
               onClick={onClose}
             >
@@ -159,6 +160,7 @@ function Drawer({ open, onClose, pathname, user }: {
             <Link
               key={href}
               href={href}
+              prefetch={false}
               className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}
               onClick={onClose}
             >
@@ -188,7 +190,7 @@ function BottomNav({ pathname }: { pathname: string }) {
   return (
     <nav className="bottom-nav" aria-label="Hauptnavigation">
       {PRIMARY_NAV.map(({ href, label, icon: Icon }) => (
-        <Link key={href} href={href} className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}>
+        <Link key={href} href={href} prefetch={false} className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}>
           <Icon size={20} />
           <span>{label}</span>
         </Link>
@@ -226,19 +228,19 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="app-shell">
       {/* Desktop sidebar */}
       <aside className="sidebar">
-        <Link href="/" aria-label="Startseite" style={{ textDecoration: 'none' }}>
+        <Link href="/" prefetch={false} aria-label="Startseite" style={{ textDecoration: 'none' }}>
           <Brand />
         </Link>
         <nav className="nav-list">
           {PRIMARY_NAV.map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href} className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}>
+            <Link key={href} href={href} prefetch={false} className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}>
               <Icon size={18} />
               <span>{label}</span>
             </Link>
           ))}
           <p className="section-label" style={{ margin: '14px 0 2px 13px' }}>Mehr</p>
           {SECONDARY_NAV.map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href} className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}>
+            <Link key={href} href={href} prefetch={false} className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}>
               <Icon size={18} />
               <span>{label}</span>
             </Link>
@@ -255,7 +257,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="main">
         {/* Mobile topbar */}
         <header className="topbar">
-          <Link href="/" aria-label="Startseite" style={{ textDecoration: 'none' }}>
+          <Link href="/" prefetch={false} aria-label="Startseite" style={{ textDecoration: 'none' }}>
             <Brand />
           </Link>
           <button type="button" className="hamburger" onClick={openDrawer} aria-label="Menü öffnen">

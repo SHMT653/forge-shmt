@@ -270,7 +270,7 @@ export function PlanDetailView({ planId }: { planId: string }) {
     return (
       <div className="empty-state">
         <p className="copy">Dieser Plan existiert nicht (mehr).</p>
-        <Link href="/plans" className="button secondary compact">Zurück zu den Plänen</Link>
+        <Link href="/plans" prefetch={false} className="button secondary compact">Zurück zu den Plänen</Link>
       </div>
     );
   }
@@ -299,7 +299,7 @@ export function PlanDetailView({ planId }: { planId: string }) {
   return (
     <>
       <div>
-        <Link href="/plans" className="button ghost compact"><ArrowLeft size={16} /> Pläne</Link>
+        <Link href="/plans" prefetch={false} className="button ghost compact"><ArrowLeft size={16} /> Pläne</Link>
       </div>
 
       <section className="panel">

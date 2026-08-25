@@ -17,7 +17,7 @@ export function GoalCard({ targets, phase }: { targets: ResolvedTargets; phase: 
           <Target size={15} color="var(--violet)" />
           <p className="h3" style={{ fontSize: 15 }}>{title}</p>
         </div>
-        <Link href="/settings" className="card-link">Ziel bearbeiten <ArrowRight size={14} /></Link>
+        <Link href="/settings" prefetch={false} className="card-link">Ziel bearbeiten <ArrowRight size={14} /></Link>
       </div>
 
       {phase && (

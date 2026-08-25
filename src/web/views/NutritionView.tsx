@@ -150,7 +150,7 @@ export function NutritionView() {
         <section className="panel soft">
           <div className="section-head">
             <p className="h3" style={{ fontSize: 15 }}>Favoriten</p>
-            <Link href="/recipes" className="card-link">Bibliothek <ArrowRight size={14} /></Link>
+            <Link href="/recipes" prefetch={false} className="card-link">Bibliothek <ArrowRight size={14} /></Link>
           </div>
           <div className="chip-row">
             {favorites.map((food) => (

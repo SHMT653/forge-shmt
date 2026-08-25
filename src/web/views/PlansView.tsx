@@ -278,7 +278,7 @@ export function PlansView() {
                   ))}
                 </div>
                 <div className="card-actions">
-                  <Link href={`/plans/${plan.id}`} className="button secondary compact">Öffnen</Link>
+                  <Link href={`/plans/${plan.id}`} prefetch={false} className="button secondary compact">Öffnen</Link>
                   {!plan.isActive && (
                     <button type="button" className="button ghost compact" disabled={busyId === plan.id} onClick={async () => { setBusyId(plan.id); try { await activate(plan.id); } finally { setBusyId(null); } }}>
                       Aktivieren

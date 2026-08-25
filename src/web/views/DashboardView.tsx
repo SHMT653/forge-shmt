@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -28,6 +28,8 @@ function todayLabel(): string {
   return new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
+const FOREGROUND_RELOAD_INTERVAL_MS = 60_000;
+
 export function DashboardView() {
   const { data, loading, error, addEntry, removeEntry, addWater, setMetric, setSoreness, saveFood, startSuggestedWorkout, reload } =
     useTodayContext();
@@ -37,13 +39,19 @@ export function DashboardView() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const [doneBanner, setDoneBanner] = useState<{ exercises: number } | null>(null);
+  const lastForegroundReload = useRef(0);
 
   // Pull fresh health data when the installed app comes back to the foreground.
   useEffect(() => {
     if (typeof document === 'undefined' || typeof window === 'undefined') return;
+    lastForegroundReload.current = Date.now();
 
     const refreshVisible = () => {
-      if (document.visibilityState === 'visible') void reload();
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastForegroundReload.current < FOREGROUND_RELOAD_INTERVAL_MS) return;
+      lastForegroundReload.current = now;
+      void reload();
     };
 
     document.addEventListener('visibilitychange', refreshVisible);
@@ -261,7 +269,7 @@ export function DashboardView() {
 
       {/* ── Reminders (§26/§27) — one line, not two cards ───────────── */}
       {(data.weighInDue || data.photoDue) && (
-        <Link href="/progress" className="habit-row" style={{ textDecoration: 'none', padding: '10px 14px' }}>
+        <Link href="/progress" prefetch={false} className="habit-row" style={{ textDecoration: 'none', padding: '10px 14px' }}>
           <span className="habit-icon" style={{ width: 32, height: 32 }}>
             {data.weighInDue ? <Scale size={15} /> : <Camera size={15} />}
           </span>
@@ -298,7 +306,7 @@ export function DashboardView() {
           <p className="readiness-detail">{readiness.detail}</p>
 
           {readiness.state === 'running' && data.activeSession && (
-            <Link href={`/workout/${data.activeSession.id}`} className="button compact" style={{ marginTop: 10 }}>
+            <Link href={`/workout/${data.activeSession.id}`} prefetch={false} className="button compact" style={{ marginTop: 10 }}>
               <Activity size={15} /> Weitermachen
             </Link>
           )}
@@ -352,7 +360,7 @@ export function DashboardView() {
             <ListChecks size={16} color="var(--violet)" />
             <p className="h3" style={{ fontSize: 15 }}>Tagesverlauf</p>
           </div>
-          <Link href="/nutrition" className="card-link">Ernährung <ArrowRight size={14} /></Link>
+          <Link href="/nutrition" prefetch={false} className="card-link">Ernährung <ArrowRight size={14} /></Link>
         </div>
         <DailyTimeline events={timeline} />
       </section>

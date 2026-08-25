@@ -158,5 +158,6 @@ describe('service worker request routing', () => {
     expect(match?.[1]).not.toBe('forge-shell-v1');
     // Bumped whenever what is cached changes, or old entries survive forever.
     expect(match?.[1]).not.toBe('forge-shell-v3');
+    expect(match?.[1]).not.toBe('forge-shell-v4');
   });
 });

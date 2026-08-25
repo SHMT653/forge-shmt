@@ -16,7 +16,7 @@
  *    cache-first: their URL changes whenever their content does.
  */
 
-const CACHE = 'forge-shell-v4';
+const CACHE = 'forge-shell-v5';
 
 // Only the shell. Icons are deliberately absent: precaching them is the same
 // trap as serving them cache-first, one install earlier.

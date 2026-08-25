@@ -117,14 +117,20 @@ describe('DashboardView', () => {
     expect(screen.queryByRole('link', { name: /Weiter/ })).toBeNull();
   });
 
-  it('refreshes when the installed app returns to the foreground', () => {
+  it('throttles foreground refreshes in the installed app', () => {
     const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000);
     render(<DashboardView />);
 
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(context.reload).not.toHaveBeenCalled();
+
+    now.mockReturnValue(62_000);
     document.dispatchEvent(new Event('visibilitychange'));
 
     expect(context.reload).toHaveBeenCalledTimes(1);
     visibility.mockRestore();
+    now.mockRestore();
   });
 
   it('duplicates meals without losing provenance or estimate ranges', () => {
