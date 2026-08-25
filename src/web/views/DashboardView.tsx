@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  Dumbbell, Plus, Trophy, Scale, Camera, ArrowRight, ListChecks, Activity,
+  Dumbbell, Trophy, Scale, Camera, ArrowRight, ListChecks, Activity,
 } from 'lucide-react';
 import { useTodayContext } from '@/web/hooks/TodayDataProvider';
 import { DayRings, type RingSpec } from '@/web/components/DayRings';
@@ -247,16 +247,6 @@ export function DashboardView() {
           }
         />
 
-      </section>
-
-      {/* ── Primary action (§36) ──────────────────────────────────────── */}
-      <section className="stack-sm">
-        {/* Training lives in the readiness card below and nowhere else. This
-            row carried a second "Weiter" that outlived the session it pointed
-            at, which is how an abandoned workout stayed reachable. */}
-        <button type="button" className="button" style={{ width: '100%' }} onClick={() => setSheetOpen(true)}>
-          <Plus size={17} /> Eintragen
-        </button>
       </section>
 
       {/* ── Reminders (§26/§27) — one line, not two cards ───────────── */}
