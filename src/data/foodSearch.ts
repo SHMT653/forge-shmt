@@ -93,6 +93,9 @@ const SEARCH_ENDPOINTS = [
 // same query gets retyped constantly while the user edits the field.
 const cache = new Map<string, OffFood[]>();
 const MAX_CACHE = 60;
+const barcodeCache = new Map<string, { product: OffFood | null; expiresAt: number }>();
+const MAX_BARCODE_CACHE = 120;
+const BARCODE_CACHE_TTL_MS = 10 * 60 * 1000;
 
 function numberOr(value: unknown, fallback: number | null): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -179,6 +182,34 @@ function sameBarcode(left: string, right: string): boolean {
   return leftVariants.some((variant) => rightVariants.includes(variant));
 }
 
+function cachedBarcodeProduct(codes: readonly string[]): OffFood | null | undefined {
+  const now = Date.now();
+  for (const code of codes) {
+    const cached = barcodeCache.get(code);
+    if (!cached) continue;
+    if (cached.expiresAt <= now) {
+      barcodeCache.delete(code);
+      continue;
+    }
+    return cached.product;
+  }
+  return undefined;
+}
+
+function rememberBarcodeProduct(codes: readonly string[], product: OffFood | null): OffFood | null {
+  const keys = new Set(codes);
+  if (product?.code) {
+    for (const variant of barcodeLookupVariants(product.code)) keys.add(variant);
+  }
+  if (barcodeCache.size >= MAX_BARCODE_CACHE) {
+    const oldest = barcodeCache.keys().next().value;
+    if (oldest !== undefined) barcodeCache.delete(oldest);
+  }
+  const entry = { product, expiresAt: Date.now() + BARCODE_CACHE_TTL_MS };
+  for (const key of keys) barcodeCache.set(key, entry);
+  return product;
+}
+
 /**
  * Searches Open Food Facts for products matching `query`.
  *
@@ -238,6 +269,9 @@ export async function findOpenFoodFactsByBarcode(rawBarcode: string): Promise<Of
   const codes = barcodeLookupVariants(rawBarcode);
   if (codes.length === 0) return null;
 
+  const cached = cachedBarcodeProduct(codes);
+  if (cached !== undefined) return cached;
+
   const params = new URLSearchParams({ fields: OFF_FIELDS });
   try {
     for (const code of codes) {
@@ -245,10 +279,10 @@ export async function findOpenFoodFactsByBarcode(rawBarcode: string): Promise<Of
         FOOD_FACTS_ENDPOINTS.map((endpoint) => fetchBarcodeProduct(endpoint, code, params)),
       );
       const product = products.find((candidate): candidate is OffFood => candidate !== null);
-      if (product) return product;
+      if (product) return rememberBarcodeProduct(codes, product);
     }
 
-    return await findFoodDataCentralByBarcode(codes);
+    return rememberBarcodeProduct(codes, await findFoodDataCentralByBarcode(codes));
   } catch {
     return null;
   }
@@ -267,6 +301,9 @@ export async function findProductByBarcode(rawBarcode: string): Promise<OffFood 
   const code = normalizeBarcode(rawBarcode);
   if (!code) return null;
 
+  const cached = cachedBarcodeProduct([code]);
+  if (cached !== undefined) return cached;
+
   if (typeof window !== 'undefined') {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), BARCODE_TIMEOUT_MS + 1500);
@@ -276,7 +313,7 @@ export async function findProductByBarcode(rawBarcode: string): Promise<OffFood 
       });
       if (response.ok) {
         const json = (await response.json()) as BarcodeApiResponse;
-        return json.product ?? null;
+        return rememberBarcodeProduct([code], json.product ?? null);
       }
     } catch {
       // Fall back to the direct public endpoints below.
@@ -417,4 +454,5 @@ async function fetchJsonWithRetry<T>(url: string, attempts = 2, timeoutMs = SEAR
 
 export function __clearSearchCache(): void {
   cache.clear();
+  barcodeCache.clear();
 }

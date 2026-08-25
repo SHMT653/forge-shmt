@@ -167,6 +167,16 @@ describe('findOpenFoodFactsByBarcode', () => {
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/v2/product/4001724819394.json'), expect.anything());
   });
 
+  it('caches barcode lookups within the session', async () => {
+    const fetchMock = vi.fn(async () => offProductResponse(skyr));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await findOpenFoodFactsByBarcode('4001724819394');
+    await findOpenFoodFactsByBarcode('4001724819394');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('checks the second product endpoint when the first has no hit', async () => {
     const fetchMock = vi
       .fn()
