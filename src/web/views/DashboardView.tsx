@@ -13,7 +13,6 @@ import { QuickAddSheet } from '@/web/components/QuickAddSheet';
 import { SorenessPicker } from '@/web/components/SorenessPicker';
 import { GoalCard } from '@/web/components/GoalCard';
 import { DayStatsCard } from '@/web/components/DayStatsCard';
-import { NextMoveCard } from '@/web/components/NextMoveCard';
 import { OnboardingView } from '@/web/views/OnboardingView';
 import { evaluateRange } from '@/domain/goalPhase';
 import { isDayInProgress } from '@/domain/dayEvaluation';
@@ -249,13 +248,6 @@ export function DashboardView() {
         />
 
       </section>
-
-      <NextMoveCard
-        data={data}
-        onOpenEntry={() => setSheetOpen(true)}
-        onStartWorkout={() => void handleStartWorkout()}
-        onStartMini={() => void handleStartMini()}
-      />
 
       {/* ── Primary action (§36) ──────────────────────────────────────── */}
       <section className="stack-sm">
