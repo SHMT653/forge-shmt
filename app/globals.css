@@ -664,6 +664,51 @@ button:disabled {
   box-shadow: var(--shadow), var(--glow), var(--edge);
 }
 
+.next-move {
+  border-color: color-mix(in srgb, var(--violet) 28%, var(--border));
+  background:
+    linear-gradient(150deg, color-mix(in srgb, var(--violet) 18%, transparent), transparent 58%),
+    var(--glass-panel);
+}
+
+.next-move.tone-teal {
+  border-color: color-mix(in srgb, var(--teal) 32%, var(--border));
+  background:
+    linear-gradient(150deg, color-mix(in srgb, var(--teal) 16%, transparent), transparent 58%),
+    var(--glass-panel);
+}
+
+.next-move.tone-gold {
+  border-color: color-mix(in srgb, var(--gold) 34%, var(--border));
+  background:
+    linear-gradient(150deg, color-mix(in srgb, var(--gold) 15%, transparent), transparent 58%),
+    var(--glass-panel);
+}
+
+.next-move.tone-danger {
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--border));
+  background:
+    linear-gradient(150deg, color-mix(in srgb, var(--danger) 14%, transparent), transparent 58%),
+    var(--glass-panel);
+}
+
+.next-move.tone-muted {
+  border-color: var(--border);
+  background: var(--glass-soft);
+}
+
+.next-move-orb {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 14px;
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--violet) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--violet) 24%, transparent);
+}
+
 .plan-card:hover,
 .exercise-card:hover,
 .card-hover:hover {
