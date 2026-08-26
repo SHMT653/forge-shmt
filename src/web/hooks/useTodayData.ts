@@ -39,6 +39,7 @@ import { resolveTargets, type ResolvedTargets } from '@/domain/goalPhase';
 import { summarizeWeight, isPhotoDue, isWeighInDue, type WeightSummary } from '@/domain/weightTrend';
 import { combineQuality, slotForHour } from '@/domain/nutritionMath';
 import { weekBoundsFor } from '@/domain/weeks';
+import { withRecoveredAuthSession } from '@/services/supabase/authRecovery';
 import {
   buildDayStatus,
   scoreDay,
@@ -142,7 +143,8 @@ export function useTodayData() {
   const load = useCallback(async () => {
     if (!user) return;
     setError(null);
-    try {
+
+    const fetchTodayData = async () => {
       const today = todayKey();
       const since = dateKeyAddDays(today, -HISTORY_DAYS);
       const week = weekBoundsFor(today);
@@ -323,6 +325,10 @@ export function useTodayData() {
         weighInDue: isWeighInDue(weight.latestDate, today, goals.weighInWeekday),
         photoDue: isPhotoDue(lastPhoto, today, goals.photoIntervalDays, goals.progressStartDate),
       });
+    };
+
+    try {
+      await withRecoveredAuthSession(fetchTodayData);
     } catch (err) {
       setError(errorMessage(err, 'Daten konnten nicht geladen werden.'));
     } finally {
