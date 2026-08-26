@@ -42,9 +42,9 @@ export function DayRings({
   const center = SIZE / 2;
 
   return (
-    <div style={{ display: 'grid', gap: 14, justifyItems: 'center' }}>
-      <div style={{ position: 'relative', width: SIZE, height: SIZE }}>
-        <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label="Tagesübersicht">
+    <div className="day-rings-shell">
+      <div className="day-rings-frame">
+        <svg className="day-rings-svg" width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label="Tagesübersicht">
           {rings.map((ring, index) => {
             const radius = (SIZE - STROKE) / 2 - index * (STROKE + GAP);
             const circumference = 2 * Math.PI * radius;
@@ -58,8 +58,9 @@ export function DayRings({
                   cy={center}
                   r={radius}
                   fill="none"
-                  stroke="rgba(255,255,255,0.07)"
+                  stroke="var(--ring-track)"
                   strokeWidth={STROKE}
+                  strokeLinecap="round"
                 />
                 <circle
                   cx={center}
@@ -71,7 +72,7 @@ export function DayRings({
                   strokeLinecap="round"
                   strokeDasharray={circumference}
                   strokeDashoffset={circumference * (1 - filled)}
-                  style={{ transition: 'stroke-dashoffset 0.5s cubic-bezier(0.22, 1, 0.36, 1)' }}
+                  className="day-rings-progress"
                 />
                 {ring.over && overflow > 0 && (
                   <circle
@@ -84,7 +85,7 @@ export function DayRings({
                     strokeLinecap="round"
                     strokeDasharray={circumference}
                     strokeDashoffset={circumference * (1 - overflow)}
-                    style={{ transition: 'stroke-dashoffset 0.5s cubic-bezier(0.22, 1, 0.36, 1)' }}
+                    className="day-rings-progress"
                   />
                 )}
               </g>
@@ -93,15 +94,7 @@ export function DayRings({
         </svg>
 
         <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'grid',
-            placeContent: 'center',
-            justifyItems: 'center',
-            gap: 1,
-            pointerEvents: 'none',
-          }}
+          className="day-rings-center"
         >
           <span
             style={{
