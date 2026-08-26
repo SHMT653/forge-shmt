@@ -21,7 +21,7 @@ import type { MealSlot } from '@/domain/types';
 const WATER_STEPS = [250, 500, 750];
 
 export function NutritionView() {
-  const { state, favorites, addMeal, removeMeal, addWater, saveAsFood } = useNutrition();
+  const { state, favorites, addMeal, removeMeal, addWater, saveAsFood, setFavorite } = useNutrition();
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const meals = state.meals;
@@ -275,6 +275,7 @@ export function NutritionView() {
           handlers={{
             onAddEntry: handleEntry,
             onSaveFood: saveAsFood,
+            onSetFavorite: setFavorite,
             onAddWater: addWater,
             onSetSteps: () => {},
             onSetSleep: () => {},

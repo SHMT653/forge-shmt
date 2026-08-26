@@ -20,7 +20,7 @@ import type { MealEntryInput } from '@/data/nutrition';
  */
 export function QuickActionBar() {
   const { user } = useAuth();
-  const { data, addEntry, addWater, setMetric, saveFood, startSuggestedWorkout, reload } = useTodayContext();
+  const { data, addEntry, addWater, setMetric, saveFood, setFoodFavorite, startSuggestedWorkout, reload } = useTodayContext();
   const [addOpen, setAddOpen] = useState(false);
 
   // Until the day's data is loaded there is nothing to add against; the button
@@ -96,6 +96,7 @@ export function QuickActionBar() {
           handlers={{
             onAddEntry: handleEntry,
             onSaveFood: saveFood,
+            onSetFavorite: setFoodFavorite,
             onAddWater: addWater,
             onSetSteps: (steps) => setMetric('steps', steps),
             onSetSleep: (hours) => setMetric('sleep', hours),

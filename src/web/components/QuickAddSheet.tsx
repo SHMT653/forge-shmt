@@ -14,7 +14,7 @@ import { barcodeLookupVariants, defaultPortionG, findProductByBarcode, normalize
 import type { MealEntry, MealEntryInput } from '@/data/nutrition';
 import type { FoodItemInput } from '@/data/foodLibrary';
 import type { FoodItem } from '@/domain/types';
-import { parseDecimalOr, parsePositive } from '@/domain/numbers';
+import { parseDecimal, parseDecimalOr, parsePositive } from '@/domain/numbers';
 
 type Mode = 'food' | 'water' | 'steps' | 'sleep' | 'weight' | 'training';
 
@@ -79,7 +79,8 @@ const MANUAL_UNITS: { value: ManualUnit; label: string; plural: string; placehol
 export type QuickAddHandlers = {
   onAddEntry: (entry: MealEntryInput) => Promise<void> | void;
   /** Saves a discovered product into the user's own library (§12/§35). */
-  onSaveFood?: (input: FoodItemInput) => Promise<void> | void;
+  onSaveFood?: (input: FoodItemInput) => Promise<FoodItem | void> | FoodItem | void;
+  onSetFavorite?: (foodId: string, favorite: boolean) => Promise<void> | void;
   onAddWater: (ml: number) => Promise<void> | void;
   onSetSteps: (steps: number) => Promise<void> | void;
   onSetSleep: (hours: number) => Promise<void> | void;
@@ -143,6 +144,7 @@ export function QuickAddSheet({
           busy={busy}
           onAdd={(entry, keepOpen) => run(() => handlers.onAddEntry(entry), keepOpen)}
           {...(handlers.onSaveFood ? { onSaveFood: handlers.onSaveFood } : {})}
+          {...(handlers.onSetFavorite ? { onSetFavorite: handlers.onSetFavorite } : {})}
         />
       )}
 
@@ -250,17 +252,117 @@ function manualUnitOption(unit: ManualUnit) {
   return MANUAL_UNITS.find((option) => option.value === unit) ?? MANUAL_UNITS[0]!;
 }
 
+function manualUnitAmountLabel(unit: ManualUnit, amount: number): string {
+  if (unit === 'g' || unit === 'ml') return `${formatManualAmount(amount)} ${unit}`;
+  const option = manualUnitOption(unit);
+  return amount === 1 ? `1 ${option.label}` : `${formatManualAmount(amount)} ${option.plural}`;
+}
+
 function manualServing(unit: ManualUnit, amountInput: string): { label: string; grams: number | null } | null {
   const amount = parsePositive(amountInput);
   if (unit === 'g' || unit === 'ml') {
     if (amount === null) return null;
-    return { label: `${formatManualAmount(amount)} ${unit}`, grams: amount };
+    return { label: manualUnitAmountLabel(unit, amount), grams: amount };
   }
 
-  const option = manualUnitOption(unit);
   const count = amount ?? 1;
-  const label = count === 1 ? `1 ${option.label}` : `${formatManualAmount(count)} ${option.plural}`;
-  return { label, grams: null };
+  return { label: manualUnitAmountLabel(unit, count), grams: null };
+}
+
+function roundMacro(value: number): number {
+  return Math.max(0, Math.round(value * 10) / 10);
+}
+
+function manualMacrosFromFields({
+  kcalInput,
+  proteinInput,
+  carbsInput,
+  fatInput,
+}: {
+  kcalInput: string;
+  proteinInput: string;
+  carbsInput: string;
+  fatInput: string;
+}): FoodItemInput['macros'] | null {
+  const typedKcal = parseDecimal(kcalInput);
+  const proteinG = roundMacro(parseDecimalOr(proteinInput, 0));
+  const typedCarbs = parseDecimal(carbsInput);
+  const typedFat = parseDecimal(fatInput);
+  let carbsG = typedCarbs === null ? null : roundMacro(typedCarbs);
+  let fatG = typedFat === null ? null : roundMacro(typedFat);
+  let kcal = typedKcal === null ? 0 : Math.round(Math.max(0, typedKcal));
+
+  if (typedKcal === null && (proteinG > 0 || (carbsG ?? 0) > 0 || (fatG ?? 0) > 0)) {
+    kcal = Math.round(proteinG * 4 + (carbsG ?? 0) * 4 + (fatG ?? 0) * 9);
+  }
+
+  if (kcal <= 0 && proteinG <= 0 && (carbsG ?? 0) <= 0 && (fatG ?? 0) <= 0) {
+    return null;
+  }
+
+  const remaining = Math.max(0, kcal - proteinG * 4 - (carbsG ?? 0) * 4 - (fatG ?? 0) * 9);
+  if (carbsG === null && fatG === null) {
+    carbsG = roundMacro((remaining * 0.62) / 4);
+    fatG = roundMacro((remaining * 0.38) / 9);
+  } else if (carbsG === null) {
+    carbsG = roundMacro(remaining / 4);
+  } else if (fatG === null) {
+    fatG = roundMacro(remaining / 9);
+  }
+
+  return { kcal, proteinG, carbsG: carbsG ?? 0, fatG: fatG ?? 0 };
+}
+
+type PortionChoice = {
+  factor: number;
+  label?: string;
+  servingLabel?: string;
+  servingG?: number | null;
+};
+
+function foodInputFromCandidate(candidate: ScoredCandidate, favorite: boolean): FoodItemInput {
+  return {
+    name: candidate.name,
+    brand: candidate.brand,
+    servingLabel: candidate.portionLabel,
+    servingG: candidate.portionG,
+    macros: candidate.macros,
+    dataQuality: candidate.dataQuality,
+    barcode: candidate.barcode ?? null,
+    favorite,
+  };
+}
+
+function isFoodItemResult(value: FoodItem | void | undefined): value is FoodItem {
+  return Boolean(value && typeof value === 'object' && 'id' in value);
+}
+
+function scaledServingG(candidate: ScoredCandidate, factor: number): number | null {
+  return candidate.portionG ? roundMacro(candidate.portionG * factor) : null;
+}
+
+function customChoiceForCandidate(candidate: ScoredCandidate, unit: ManualUnit, amountInput: string): PortionChoice | null {
+  const amount = parsePositive(amountInput);
+  if (amount === null) return null;
+
+  const amountLabel = manualUnitAmountLabel(unit, amount);
+  if (unit === 'g' || unit === 'ml') {
+    if (!candidate.portionG) return null;
+    return {
+      factor: amount / candidate.portionG,
+      label: amountLabel,
+      servingLabel: amountLabel,
+      servingG: amount,
+    };
+  }
+
+  const choice: PortionChoice = {
+    factor: amount,
+    servingLabel: amountLabel,
+    servingG: unit === 'portion' ? scaledServingG(candidate, amount) : null,
+  };
+  if (!(unit === 'portion' && amount === 1)) choice.label = amountLabel;
+  return choice;
 }
 
 // ── Food ────────────────────────────────────────────────────────────────────
@@ -272,26 +374,35 @@ function FoodPanel({
   busy,
   onAdd,
   onSaveFood,
+  onSetFavorite,
 }: {
   favoriteFoods: readonly FoodItem[];
   recentMeals: readonly MealEntry[];
   allFoods: readonly FoodItem[];
   busy: boolean;
-  onAdd: (entry: MealEntryInput, keepOpen?: boolean) => void;
-  onSaveFood?: (input: FoodItemInput) => Promise<void> | void;
+  onAdd: (entry: MealEntryInput, keepOpen?: boolean) => Promise<void> | void;
+  onSaveFood?: (input: FoodItemInput) => Promise<FoodItem | void> | FoodItem | void;
+  onSetFavorite?: (foodId: string, favorite: boolean) => Promise<void> | void;
 }) {
   const [manualKcal, setManualKcal] = useState('');
   const [manualProtein, setManualProtein] = useState('');
+  const [manualCarbs, setManualCarbs] = useState('');
+  const [manualFat, setManualFat] = useState('');
   const [manualName, setManualName] = useState('');
-  const [manualAmount, setManualAmount] = useState('');
+  const [manualBrand, setManualBrand] = useState('');
+  const [manualAmount, setManualAmount] = useState('1');
   const [manualUnit, setManualUnit] = useState<ManualUnit>('portion');
+  const [manualFavorite, setManualFavorite] = useState(false);
   const [selected, setSelected] = useState<ScoredCandidate | null>(null);
+  const [localBusy, setLocalBusy] = useState(false);
+  const [favoriteBusyId, setFavoriteBusyId] = useState<string | null>(null);
 
   const search = useFoodSearch({ foods: allFoods, recipes: [], recentMeals });
   const slot = slotForHour(new Date().getHours());
+  const actionBusy = busy || localBusy;
 
   function addOwnFood(food: FoodItem) {
-    onAdd({
+    void onAdd({
       name: food.name,
       macros: food.macros,
       dataQuality: food.dataQuality,
@@ -301,78 +412,161 @@ function FoodPanel({
     }, true);
   }
 
-  /** Logs a search hit, and quietly files a discovered product for next time. */
-  function addCandidate(candidate: ScoredCandidate, factor: number) {
-    const macros = scaleCandidate(candidate, factor);
-
-    onAdd({
-      name: factor === 1 ? candidate.name : `${formatFactor(factor, candidate)} ${candidate.name}`,
-      macros,
-      dataQuality: candidate.dataQuality,
-      servings: factor,
-      source: candidate.matchedByBarcode
-        ? 'barcode'
-        : candidate.source === 'library'
-          ? 'favorite'
-          : 'search',
-      ...(candidate.libraryKind === 'food' && candidate.libraryId ? { foodItemId: candidate.libraryId } : {}),
-      ...(candidate.libraryKind === 'recipe' && candidate.libraryId ? { recipeId: candidate.libraryId } : {}),
-      slot,
-    }, true);
-
-    // Anything found externally becomes part of the user's own library, so the
-    // second time it is instant, offline, and matchable by the text parser.
-    if (candidate.source === 'off' && onSaveFood) {
-      void onSaveFood({
-        name: candidate.name,
-        brand: candidate.brand,
-        servingLabel: candidate.portionLabel,
-        servingG: candidate.portionG,
-        macros: candidate.macros,
-        dataQuality: candidate.dataQuality,
-        barcode: candidate.barcode ?? null,
-        favorite: false,
-      });
+  async function saveFoodFromSheet(input: FoodItemInput): Promise<FoodItem | undefined> {
+    if (!onSaveFood) return undefined;
+    try {
+      const saved = await onSaveFood(input);
+      return isFoodItemResult(saved) ? saved : undefined;
+    } catch {
+      return undefined;
     }
-
-    setSelected(null);
-    search.reset();
   }
 
-  function submitManual() {
-    const kcal = parseDecimalOr(manualKcal, 0);
-    const proteinG = parseDecimalOr(manualProtein, 0);
-    if (!kcal && !proteinG) return;
+  /** Logs a search hit, and quietly files a discovered product for next time. */
+  async function addCandidate(candidate: ScoredCandidate, choice: PortionChoice) {
+    if (actionBusy) return;
+    setLocalBusy(true);
+
+    try {
+      const factor = choice.factor;
+      const macros = scaleCandidate(candidate, factor);
+      const displayLabel = choice.label ?? (factor === 1 ? '' : formatFactor(factor, candidate));
+      const saved = candidate.source === 'off'
+        ? await saveFoodFromSheet(foodInputFromCandidate(candidate, false))
+        : undefined;
+      const foodItemId = candidate.libraryKind === 'food' && candidate.libraryId
+        ? candidate.libraryId
+        : saved?.id;
+
+      await onAdd({
+        name: displayLabel ? `${displayLabel} ${candidate.name}` : candidate.name,
+        macros,
+        dataQuality: candidate.dataQuality,
+        servings: factor,
+        servingLabel: choice.servingLabel ?? (displayLabel || candidate.portionLabel),
+        servingG: choice.servingG ?? scaledServingG(candidate, factor),
+        source: candidate.matchedByBarcode
+          ? 'barcode'
+          : candidate.source === 'library'
+            ? 'favorite'
+            : 'search',
+        ...(foodItemId ? { foodItemId } : {}),
+        ...(candidate.libraryKind === 'recipe' && candidate.libraryId ? { recipeId: candidate.libraryId } : {}),
+        slot,
+      }, true);
+      setSelected(null);
+      search.reset();
+    } finally {
+      setLocalBusy(false);
+    }
+  }
+
+  async function toggleFood(food: FoodItem) {
+    if (!onSetFavorite || favoriteBusyId) return;
+    setFavoriteBusyId(food.id);
+    try {
+      await onSetFavorite(food.id, !food.favorite);
+    } finally {
+      setFavoriteBusyId(null);
+    }
+  }
+
+  async function toggleCandidateFavorite(candidate: ScoredCandidate) {
+    if (favoriteBusyId) return;
+    const libraryFood = candidate.libraryKind === 'food' && candidate.libraryId
+      ? allFoods.find((food) => food.id === candidate.libraryId)
+      : null;
+
+    setFavoriteBusyId(candidate.id);
+    try {
+      if (libraryFood && onSetFavorite) {
+        await onSetFavorite(libraryFood.id, !libraryFood.favorite);
+        return;
+      }
+      if (candidate.libraryKind !== 'recipe' && onSaveFood) {
+        await onSaveFood(foodInputFromCandidate(candidate, true));
+      }
+    } finally {
+      setFavoriteBusyId(null);
+    }
+  }
+
+  async function submitManual() {
+    if (actionBusy) return;
+    const macros = manualMacrosFromFields({
+      kcalInput: manualKcal,
+      proteinInput: manualProtein,
+      carbsInput: manualCarbs,
+      fatInput: manualFat,
+    });
+    if (!macros) return;
     const serving = manualServing(manualUnit, manualAmount);
     if (!serving) return;
-    const remaining = Math.max(0, kcal - proteinG * 4);
-    onAdd({
-      name: manualName.trim() || `${kcal} kcal`,
-      macros: {
-        kcal,
-        proteinG,
-        carbsG: Math.round((remaining * 0.62) / 4),
-        fatG: Math.round((remaining * 0.38) / 9),
-      },
-      // The user typed these numbers, so kcal/protein are trusted; the
-      // carb/fat split is inferred, which the nutrition screen makes clear.
-      dataQuality: 'verified',
-      servings: 1,
-      servingLabel: serving.label,
-      servingG: serving.grams,
-      source: 'manual',
-      slot,
-    });
+    setLocalBusy(true);
+    try {
+      const name = manualName.trim() || `${macros.kcal} kcal`;
+      const savedFood = manualFavorite && manualName.trim()
+        ? await saveFoodFromSheet({
+            name,
+            brand: manualBrand.trim(),
+            servingLabel: serving.label,
+            servingG: serving.grams,
+            macros,
+            dataQuality: 'verified',
+            favorite: true,
+          })
+        : undefined;
+      const displayName = serving.label === '1 Portion' ? name : `${serving.label} ${name}`;
+
+      await onAdd({
+        name: displayName,
+        macros,
+        dataQuality: 'verified',
+        servings: 1,
+        servingLabel: serving.label,
+        servingG: serving.grams,
+        source: savedFood ? 'favorite' : 'manual',
+        ...(savedFood ? { foodItemId: savedFood.id } : {}),
+        slot,
+      });
+
+      setManualKcal('');
+      setManualProtein('');
+      setManualCarbs('');
+      setManualFat('');
+      setManualName('');
+      setManualBrand('');
+      setManualAmount(manualUnitOption(manualUnit).placeholder);
+    } finally {
+      setLocalBusy(false);
+    }
   }
 
   const manualUnitDetails = manualUnitOption(manualUnit);
   const manualMissingAmount = (manualUnit === 'g' || manualUnit === 'ml') && parsePositive(manualAmount) === null;
+  const manualMacros = manualMacrosFromFields({
+    kcalInput: manualKcal,
+    proteinInput: manualProtein,
+    carbsInput: manualCarbs,
+    fatInput: manualFat,
+  });
+
+  function candidateFavorite(candidate: ScoredCandidate): boolean {
+    if (candidate.libraryKind !== 'food' || !candidate.libraryId) return false;
+    return allFoods.find((food) => food.id === candidate.libraryId)?.favorite ?? false;
+  }
+
+  function canFavoriteCandidate(candidate: ScoredCandidate): boolean {
+    if (candidate.libraryKind === 'recipe') return false;
+    if (candidate.libraryKind === 'food') return Boolean(onSetFavorite);
+    return Boolean(onSaveFood);
+  }
 
   return (
     <div className="stack-sm">
       <BarcodePanel
         allFoods={allFoods}
-        busy={busy}
+        busy={actionBusy}
         scanPaused={selected !== null}
         onFound={(candidate) => {
           search.reset();
@@ -383,13 +577,20 @@ function FoodPanel({
       {/* Favourites — one tap (§37) */}
       {favoriteFoods.length > 0 && !search.query && (
         <div className="stack-sm">
-          <p className="section-label">Favoriten</p>
-          <div className="chip-row">
+          <div className="row-between">
+            <p className="section-label">Favoriten</p>
+            <span className="muted-sm">Plus loggt sofort</span>
+          </div>
+          <div className="stack-sm">
             {favoriteFoods.slice(0, 8).map((food) => (
-              <button key={food.id} type="button" className="chip" disabled={busy} onClick={() => addOwnFood(food)}>
-                {food.name}
-                <span className="chip-meta">{Math.round(food.macros.kcal)} kcal · {Math.round(food.macros.proteinG)} P</span>
-              </button>
+              <SavedFoodRow
+                key={food.id}
+                food={food}
+                busy={actionBusy}
+                favoriteBusy={favoriteBusyId === food.id}
+                onAdd={() => addOwnFood(food)}
+                {...(onSetFavorite ? { onToggleFavorite: () => void toggleFood(food) } : {})}
+              />
             ))}
           </div>
         </div>
@@ -412,9 +613,10 @@ function FoodPanel({
 
       {selected ? (
         <PortionPicker
+          key={selected.id}
           candidate={selected}
-          busy={busy}
-          onPick={(factor) => addCandidate(selected, factor)}
+          busy={actionBusy}
+          onPick={(choice) => void addCandidate(selected, choice)}
           onCancel={() => setSelected(null)}
         />
       ) : (
@@ -427,9 +629,13 @@ function FoodPanel({
                   title={candidate.name}
                   meta={describeCandidate(candidate)}
                   estimated={candidate.dataQuality !== 'verified'}
-                  own={candidate.source === 'library'}
+                  favorite={candidateFavorite(candidate)}
+                  favoritable={canFavoriteCandidate(candidate)}
+                  favoriteBusy={favoriteBusyId === candidate.id}
                   onClick={() => setSelected(candidate)}
-                  disabled={busy}
+                  onQuickAdd={() => void addCandidate(candidate, { factor: 1 })}
+                  onToggleFavorite={() => void toggleCandidateFavorite(candidate)}
+                  disabled={actionBusy}
                 />
               ))}
             </div>
@@ -448,23 +654,38 @@ function FoodPanel({
       )}
 
       {/* Recipes shown when the box is empty */}
-      {/* Manual */}
-      <details>
-        <summary style={{ cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 700, padding: '4px 0' }}>
-          Manuell eintragen
-        </summary>
-        <div className="stack-sm" style={{ marginTop: 10 }}>
+      <div className="panel soft" style={{ padding: 12 }}>
+        <div className="row-between" style={{ marginBottom: 10 }}>
+          <div>
+            <p className="h3" style={{ fontSize: 14 }}>Eigenes Lebensmittel</p>
+            <p className="muted-sm">Werte pro gewählte Menge</p>
+          </div>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={manualFavorite ? 'Nicht als Favorit speichern' : 'Als Favorit speichern'}
+            aria-pressed={manualFavorite}
+            onClick={() => setManualFavorite((value) => !value)}
+            style={manualFavorite ? { color: 'var(--gold)', background: 'color-mix(in srgb, var(--gold) 14%, transparent)' } : undefined}
+          >
+            <Star size={15} fill={manualFavorite ? 'currentColor' : 'none'} />
+          </button>
+        </div>
+        <div className="stack-sm">
           <input
             className="input"
-            placeholder="Bezeichnung (optional)"
+            placeholder="Name"
             value={manualName}
             onChange={(e) => setManualName(e.target.value)}
             aria-label="Bezeichnung"
           />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <input className="input" inputMode="numeric" placeholder="kcal" value={manualKcal} onChange={(e) => setManualKcal(e.target.value)} aria-label="Kalorien" />
-            <input className="input" inputMode="decimal" placeholder="Protein g" value={manualProtein} onChange={(e) => setManualProtein(e.target.value)} aria-label="Protein" />
-          </div>
+          <input
+            className="input"
+            placeholder="Marke optional"
+            value={manualBrand}
+            onChange={(e) => setManualBrand(e.target.value)}
+            aria-label="Marke"
+          />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <input
               className="input"
@@ -480,7 +701,7 @@ function FoodPanel({
               onChange={(e) => {
                 const next = e.target.value as ManualUnit;
                 setManualUnit(next);
-                setManualAmount((current) => current || manualUnitOption(next).placeholder);
+                setManualAmount(manualUnitOption(next).placeholder);
               }}
               aria-label="Einheit"
             >
@@ -489,11 +710,17 @@ function FoodPanel({
               ))}
             </select>
           </div>
-          <button type="button" className="button block" disabled={busy || (!manualKcal && !manualProtein) || manualMissingAmount} onClick={submitManual}>
-            <Check size={16} /> Hinzufügen
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <input className="input compact" inputMode="numeric" placeholder="kcal" value={manualKcal} onChange={(e) => setManualKcal(e.target.value)} aria-label="Kalorien" />
+            <input className="input compact" inputMode="decimal" placeholder="Protein g" value={manualProtein} onChange={(e) => setManualProtein(e.target.value)} aria-label="Protein" />
+            <input className="input compact" inputMode="decimal" placeholder="KH g" value={manualCarbs} onChange={(e) => setManualCarbs(e.target.value)} aria-label="Kohlenhydrate" />
+            <input className="input compact" inputMode="decimal" placeholder="Fett g" value={manualFat} onChange={(e) => setManualFat(e.target.value)} aria-label="Fett" />
+          </div>
+          <button type="button" className="button block" disabled={actionBusy || !manualMacros || manualMissingAmount} onClick={() => void submitManual()}>
+            <Check size={16} /> {manualFavorite ? 'Favorit hinzufügen' : 'Hinzufügen'}
           </button>
         </div>
-      </details>
+      </div>
     </div>
   );
 }
@@ -1132,6 +1359,68 @@ function formatFactor(factor: number, candidate: ScoredCandidate): string {
   return `${factor.toLocaleString('de-DE')}×`;
 }
 
+function SavedFoodRow({
+  food,
+  busy,
+  favoriteBusy,
+  onAdd,
+  onToggleFavorite,
+}: {
+  food: FoodItem;
+  busy: boolean;
+  favoriteBusy: boolean;
+  onAdd: () => void;
+  onToggleFavorite?: () => void;
+}) {
+  return (
+    <div className="habit-row" style={{ width: '100%', padding: '11px 12px', gap: 10 }}>
+      <button
+        type="button"
+        onClick={onAdd}
+        disabled={busy}
+        style={{
+          flex: '1 1 auto',
+          minWidth: 0,
+          border: 0,
+          background: 'transparent',
+          color: 'inherit',
+          padding: 0,
+          textAlign: 'left',
+          cursor: busy ? 'not-allowed' : 'pointer',
+        }}
+      >
+        <div className="habit-body">
+          <p className="h3" style={{ fontSize: 14 }}>
+            <Star size={11} color="var(--gold)" fill="currentColor" style={{ marginRight: 4 }} />
+            {food.name}
+          </p>
+          <p className="muted-sm">
+            {Math.round(food.macros.kcal)} kcal · {Math.round(food.macros.proteinG)} g P · {food.servingLabel}
+          </p>
+        </div>
+      </button>
+      <div style={{ display: 'flex', gap: 4, flex: '0 0 auto' }}>
+        {onToggleFavorite && (
+          <button
+            type="button"
+            className="icon-button"
+            disabled={busy || favoriteBusy}
+            aria-label="Favorit entfernen"
+            aria-pressed
+            onClick={onToggleFavorite}
+            style={{ color: 'var(--gold)', background: 'color-mix(in srgb, var(--gold) 14%, transparent)' }}
+          >
+            <Star size={15} fill="currentColor" />
+          </button>
+        )}
+        <button type="button" className="icon-button" disabled={busy} onClick={onAdd} aria-label="Direkt hinzufügen">
+          <Plus size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** Lets the user say how much of the found item they actually had. */
 function PortionPicker({
   candidate,
@@ -1141,18 +1430,20 @@ function PortionPicker({
 }: {
   candidate: ScoredCandidate;
   busy: boolean;
-  onPick: (factor: number) => void;
+  onPick: (choice: PortionChoice) => void;
   onCancel: () => void;
 }) {
   const [custom, setCustom] = useState('');
+  const [customUnit, setCustomUnit] = useState<ManualUnit>(candidate.portionG ? (candidate.portionLabel.toLowerCase().includes('ml') ? 'ml' : 'g') : 'portion');
   const base = candidate.portionG;
   const factors = base ? [0.5, 1, 1.5, 2] : [0.5, 1, 1.5, 2];
-
-  const customFactor = (() => {
-    const value = parseDecimalOr(custom, Number.NaN);
-    if (!Number.isFinite(value) || value <= 0) return null;
-    return base ? value / base : value;
-  })();
+  const customUnits = MANUAL_UNITS.filter((option) =>
+    base ? true : option.value !== 'g' && option.value !== 'ml',
+  );
+  const customChoice = customChoiceForCandidate(candidate, customUnit, custom);
+  const customPlaceholder = base && (customUnit === 'g' || customUnit === 'ml')
+    ? String(base)
+    : manualUnitOption(customUnit).placeholder;
 
   return (
     <div className="panel soft" style={{ padding: 12 }}>
@@ -1170,7 +1461,7 @@ function PortionPicker({
         {factors.map((factor) => {
           const macros = scaleCandidate(candidate, factor);
           return (
-            <button key={factor} type="button" className="chip" disabled={busy} onClick={() => onPick(factor)}>
+            <button key={factor} type="button" className="chip" disabled={busy} onClick={() => onPick({ factor })}>
               {formatFactor(factor, candidate)}
               <span className="chip-meta">{macros.kcal} kcal</span>
             </button>
@@ -1180,20 +1471,35 @@ function PortionPicker({
 
       <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'flex-end' }}>
         <div className="field" style={{ flex: 1 }}>
-          <label className="field-label">{base ? 'Eigene Menge (g)' : 'Portionen'}</label>
+          <label className="field-label">Spezielle Menge</label>
           <input
             className="input compact"
             inputMode="decimal"
             value={custom}
             onChange={(e) => setCustom(e.target.value)}
-            placeholder={base ? String(base) : '1'}
+            placeholder={customPlaceholder}
           />
         </div>
+        <select
+          className="select"
+          value={customUnit}
+          onChange={(e) => {
+            const next = e.target.value as ManualUnit;
+            setCustomUnit(next);
+            setCustom(base && (next === 'g' || next === 'ml') ? String(base) : manualUnitOption(next).placeholder);
+          }}
+          aria-label="Mengeneinheit"
+          style={{ flex: '0 0 96px', minHeight: 40, borderRadius: 'var(--radius-sm)' }}
+        >
+          {customUnits.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
         <button
           type="button"
           className="button compact"
-          disabled={busy || customFactor === null}
-          onClick={() => customFactor !== null && onPick(customFactor)}
+          disabled={busy || customChoice === null}
+          onClick={() => customChoice !== null && onPick(customChoice)}
         >
           <Check size={15} /> Eintragen
         </button>
@@ -1206,36 +1512,73 @@ function ResultRow({
   title,
   meta,
   estimated,
-  own,
+  favorite,
+  favoritable,
+  favoriteBusy,
   onClick,
+  onQuickAdd,
+  onToggleFavorite,
   disabled,
 }: {
   title: string;
   meta: string;
   estimated?: boolean;
-  /** A hit from the user's own library — their numbers, not a guess. */
-  own?: boolean;
+  favorite?: boolean;
+  favoritable?: boolean;
+  favoriteBusy?: boolean;
   onClick: () => void;
+  onQuickAdd: () => void;
+  onToggleFavorite: () => void;
   disabled?: boolean;
 }) {
   return (
-    <button
-      type="button"
+    <div
       className="habit-row"
-      onClick={onClick}
-      disabled={disabled}
-      style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}
+      style={{ width: '100%', padding: '11px 12px', gap: 10 }}
     >
-      <div className="habit-body">
-        <p className="h3" style={{ fontSize: 14 }}>
-          {own && <Star size={11} color="var(--gold)" style={{ marginRight: 4 }} />}
-          {title}
-          {estimated && <span className="quality-badge estimated" style={{ marginLeft: 6 }}>geschätzt</span>}
-        </p>
-        <p className="muted-sm">{meta}</p>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        style={{
+          flex: '1 1 auto',
+          minWidth: 0,
+          border: 0,
+          background: 'transparent',
+          color: 'inherit',
+          padding: 0,
+          textAlign: 'left',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+        }}
+      >
+        <div className="habit-body">
+          <p className="h3" style={{ fontSize: 14 }}>
+            {favorite && <Star size={11} color="var(--gold)" fill="currentColor" style={{ marginRight: 4 }} />}
+            {title}
+            {estimated && <span className="quality-badge estimated" style={{ marginLeft: 6 }}>geschätzt</span>}
+          </p>
+          <p className="muted-sm">{meta}</p>
+        </div>
+      </button>
+      <div style={{ display: 'flex', gap: 4, flex: '0 0 auto' }}>
+        {favoritable && (
+          <button
+            type="button"
+            className="icon-button"
+            disabled={disabled || favoriteBusy}
+            aria-label={favorite ? 'Favorit entfernen' : 'Als Favorit speichern'}
+            aria-pressed={favorite}
+            onClick={onToggleFavorite}
+            style={favorite ? { color: 'var(--gold)', background: 'color-mix(in srgb, var(--gold) 14%, transparent)' } : undefined}
+          >
+            <Star size={15} fill={favorite ? 'currentColor' : 'none'} />
+          </button>
+        )}
+        <button type="button" className="icon-button" disabled={disabled} onClick={onQuickAdd} aria-label="Direkt hinzufügen">
+          <Plus size={16} />
+        </button>
       </div>
-      <span className="icon-button" aria-hidden><Plus size={16} /></span>
-    </button>
+    </div>
   );
 }
 

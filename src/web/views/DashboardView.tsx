@@ -30,7 +30,7 @@ function todayLabel(): string {
 const FOREGROUND_RELOAD_INTERVAL_MS = 60_000;
 
 export function DashboardView() {
-  const { data, loading, error, addEntry, removeEntry, addWater, setMetric, setSoreness, saveFood, startSuggestedWorkout, reload } =
+  const { data, loading, error, addEntry, removeEntry, addWater, setMetric, setSoreness, saveFood, setFoodFavorite, startSuggestedWorkout, reload } =
     useTodayContext();
   const { user } = useAuth();
   const router = useRouter();
@@ -387,6 +387,7 @@ export function DashboardView() {
           handlers={{
             onAddEntry: handleEntry,
             onSaveFood: saveFood,
+            onSetFavorite: setFoodFavorite,
             onAddWater: addWater,
             onSetSteps: (steps) => setMetric('steps', steps),
             onSetSleep: (hours) => setMetric('sleep', hours),

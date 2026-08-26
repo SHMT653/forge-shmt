@@ -19,6 +19,7 @@ import {
   markFoodUsed,
   rememberFoodFromEntry,
   toggleFoodFavorite,
+  updateFoodItem,
   type FoodItemInput,
 } from '@/data/foodLibrary';
 import { ensureDefaultHabits, listHabitLogsForRange } from '@/data/habits';
@@ -30,6 +31,7 @@ import { resolveTargets, type ResolvedTargets } from '@/domain/goalPhase';
 import { combineQuality, slotForHour, sumMacros } from '@/domain/nutritionMath';
 import type { DataQuality, FoodItem, Habit, Macros, MealPrepBatch, Recipe, UserGoals } from '@/domain/types';
 import { fluidFromEntry } from '@/domain/fluids';
+import { foodKey } from '@/domain/foodMemory';
 
 export type NutritionState = {
   meals: MealEntry[];
@@ -210,12 +212,35 @@ export function useNutrition() {
 
   /** Promotes a logged meal into a reusable saved product (§12). */
   const saveAsFood = useCallback(
-    async (input: FoodItemInput) => {
-      if (!user) return;
-      await createFoodItem(user.id, { ...input, favorite: input.favorite ?? true });
+    async (input: FoodItemInput): Promise<FoodItem | undefined> => {
+      if (!user) return undefined;
+
+      const existing = state.foods.find((food) => foodKey(food.name) === foodKey(input.name));
+      if (existing) {
+        const nextFavorite = input.favorite === true ? true : existing.favorite;
+        const nextBarcode = existing.barcode || input.barcode || null;
+        if (nextFavorite !== existing.favorite || nextBarcode !== existing.barcode) {
+          await updateFoodItem(user.id, existing.id, {
+            name: existing.name,
+            brand: existing.brand,
+            servingLabel: existing.servingLabel,
+            servingG: existing.servingG,
+            macros: existing.macros,
+            dataQuality: existing.dataQuality,
+            barcode: nextBarcode,
+            favorite: nextFavorite,
+          });
+          void load();
+          return { ...existing, favorite: nextFavorite, barcode: nextBarcode };
+        }
+        return existing;
+      }
+
+      const saved = await createFoodItem(user.id, { ...input, favorite: input.favorite ?? true });
       void load();
+      return saved;
     },
-    [user, load],
+    [user, state.foods, load],
   );
 
   const setFavorite = useCallback(
@@ -232,7 +257,7 @@ export function useNutrition() {
   );
 
   const favorites = useMemo(
-    () => state.foods.filter((f) => f.favorite || f.useCount > 0).slice(0, 12),
+    () => state.foods.filter((f) => f.favorite).slice(0, 12),
     [state.foods],
   );
 

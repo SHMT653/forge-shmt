@@ -20,6 +20,7 @@ import {
   listFoodItems,
   markFoodUsed,
   rememberFoodFromEntry,
+  toggleFoodFavorite,
   updateFoodItem,
   type FoodItemInput,
 } from '@/data/foodLibrary';
@@ -33,6 +34,7 @@ import { getActivePhase } from '@/data/goalPhases';
 import { errorMessage } from '@/domain/errors';
 import { assessReadiness, type Readiness } from '@/domain/trainingReadiness';
 import { fluidFromEntry } from '@/domain/fluids';
+import { foodKey } from '@/domain/foodMemory';
 import { consecutiveDayStreak } from '@/domain/streaks';
 import { dateKeyAddDays, todayKey } from '@/domain/dates';
 import { resolveTargets, type ResolvedTargets } from '@/domain/goalPhase';
@@ -300,7 +302,7 @@ export function useTodayData() {
           cardio: cardioKcal,
           total: burnedSteps + burnedWorkout + cardioKcal,
         },
-        favoriteFoods: foods.filter((f) => f.favorite || f.useCount > 0).slice(0, 12),
+        favoriteFoods: foods.filter((f) => f.favorite).slice(0, 12),
         allFoods: foods,
         recentMeals,
         weight,
@@ -460,15 +462,17 @@ export function useTodayData() {
 
   /** Files a product discovered through search into the user's own library. */
   const saveFood = useCallback(
-    async (input: FoodItemInput) => {
-      if (!user) return;
+    async (input: FoodItemInput): Promise<FoodItem | undefined> => {
+      if (!user) return undefined;
       // Never store the same product twice under the same name.
-      const existing = data?.allFoods.find((f) => f.name.toLowerCase() === input.name.toLowerCase());
+      const existing = data?.allFoods.find((f) => foodKey(f.name) === foodKey(input.name));
       if (existing) {
         // A scan can teach an older manually saved product its barcode. Keeping
         // that link means the next scan resolves locally instead of going back
         // to Open Food Facts.
-        if (input.barcode && !existing.barcode) {
+        const nextFavorite = input.favorite === true ? true : existing.favorite;
+        const nextBarcode = existing.barcode || input.barcode || null;
+        if (nextBarcode !== existing.barcode || nextFavorite !== existing.favorite) {
           await updateFoodItem(user.id, existing.id, {
             name: existing.name,
             brand: existing.brand,
@@ -476,17 +480,33 @@ export function useTodayData() {
             servingG: existing.servingG,
             macros: existing.macros,
             dataQuality: existing.dataQuality,
-            barcode: input.barcode,
-            favorite: existing.favorite,
+            barcode: nextBarcode,
+            favorite: nextFavorite,
           });
           void load();
+          return { ...existing, barcode: nextBarcode, favorite: nextFavorite };
         }
-        return;
+        return existing;
       }
-      await createFoodItem(user.id, input);
+      const saved = await createFoodItem(user.id, input);
       void load();
+      return saved;
     },
     [user, data?.allFoods, load],
+  );
+
+  const setFoodFavorite = useCallback(
+    async (foodId: string, favorite: boolean) => {
+      if (!user) return;
+      setData((prev) => {
+        if (!prev) return prev;
+        const allFoods = prev.allFoods.map((food) => (food.id === foodId ? { ...food, favorite } : food));
+        return { ...prev, allFoods, favoriteFoods: allFoods.filter((food) => food.favorite).slice(0, 12) };
+      });
+      await toggleFoodFavorite(user.id, foodId, favorite);
+      void load();
+    },
+    [user, load],
   );
 
   const startSuggestedWorkout = useCallback(async (): Promise<string | null> => {
@@ -506,6 +526,7 @@ export function useTodayData() {
     setSoreness,
     toggleHabit,
     saveFood,
+    setFoodFavorite,
     startSuggestedWorkout,
   };
 }
