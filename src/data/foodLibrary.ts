@@ -217,6 +217,91 @@ export type RecipeInput = {
 
 
 
+export async function listRecipes(userId: string): Promise<Recipe[]> {
+  const supabase = getSupabaseClient();
+  const { data: recipes, error } = await supabase
+    .from('forge_recipes')
+    .select('id, name, total_servings, serving_label, is_meal_prep, favorite, notes, use_count')
+    .eq('user_id', userId)
+    .order('favorite', { ascending: false })
+    .order('name', { ascending: true });
+  if (error) throw error;
+  if (!recipes?.length) return [];
+
+  const { data: ingredients, error: ingError } = await supabase
+    .from('forge_recipe_ingredients')
+    .select('id, recipe_id, food_item_id, name, amount_label, kcal, protein_g, carbs_g, fat_g, order_index')
+    .in('recipe_id', recipes.map((r) => r.id));
+  if (ingError) throw ingError;
+
+  return recipes.map((r) => assembleRecipe(r as RecipeRow, (ingredients ?? []) as IngredientRow[]));
+}
+
+export async function createRecipe(userId: string, input: RecipeInput): Promise<string> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('forge_recipes')
+    .insert({
+      user_id: userId,
+      name: input.name,
+      total_servings: input.totalServings,
+      serving_label: input.servingLabel ?? 'Portion',
+      is_meal_prep: input.isMealPrep ?? false,
+      favorite: input.favorite ?? false,
+      notes: input.notes ?? '',
+    })
+    .select('id')
+    .single();
+  if (error) throw error;
+  await replaceIngredients(data.id, input.ingredients);
+  return data.id;
+}
+
+export async function updateRecipe(userId: string, recipeId: string, input: RecipeInput): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('forge_recipes')
+    .update({
+      name: input.name,
+      total_servings: input.totalServings,
+      serving_label: input.servingLabel ?? 'Portion',
+      is_meal_prep: input.isMealPrep ?? false,
+      favorite: input.favorite ?? false,
+      notes: input.notes ?? '',
+    })
+    .eq('id', recipeId)
+    .eq('user_id', userId);
+  if (error) throw error;
+  await replaceIngredients(recipeId, input.ingredients);
+}
+
+export async function deleteRecipe(userId: string, recipeId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from('forge_recipes').delete().eq('id', recipeId).eq('user_id', userId);
+  if (error) throw error;
+}
+
+export async function toggleRecipeFavorite(userId: string, recipeId: string, favorite: boolean): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('forge_recipes')
+    .update({ favorite })
+    .eq('id', recipeId)
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+/** Counts a cooked/logged recipe, so the list can lead with what gets used. */
+export async function markRecipeUsed(userId: string, recipeId: string, currentCount: number): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('forge_recipes')
+    .update({ use_count: currentCount + 1, last_used_at: new Date().toISOString() })
+    .eq('id', recipeId)
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
 async function replaceIngredients(recipeId: string, ingredients: RecipeInput['ingredients']): Promise<void> {
   const supabase = getSupabaseClient();
   const { error: delError } = await supabase.from('forge_recipe_ingredients').delete().eq('recipe_id', recipeId);

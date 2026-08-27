@@ -13,7 +13,7 @@ import { formatLiters, formatHours } from '@/domain/dayEvaluation';
 import { barcodeLookupVariants, defaultPortionG, findProductByBarcode, normalizeBarcode, offPortion, type OffFood } from '@/data/foodSearch';
 import type { MealEntry, MealEntryInput } from '@/data/nutrition';
 import type { FoodItemInput } from '@/data/foodLibrary';
-import type { FoodItem } from '@/domain/types';
+import type { FoodItem, Recipe } from '@/domain/types';
 import { parseDecimal, parseDecimalOr, parsePositive } from '@/domain/numbers';
 import {
   acquireBarcodeStream,
@@ -90,6 +90,7 @@ export function QuickAddSheet({
   currentWeight,
   recentMeals = [],
   allFoods,
+  recipes = [],
   handlers,
 }: {
   onClose: () => void;
@@ -97,6 +98,8 @@ export function QuickAddSheet({
   recentMeals?: readonly MealEntry[];
   /** Full library for searching; the favourites above are only the chips. */
   allFoods?: readonly FoodItem[];
+  /** Saved recipes, searchable as "1 Portion" with their own macros. */
+  recipes?: readonly Recipe[];
   currentWater: number;
   currentSteps: number;
   currentSleep: number;
@@ -133,6 +136,7 @@ export function QuickAddSheet({
           favoriteFoods={favoriteFoods}
           recentMeals={recentMeals}
           allFoods={allFoods ?? favoriteFoods}
+          recipes={recipes}
           busy={busy}
           onAdd={(entry, keepOpen) => run(() => handlers.onAddEntry(entry), keepOpen)}
           {...(handlers.onSaveFood ? { onSaveFood: handlers.onSaveFood } : {})}
@@ -363,6 +367,7 @@ function FoodPanel({
   favoriteFoods,
   recentMeals,
   allFoods,
+  recipes,
   busy,
   onAdd,
   onSaveFood,
@@ -371,6 +376,7 @@ function FoodPanel({
   favoriteFoods: readonly FoodItem[];
   recentMeals: readonly MealEntry[];
   allFoods: readonly FoodItem[];
+  recipes: readonly Recipe[];
   busy: boolean;
   onAdd: (entry: MealEntryInput, keepOpen?: boolean) => Promise<void> | void;
   onSaveFood?: (input: FoodItemInput) => Promise<FoodItem | void> | FoodItem | void;
@@ -391,7 +397,7 @@ function FoodPanel({
   const [localBusy, setLocalBusy] = useState(false);
   const [favoriteBusyId, setFavoriteBusyId] = useState<string | null>(null);
 
-  const search = useFoodSearch({ foods: allFoods, recipes: [], recentMeals });
+  const search = useFoodSearch({ foods: allFoods, recipes, recentMeals });
 
   const scannedId = selected?.matchedByBarcode ? selected.id : null;
   useEffect(() => {
@@ -447,9 +453,11 @@ function FoodPanel({
         servingG: choice.servingG ?? scaledServingG(candidate, factor),
         source: candidate.matchedByBarcode
           ? 'barcode'
-          : candidate.source === 'library'
-            ? 'favorite'
-            : 'search',
+          : candidate.libraryKind === 'recipe'
+            ? 'recipe'
+            : candidate.source === 'library'
+              ? 'favorite'
+              : 'search',
         ...(foodItemId ? { foodItemId } : {}),
         ...(candidate.libraryKind === 'recipe' && candidate.libraryId ? { recipeId: candidate.libraryId } : {}),
         slot,

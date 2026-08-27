@@ -15,12 +15,18 @@ import {
 } from '@/data/nutrition';
 import {
   createFoodItem,
+  createRecipe,
+  deleteRecipe,
   listFoodItems,
+  listRecipes,
   markFoodUsed,
+  markRecipeUsed,
   rememberFoodFromEntry,
   toggleFoodFavorite,
   updateFoodItem,
+  updateRecipe,
   type FoodItemInput,
+  type RecipeInput,
 } from '@/data/foodLibrary';
 import { ensureDefaultHabits, listHabitLogsForRange } from '@/data/habits';
 import { GOALS_DEFAULTS, getUserGoals } from '@/data/profile';
@@ -28,8 +34,8 @@ import { setDayMetric, pickMetricHabits } from '@/data/dailyMetrics';
 import { errorMessage } from '@/domain/errors';
 import { dateKeyAddDays, todayKey } from '@/domain/dates';
 import { resolveTargets, type ResolvedTargets } from '@/domain/goalPhase';
-import { combineQuality, slotForHour, sumMacros } from '@/domain/nutritionMath';
-import type { DataQuality, FoodItem, Habit, Macros, MealPrepBatch, Recipe, UserGoals } from '@/domain/types';
+import { combineQuality, macrosForServings, slotForHour, sumMacros } from '@/domain/nutritionMath';
+import type { DataQuality, FoodItem, Habit, Macros, Recipe, UserGoals } from '@/domain/types';
 import { fluidFromEntry } from '@/domain/fluids';
 import { foodKey } from '@/domain/foodMemory';
 
@@ -37,6 +43,7 @@ export type NutritionState = {
   meals: MealEntry[];
   recentMeals: MealEntry[];
   foods: FoodItem[];
+  recipes: Recipe[];
   totals: Macros;
   quality: DataQuality;
   goals: UserGoals;
@@ -56,6 +63,7 @@ export function useNutrition() {
     meals: [],
     recentMeals: [],
     foods: [],
+    recipes: [],
     totals: EMPTY_TOTALS,
     quality: 'verified',
     goals: GOALS_DEFAULTS,
@@ -70,7 +78,7 @@ export function useNutrition() {
     if (!user) return;
     const today = todayKey();
     try {
-      const [meals, habitList, logs, goals, recentMeals, foods, weekLogs] = await Promise.all([
+      const [meals, habitList, logs, goals, recentMeals, foods, weekLogs, recipes] = await Promise.all([
         listMealEntries(user.id, today),
         ensureDefaultHabits(user.id),
         listHabitLogsForRange(user.id, today),
@@ -78,6 +86,7 @@ export function useNutrition() {
         listRecentUniqueMeals(user.id),
         listFoodItems(user.id),
         listNutritionLogs(user.id, dateKeyAddDays(today, -6), today),
+        listRecipes(user.id),
       ]);
 
       const targets = resolveTargets(goals);
@@ -92,6 +101,7 @@ export function useNutrition() {
         meals,
         recentMeals,
         foods,
+        recipes,
         totals: sumMacros(meals.map((m) => ({ kcal: m.kcal, proteinG: m.proteinG, carbsG: m.carbsG, fatG: m.fatG }))),
         quality: combineQuality(meals.map((m) => m.dataQuality)),
         goals,
@@ -261,7 +271,58 @@ export function useNutrition() {
     [state.foods],
   );
 
-  return { state, favorites, addMeal, removeMeal, editMeal, addWater, saveAsFood, setFavorite, reload: load };
+  const saveRecipe = useCallback(
+    async (input: RecipeInput, recipeId?: string) => {
+      if (!user) return;
+      if (recipeId) await updateRecipe(user.id, recipeId, input);
+      else await createRecipe(user.id, input);
+      await load();
+    },
+    [user, load],
+  );
+
+  const removeRecipe = useCallback(
+    async (recipeId: string) => {
+      if (!user) return;
+      setState((prev) => ({ ...prev, recipes: prev.recipes.filter((recipe) => recipe.id !== recipeId) }));
+      await deleteRecipe(user.id, recipeId);
+      await load();
+    },
+    [user, load],
+  );
+
+  /** Logs one or more portions of a recipe and counts the recipe as used. */
+  const logRecipeServings = useCallback(
+    async (recipe: Recipe, servings: number) => {
+      if (!user) return;
+      await addMeal({
+        name: servings === 1 ? recipe.name : `${servings} ${recipe.servingLabel} ${recipe.name}`,
+        macros: macrosForServings(recipe, servings),
+        dataQuality: 'verified',
+        servings,
+        servingLabel: recipe.servingLabel,
+        source: 'recipe',
+        recipeId: recipe.id,
+      });
+      void markRecipeUsed(user.id, recipe.id, recipe.useCount).catch(() => undefined);
+    },
+    [user, addMeal],
+  );
+
+  return {
+    state,
+    favorites,
+    addMeal,
+    removeMeal,
+    editMeal,
+    addWater,
+    saveAsFood,
+    setFavorite,
+    saveRecipe,
+    removeRecipe,
+    logRecipeServings,
+    reload: load,
+  };
 }
 
 function totalsOf(meals: readonly MealEntry[]): Macros {

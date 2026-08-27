@@ -1,14 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import {
-  Utensils, Droplets, Plus, Star, Box, ArrowRight, ChefHat,
+  Utensils, Droplets, Plus, Star, Box, ChefHat, Pencil, Trash2,
 } from 'lucide-react';
 import { useNutrition } from '@/web/hooks/useNutrition';
 import { RangeBar, GoalBar } from '@/web/components/RangeBar';
 import { QuickTextInput } from '@/web/components/QuickTextInput';
 import { QuickAddSheet } from '@/web/components/QuickAddSheet';
+import { RecipeSheet } from '@/web/components/RecipeSheet';
 import { DailyTimeline, mealToEvent, type TimelineEvent } from '@/web/components/DailyTimeline';
 import { evaluateRange, evaluateGoal, TONE_COLOR } from '@/domain/goalPhase';
 import { isDayInProgress, formatLiters } from '@/domain/dayEvaluation';
@@ -16,13 +16,25 @@ import {
   MEAL_SLOTS, MEAL_SLOT_LABEL, MEAL_SLOT_ICON, sumMacros,
 } from '@/domain/nutritionMath';
 import type { MealEntryInput } from '@/data/nutrition';
-import type { MealSlot } from '@/domain/types';
+import type { MealSlot, Recipe } from '@/domain/types';
 
 const WATER_STEPS = [250, 500, 750];
 
+/** How much of a recipe gets logged with one tap. */
+const RECIPE_PORTIONS = [
+  { factor: 1, label: '1 Portion' },
+  { factor: 0.5, label: '½' },
+  { factor: 2, label: '2' },
+];
+
 export function NutritionView() {
-  const { state, favorites, addMeal, removeMeal, addWater, saveAsFood, setFavorite } = useNutrition();
+  const {
+    state, favorites, addMeal, removeMeal, addWater, saveAsFood, setFavorite,
+    saveRecipe, removeRecipe, logRecipeServings,
+  } = useNutrition();
   const [sheetOpen, setSheetOpen] = useState(false);
+  /** null = closed, { recipe: null } = new, { recipe } = editing. */
+  const [recipeSheet, setRecipeSheet] = useState<{ recipe: Recipe | null } | null>(null);
 
   const meals = state.meals;
   const bySlot = useMemo(() => {
@@ -150,7 +162,6 @@ export function NutritionView() {
         <section className="panel soft">
           <div className="section-head">
             <p className="h3" style={{ fontSize: 15 }}>Favoriten</p>
-            <Link href="/recipes" prefetch={false} className="card-link">Bibliothek <ArrowRight size={14} /></Link>
           </div>
           <div className="chip-row">
             {favorites.map((food) => (
@@ -175,7 +186,91 @@ export function NutritionView() {
         </section>
       )}
 
-      {/* ── Meal prep (§13) ───────────────────────────────────────────── */}
+      {/* ── Recipes: one portion, real numbers ───────────────────────── */}
+      <section className="panel soft">
+        <div className="section-head">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ChefHat size={15} color="var(--violet)" />
+            <p className="h3" style={{ fontSize: 15 }}>Rezepte</p>
+          </div>
+          <button type="button" className="button ghost compact" onClick={() => setRecipeSheet({ recipe: null })}>
+            <Plus size={14} /> Neu
+          </button>
+        </div>
+
+        {state.recipes.length === 0 ? (
+          <div className="empty-state">
+            <p className="copy" style={{ margin: 0 }}>Noch keine Rezepte.</p>
+            <p className="muted-sm">
+              Leg dein Standardgericht einmal an — danach reicht „1 Portion“ und die Werte stimmen.
+            </p>
+            <button
+              type="button"
+              className="button compact"
+              style={{ marginTop: 8 }}
+              onClick={() => setRecipeSheet({ recipe: null })}
+            >
+              <Plus size={15} /> Erstes Rezept anlegen
+            </button>
+          </div>
+        ) : (
+          <div className="stack-sm">
+            {state.recipes.map((recipe) => (
+              <div key={recipe.id} className="panel" style={{ padding: 10 }}>
+                <div className="row-between" style={{ gap: 8 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <p className="h3" style={{ fontSize: 14 }}>{recipe.name}</p>
+                    <p className="muted-sm">
+                      {Math.round(recipe.perServing.kcal)} kcal · {Math.round(recipe.perServing.proteinG)} g Protein
+                      {' '}pro {recipe.servingLabel}
+                    </p>
+                    <p className="muted-sm">
+                      {recipe.ingredients.length} Zutaten · ergibt {recipe.totalServings} {recipe.servingLabel}
+                      {recipe.totalServings === 1 ? '' : 'en'}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      onClick={() => setRecipeSheet({ recipe })}
+                      aria-label={`${recipe.name} bearbeiten`}
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-button danger"
+                      onClick={() => {
+                        if (confirm(`„${recipe.name}“ löschen?`)) void removeRecipe(recipe.id);
+                      }}
+                      aria-label={`${recipe.name} löschen`}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </div>
+                <div className="chip-row" style={{ marginTop: 8 }}>
+                  {RECIPE_PORTIONS.map(({ factor, label }) => (
+                    <button
+                      key={factor}
+                      type="button"
+                      className="chip"
+                      onClick={() => void logRecipeServings(recipe, factor)}
+                    >
+                      <Plus size={13} /> {label}
+                      <span className="chip-meta">
+                        {Math.round(recipe.perServing.kcal * factor)} kcal
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       {/* ── Meals by slot (§14) ───────────────────────────────────────── */}
       <section className="panel">
         <div className="section-head">
@@ -262,11 +357,21 @@ export function NutritionView() {
         </div>
       </section>
 
+      {recipeSheet && (
+        <RecipeSheet
+          recipe={recipeSheet.recipe}
+          allFoods={state.foods}
+          onClose={() => setRecipeSheet(null)}
+          onSave={saveRecipe}
+        />
+      )}
+
       {sheetOpen && (
         <QuickAddSheet
           onClose={() => setSheetOpen(false)}
           favoriteFoods={favorites}
           allFoods={state.foods}
+          recipes={state.recipes}
           recentMeals={state.recentMeals}
           currentWater={state.water.todayMl}
           currentSteps={0}
