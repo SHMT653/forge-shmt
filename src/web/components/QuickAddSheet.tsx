@@ -15,6 +15,13 @@ import type { MealEntry, MealEntryInput } from '@/data/nutrition';
 import type { FoodItemInput } from '@/data/foodLibrary';
 import type { FoodItem } from '@/domain/types';
 import { parseDecimal, parseDecimalOr, parsePositive } from '@/domain/numbers';
+import {
+  acquireBarcodeStream,
+  applyCameraTuning,
+  describeCameraError,
+  releaseBarcodeStream,
+  setStreamTorch,
+} from '@/services/barcodeCamera';
 
 type Mode = 'food' | 'water' | 'steps' | 'sleep' | 'weight' | 'training';
 
@@ -43,25 +50,10 @@ type NativeBarcodeDetectorConstructor = {
   new(options?: { formats?: string[] }): NativeBarcodeDetector;
   getSupportedFormats?: () => Promise<string[]>;
 };
-type ExtendedMediaTrackConstraintSet = MediaTrackConstraintSet & {
-  focusMode?: 'continuous';
-  exposureMode?: 'continuous';
-  whiteBalanceMode?: 'continuous';
-  torch?: boolean;
-};
-type ExtendedMediaTrackCapabilities = MediaTrackCapabilities & {
-  torch?: boolean;
-};
 type CameraScannerHandle = {
   start: () => Promise<void>;
   stop: () => void;
 };
-
-const CAMERA_TUNING: ExtendedMediaTrackConstraintSet[] = [
-  { focusMode: 'continuous' },
-  { exposureMode: 'continuous' },
-  { whiteBalanceMode: 'continuous' },
-];
 
 type ManualUnit = 'portion' | 'g' | 'ml' | 'piece' | 'glass' | 'can' | 'bottle' | 'pack';
 
@@ -1030,12 +1022,8 @@ function mediaStreamFromVideo(video: HTMLVideoElement | null): MediaStream | nul
   return video?.srcObject instanceof MediaStream ? video.srcObject : null;
 }
 
-function stopMediaStream(stream: MediaStream | null): void {
-  stream?.getTracks().forEach((track) => track.stop());
-}
-
 async function attachCameraStream(video: HTMLVideoElement, stream: MediaStream): Promise<void> {
-  video.srcObject = stream;
+  if (video.srcObject !== stream) video.srcObject = stream;
   await new Promise<void>((resolve) => {
     if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
       resolve();
@@ -1048,104 +1036,6 @@ async function attachCameraStream(video: HTMLVideoElement, stream: MediaStream):
     };
   });
   await video.play().catch(() => undefined);
-}
-
-async function prepareCameraStream(stream: MediaStream): Promise<boolean> {
-  const track = stream.getVideoTracks()[0];
-  if (!track) return false;
-  await track.applyConstraints({ advanced: CAMERA_TUNING } as MediaTrackConstraints).catch(() => undefined);
-  const capabilities = track.getCapabilities?.() as ExtendedMediaTrackCapabilities | undefined;
-  return Boolean(capabilities?.torch);
-}
-
-async function setStreamTorch(stream: MediaStream | null, enabled: boolean): Promise<boolean> {
-  const track = stream?.getVideoTracks()[0];
-  if (!track) return false;
-  const capabilities = track.getCapabilities?.() as ExtendedMediaTrackCapabilities | undefined;
-  if (!capabilities?.torch) return false;
-  await track.applyConstraints({ advanced: [{ torch: enabled }] as ExtendedMediaTrackConstraintSet[] } as MediaTrackConstraints);
-  return true;
-}
-
-function barcodeCameraConstraints(tuned = true): MediaStreamConstraints {
-  return {
-    audio: false,
-    video: {
-      facingMode: { ideal: 'environment' },
-      width: { ideal: tuned ? 1280 : 640 },
-      height: { ideal: tuned ? 720 : 480 },
-      ...(tuned ? { advanced: CAMERA_TUNING } : {}),
-    } as MediaTrackConstraints,
-  };
-}
-
-async function rearCameraDeviceId(): Promise<string | null> {
-  if (!navigator.mediaDevices?.enumerateDevices) return null;
-  const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
-  const videoDevices = devices.filter((device) => device.kind === 'videoinput');
-  const rear = videoDevices.find((device) => {
-    const label = device.label.toLowerCase();
-    return (
-      label.includes('back') ||
-      label.includes('rear') ||
-      label.includes('environment') ||
-      label.includes('rück') ||
-      label.includes('umgebung')
-    );
-  });
-  return rear?.deviceId || null;
-}
-
-async function requestStreamWithDeviceId(deviceId: string): Promise<MediaStream> {
-  return navigator.mediaDevices.getUserMedia({
-    audio: false,
-    video: {
-      deviceId: { exact: deviceId },
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
-      advanced: CAMERA_TUNING,
-    } as MediaTrackConstraints,
-  });
-}
-
-async function requestBarcodeCameraStream(): Promise<MediaStream> {
-  const rearDeviceId = await rearCameraDeviceId();
-  if (rearDeviceId) {
-    const exactRearStream = await requestStreamWithDeviceId(rearDeviceId).catch(() => null);
-    if (exactRearStream) return exactRearStream;
-  }
-
-  let stream: MediaStream | null = null;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints());
-  } catch {
-    stream = await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints(false));
-  }
-
-  const nextRearDeviceId = await rearCameraDeviceId();
-  if (nextRearDeviceId) {
-    const currentDeviceId = stream.getVideoTracks()[0]?.getSettings?.().deviceId;
-    if (currentDeviceId !== nextRearDeviceId) {
-      stopMediaStream(stream);
-      const rearStream = await requestStreamWithDeviceId(nextRearDeviceId).catch(() => null);
-      if (rearStream) return rearStream;
-      stream = await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints(false));
-    }
-  }
-
-  return assertRearCamera(stream);
-}
-
-function assertRearCamera(stream: MediaStream): MediaStream {
-  const track = stream.getVideoTracks()[0];
-  const settings = track?.getSettings?.();
-  const label = `${settings?.facingMode ?? ''} ${track?.label ?? ''}`.toLowerCase();
-  if (settings?.facingMode === 'environment') return stream;
-  if (label.includes('user') || label.includes('front') || label.includes('selfie') || label.includes('facetime')) {
-    stopMediaStream(stream);
-    throw new Error('Front camera is not allowed for barcode scanning.');
-  }
-  return stream;
 }
 
 const CameraScanner = forwardRef<CameraScannerHandle, {
@@ -1184,17 +1074,20 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
     }
   }, []);
 
-  const stopScan = useCallback(() => {
+  const stopScan = useCallback(({ immediate = false }: { immediate?: boolean } = {}) => {
     startTokenRef.current += 1;
     startingRef.current = false;
     clearNativeLoop();
     controlsRef.current?.stop();
     controlsRef.current = null;
-    stopMediaStream(mediaStreamFromVideo(videoRef.current));
+    void setStreamTorch(mediaStreamFromVideo(videoRef.current), false).catch(() => undefined);
     if (videoRef.current) {
       videoRef.current.onloadedmetadata = null;
       videoRef.current.srcObject = null;
     }
+    // The stream stays reserved for a moment, so scanning the next product
+    // starts instantly and without another permission prompt.
+    releaseBarcodeStream({ immediate });
     setTorchAvailable(false);
     setTorchOn(false);
     setScanRunning(false);
@@ -1207,10 +1100,12 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
     onDetected(raw);
   }, [onDetected, stopScan]);
 
-  const startZxingOnStream = useCallback(async (stream: MediaStream, video: HTMLVideoElement) => {
+  const startZxingOnVideo = useCallback(async (video: HTMLVideoElement) => {
     clearNativeLoop();
     const reader = await createZxingReader();
-    const controls = await reader.decodeFromStream(stream, video, (result, _error, scanControls) => {
+    // decodeFromVideoElement, not decodeFromStream: the latter stops the tracks
+    // when the controls are stopped, which would give the camera back every time.
+    const controls = await reader.decodeFromVideoElement(video, (result, _error, scanControls) => {
       const raw = result?.getText();
       if (!raw || detectedRef.current) return;
       scanControls.stop();
@@ -1226,7 +1121,7 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
     setScanRunning(true);
   }, [clearNativeLoop, completeScan, setScanRunning]);
 
-  const scheduleNativeScan = useCallback((detector: NativeBarcodeDetector, stream: MediaStream, video: HTMLVideoElement) => {
+  const scheduleNativeScan = useCallback((detector: NativeBarcodeDetector, video: HTMLVideoElement) => {
     const scan = async () => {
       if (closedRef.current || detectedRef.current || !runningRef.current) return;
 
@@ -1242,9 +1137,9 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
       } catch {
         nativeErrorCountRef.current += 1;
         if (nativeErrorCountRef.current >= 2 && !controlsRef.current && !closedRef.current) {
-          void startZxingOnStream(stream, video).catch(() => {
+          void startZxingOnVideo(video).catch((zxingError) => {
             stopScan();
-            setError('Scanner konnte nicht gestartet werden. Nutze Barcode-Foto oder gib die Nummer ein.');
+            setError(describeCameraError(zxingError));
           });
           return;
         }
@@ -1254,14 +1149,10 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
     };
 
     nativeTimerRef.current = window.setTimeout(scan, 60);
-  }, [completeScan, startZxingOnStream, stopScan]);
+  }, [completeScan, startZxingOnVideo, stopScan]);
 
   const startScan = useCallback(async () => {
     if (startingRef.current) return;
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError('Kamera ist hier nicht verfügbar.');
-      return;
-    }
 
     if (runningRef.current) stopScan();
 
@@ -1276,9 +1167,10 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
       const video = videoRef.current;
       if (!video) return;
 
-      const stream = await requestBarcodeCameraStream();
+      // Reuses the camera from the previous scan when it is still running.
+      const stream = await acquireBarcodeStream();
       if (closedRef.current || startTokenRef.current !== token) {
-        stopMediaStream(stream);
+        releaseBarcodeStream();
         return;
       }
 
@@ -1287,7 +1179,7 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
         stopScan();
         return;
       }
-      setTorchAvailable(await prepareCameraStream(stream));
+      setTorchAvailable(await applyCameraTuning(stream));
 
       const nativeDetector = await createNativeBarcodeDetector();
       if (closedRef.current || startTokenRef.current !== token) {
@@ -1296,18 +1188,18 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
       }
       if (nativeDetector) {
         setScanRunning(true);
-        scheduleNativeScan(nativeDetector, stream, video);
+        scheduleNativeScan(nativeDetector, video);
       } else {
-        await startZxingOnStream(stream, video);
+        await startZxingOnVideo(video);
       }
-    } catch {
+    } catch (cameraError) {
       stopScan();
-      setError('Kamera konnte nicht gestartet werden. Nutze Barcode-Foto oder gib die Nummer ein.');
+      setError(describeCameraError(cameraError));
     } finally {
       startingRef.current = false;
       setStarting(false);
     }
-  }, [scheduleNativeScan, setScanRunning, startZxingOnStream, stopScan]);
+  }, [scheduleNativeScan, setScanRunning, startZxingOnVideo, stopScan]);
 
   useImperativeHandle(ref, () => ({
     start: startScan,
@@ -1339,6 +1231,16 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
       closedRef.current = true;
       stopScan();
     };
+  }, [stopScan]);
+
+  // A backgrounded app has no business holding the camera: release it right
+  // away instead of after the grace period.
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.visibilityState === 'hidden') stopScan({ immediate: true });
+    }
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [stopScan]);
 
   return (
