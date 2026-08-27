@@ -68,6 +68,7 @@ const REAR_LABEL_HINTS = ['back', 'rear', 'environment', 'rück', 'ruck', 'umgeb
 
 let cachedStream: MediaStream | null = null;
 let releaseTimer: ReturnType<typeof setTimeout> | null = null;
+const tunedStreams = new WeakSet<MediaStream>();
 
 function hasLiveVideoTrack(stream: MediaStream | null): stream is MediaStream {
   return Boolean(stream?.getVideoTracks().some((track) => track.readyState === 'live'));
@@ -289,13 +290,23 @@ export function releaseBarcodeStream({ immediate = false }: { immediate?: boolea
   }, STREAM_RELEASE_DELAY_MS);
 }
 
-/** Focus/exposure hints; returns whether the track can drive a torch. */
+/**
+ * Focus/exposure hints; returns whether the track can drive a torch.
+ *
+ * Applying constraints makes the camera renegotiate, which shows up as a
+ * flicker in the preview - so a reused stream is only tuned once.
+ */
 export async function applyCameraTuning(stream: MediaStream): Promise<boolean> {
   const track = stream.getVideoTracks()[0];
   if (!track) return false;
-  await track
-    .applyConstraints({ advanced: CAMERA_TUNING } as MediaTrackConstraints)
-    .catch(() => undefined);
+
+  if (!tunedStreams.has(stream)) {
+    tunedStreams.add(stream);
+    await track
+      .applyConstraints({ advanced: CAMERA_TUNING } as MediaTrackConstraints)
+      .catch(() => undefined);
+  }
+
   const capabilities = track.getCapabilities?.() as ExtendedMediaTrackCapabilities | undefined;
   return Boolean(capabilities?.torch);
 }

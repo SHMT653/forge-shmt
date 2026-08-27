@@ -2,6 +2,7 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import {
   acquireBarcodeStream,
+  applyCameraTuning,
   CameraError,
   describeCameraError,
   releaseBarcodeStream,
@@ -188,6 +189,27 @@ describe('acquireBarcodeStream', () => {
     expect((error as CameraError).kind).toBe('insecure');
     expect(getUserMedia).not.toHaveBeenCalled();
     expect(describeCameraError(error)).toContain('https');
+  });
+});
+
+describe('applyCameraTuning', () => {
+  it('tunes a reused stream only once', async () => {
+    const stream = fakeStream(REAR.label, REAR);
+    const applyConstraints = vi.fn().mockResolvedValue(undefined);
+    stream.track.applyConstraints = applyConstraints;
+    installMediaDevices({
+      getUserMedia: vi.fn().mockResolvedValue(stream),
+      enumerateDevices: vi.fn().mockResolvedValue([]),
+    } as unknown as MediaDevices);
+
+    const acquired = await acquireBarcodeStream();
+    await applyCameraTuning(acquired);
+    releaseBarcodeStream();
+    await applyCameraTuning(await acquireBarcodeStream());
+
+    // Re-applying constraints makes the camera renegotiate: the preview
+    // blacks out for a moment, which is exactly the flicker we removed.
+    expect(applyConstraints).toHaveBeenCalledTimes(1);
   });
 });
 

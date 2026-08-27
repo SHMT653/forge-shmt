@@ -1062,9 +1062,21 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
 
+  const torchOnRef = useRef(false);
+  const onDetectedRef = useRef(onDetected);
+
+  useEffect(() => {
+    onDetectedRef.current = onDetected;
+  }, [onDetected]);
+
   const setScanRunning = useCallback((next: boolean) => {
     runningRef.current = next;
     setRunning(next);
+  }, []);
+
+  const setTorch = useCallback((next: boolean) => {
+    torchOnRef.current = next;
+    setTorchOn(next);
   }, []);
 
   const clearNativeLoop = useCallback(() => {
@@ -1080,25 +1092,31 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
     clearNativeLoop();
     controlsRef.current?.stop();
     controlsRef.current = null;
-    void setStreamTorch(mediaStreamFromVideo(videoRef.current), false).catch(() => undefined);
+    // Only touch the torch when it is actually on: applyConstraints makes the
+    // camera renegotiate, which is visible as a flicker.
+    if (torchOnRef.current) {
+      void setStreamTorch(mediaStreamFromVideo(videoRef.current), false).catch(() => undefined);
+    }
     if (videoRef.current) {
       videoRef.current.onloadedmetadata = null;
-      videoRef.current.srcObject = null;
+      // Keep the stream attached while it is only reserved - reattaching it on
+      // restart would black out the preview for a moment.
+      if (immediate) videoRef.current.srcObject = null;
     }
     // The stream stays reserved for a moment, so scanning the next product
     // starts instantly and without another permission prompt.
     releaseBarcodeStream({ immediate });
     setTorchAvailable(false);
-    setTorchOn(false);
+    setTorch(false);
     setScanRunning(false);
-  }, [clearNativeLoop, setScanRunning]);
+  }, [clearNativeLoop, setScanRunning, setTorch]);
 
   const completeScan = useCallback((raw: string) => {
     if (detectedRef.current) return;
     detectedRef.current = true;
     stopScan();
-    onDetected(raw);
-  }, [onDetected, stopScan]);
+    onDetectedRef.current(raw);
+  }, [stopScan]);
 
   const startZxingOnVideo = useCallback(async (video: HTMLVideoElement) => {
     clearNativeLoop();
@@ -1170,7 +1188,9 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
       // Reuses the camera from the previous scan when it is still running.
       const stream = await acquireBarcodeStream();
       if (closedRef.current || startTokenRef.current !== token) {
-        releaseBarcodeStream();
+        // Someone stopped or restarted us while the camera was starting. The
+        // stream is shared, so releasing it here would black out the start
+        // that took over - whoever stopped us has already released it.
         return;
       }
 
@@ -1208,22 +1228,22 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
 
   useEffect(() => {
     if (visible) {
-      void startScan();
+      if (!runningRef.current && !startingRef.current) void startScan();
     } else {
       stopScan();
     }
   }, [startScan, stopScan, visible]);
 
   const toggleTorch = useCallback(async () => {
-    const next = !torchOn;
+    const next = !torchOnRef.current;
     try {
       const changed = await setStreamTorch(mediaStreamFromVideo(videoRef.current), next);
-      if (changed) setTorchOn(next);
+      if (changed) setTorch(next);
     } catch {
       setTorchAvailable(false);
-      setTorchOn(false);
+      setTorch(false);
     }
-  }, [torchOn]);
+  }, [setTorch]);
 
   useEffect(() => {
     closedRef.current = false;
