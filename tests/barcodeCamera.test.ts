@@ -21,6 +21,7 @@ import {
 type Settings = { deviceId?: string; facingMode?: string };
 
 function fakeTrack(label: string, settings: Settings) {
+  const listeners = new Map<string, () => void>();
   return {
     kind: 'video',
     label,
@@ -28,6 +29,17 @@ function fakeTrack(label: string, settings: Settings) {
     enabled: true,
     stop() {
       this.readyState = 'ended';
+    },
+    /** What the OS does when the user stops the camera from outside. */
+    endExternally() {
+      this.readyState = 'ended';
+      listeners.get('ended')?.();
+    },
+    addEventListener(type: string, handler: () => void) {
+      listeners.set(type, handler);
+    },
+    removeEventListener(type: string) {
+      listeners.delete(type);
     },
     getSettings: () => settings,
     getCapabilities: () => ({}),
@@ -150,31 +162,44 @@ describe('acquireBarcodeStream', () => {
     expect(getUserMedia).toHaveBeenCalledTimes(1);
   });
 
-  it('reuses the running stream instead of requesting a new one', async () => {
+  it('reuses the running stream while the scanner stays open', async () => {
+    const getUserMedia = vi.fn().mockResolvedValue(fakeStream(REAR.label, REAR));
+    installMediaDevices({ getUserMedia, enumerateDevices: vi.fn().mockResolvedValue([]) } as unknown as MediaDevices);
+
+    const first = await acquireBarcodeStream();
+    const second = await acquireBarcodeStream();
+
+    expect(second).toBe(first);
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it('hands the camera back when the scanner closes', async () => {
     const getUserMedia = vi.fn().mockResolvedValue(fakeStream(REAR.label, REAR));
     installMediaDevices({ getUserMedia, enumerateDevices: vi.fn().mockResolvedValue([]) } as unknown as MediaDevices);
 
     const first = await acquireBarcodeStream();
     releaseBarcodeStream();
-    expect(first.getVideoTracks()[0].enabled).toBe(false);
 
-    const second = await acquireBarcodeStream();
-
-    expect(second).toBe(first);
-    expect(second.getVideoTracks()[0].enabled).toBe(true);
-    expect(getUserMedia).toHaveBeenCalledTimes(1);
-  });
-
-  it('hands the camera back on an immediate release', async () => {
-    const getUserMedia = vi.fn().mockResolvedValue(fakeStream(REAR.label, REAR));
-    installMediaDevices({ getUserMedia, enumerateDevices: vi.fn().mockResolvedValue([]) } as unknown as MediaDevices);
-
-    const first = await acquireBarcodeStream();
-    releaseBarcodeStream({ immediate: true });
-
+    // A reserved stream still counts as "camera in use" on macOS and iOS.
     expect(first.getVideoTracks()[0].readyState).toBe('ended');
 
     await acquireBarcodeStream();
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not hand out a stream the OS stopped from outside', async () => {
+    const stopped = fakeStream(REAR.label, REAR);
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(stopped)
+      .mockResolvedValueOnce(fakeStream(REAR.label, REAR));
+    installMediaDevices({ getUserMedia, enumerateDevices: vi.fn().mockResolvedValue([]) } as unknown as MediaDevices);
+
+    await acquireBarcodeStream();
+    stopped.track.endExternally();
+
+    const next = await acquireBarcodeStream();
+
+    expect(next).not.toBe(stopped);
     expect(getUserMedia).toHaveBeenCalledTimes(2);
   });
 
@@ -204,7 +229,6 @@ describe('applyCameraTuning', () => {
 
     const acquired = await acquireBarcodeStream();
     await applyCameraTuning(acquired);
-    releaseBarcodeStream();
     await applyCameraTuning(await acquireBarcodeStream());
 
     // Re-applying constraints makes the camera renegotiate: the preview

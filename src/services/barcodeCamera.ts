@@ -57,21 +57,26 @@ const CAMERA_TUNING: ExtendedMediaTrackConstraintSet[] = [
 
 const DEVICE_MEMORY_KEY = 'forge.barcode.camera-device';
 
-/**
- * How long the granted stream stays alive after closing the scanner. Scanning
- * a second product right away reuses it, so neither the browser nor iOS asks
- * again. After that the camera is released properly.
- */
-export const STREAM_RELEASE_DELAY_MS = 60_000;
-
 const REAR_LABEL_HINTS = ['back', 'rear', 'environment', 'rück', 'ruck', 'umgebung', 'hinten'];
 
 let cachedStream: MediaStream | null = null;
-let releaseTimer: ReturnType<typeof setTimeout> | null = null;
 const tunedStreams = new WeakSet<MediaStream>();
 
 function hasLiveVideoTrack(stream: MediaStream | null): stream is MediaStream {
   return Boolean(stream?.getVideoTracks().some((track) => track.readyState === 'live'));
+}
+
+/**
+ * Stopping the camera from the OS (Control Center, iOS status bar) ends the
+ * track without telling us. Without this the cache would hand out a dead
+ * stream on the next open and the scanner would never come back.
+ */
+function forgetWhenEnded(stream: MediaStream): void {
+  stream.getVideoTracks().forEach((track) => {
+    track.addEventListener?.('ended', () => {
+      if (cachedStream === stream) cachedStream = null;
+    }, { once: true });
+  });
 }
 
 function setTracksEnabled(stream: MediaStream, enabled: boolean): void {
@@ -82,13 +87,6 @@ function setTracksEnabled(stream: MediaStream, enabled: boolean): void {
 
 export function stopMediaStream(stream: MediaStream | null): void {
   stream?.getTracks().forEach((track) => track.stop());
-}
-
-function cancelRelease(): void {
-  if (releaseTimer !== null) {
-    clearTimeout(releaseTimer);
-    releaseTimer = null;
-  }
 }
 
 function readRememberedDevice(): string | null {
@@ -245,8 +243,6 @@ async function preferRearCamera(stream: MediaStream): Promise<MediaStream> {
  * one, so reopening the scanner never prompts again.
  */
 export async function acquireBarcodeStream(): Promise<MediaStream> {
-  cancelRelease();
-
   if (hasLiveVideoTrack(cachedStream)) {
     setTracksEnabled(cachedStream, true);
     return cachedStream;
@@ -259,6 +255,7 @@ export async function acquireBarcodeStream(): Promise<MediaStream> {
     const initial = (await requestRememberedCamera()) ?? (await requestEnvironmentCamera());
     const stream = await preferRearCamera(initial);
     rememberDevice(stream);
+    forgetWhenEnded(stream);
     cachedStream = stream;
     return stream;
   } catch (error) {
@@ -267,27 +264,15 @@ export async function acquireBarcodeStream(): Promise<MediaStream> {
 }
 
 /**
- * Closing the scanner freezes the preview and keeps the stream around for a
- * moment; `immediate` (unmount, tab hidden) hands the camera back right away.
+ * Hands the camera back. Nothing is kept warm: a reserved stream still counts
+ * as "camera in use" on macOS and iOS, and a recording indicator that stays on
+ * after closing the scanner is worse than one extra getUserMedia call. The
+ * permission itself survives in the browser, so reopening does not prompt.
  */
-export function releaseBarcodeStream({ immediate = false }: { immediate?: boolean } = {}): void {
-  const stream = cachedStream;
-  cancelRelease();
-  if (!stream) return;
-
-  setTracksEnabled(stream, false);
-
-  if (immediate) {
-    stopMediaStream(stream);
-    cachedStream = null;
-    return;
-  }
-
-  releaseTimer = setTimeout(() => {
-    stopMediaStream(stream);
-    if (cachedStream === stream) cachedStream = null;
-    releaseTimer = null;
-  }, STREAM_RELEASE_DELAY_MS);
+export function releaseBarcodeStream(): void {
+  if (!cachedStream) return;
+  stopMediaStream(cachedStream);
+  cachedStream = null;
 }
 
 /**
@@ -322,9 +307,8 @@ export async function setStreamTorch(stream: MediaStream | null, enabled: boolea
   return true;
 }
 
-/** Test seam: drops the cached stream and any pending release. */
+/** Test seam: drops the cached stream. */
 export function resetBarcodeCamera(): void {
-  cancelRelease();
   stopMediaStream(cachedStream);
   cachedStream = null;
 }

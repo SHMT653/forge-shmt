@@ -1063,6 +1063,7 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
   const [torchOn, setTorchOn] = useState(false);
 
   const torchOnRef = useRef(false);
+  const endedListenerRef = useRef<(() => void) | null>(null);
   const onDetectedRef = useRef(onDetected);
 
   useEffect(() => {
@@ -1086,12 +1087,14 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
     }
   }, []);
 
-  const stopScan = useCallback(({ immediate = false }: { immediate?: boolean } = {}) => {
+  const stopScan = useCallback(() => {
     startTokenRef.current += 1;
     startingRef.current = false;
     clearNativeLoop();
     controlsRef.current?.stop();
     controlsRef.current = null;
+    endedListenerRef.current?.();
+    endedListenerRef.current = null;
     // Only touch the torch when it is actually on: applyConstraints makes the
     // camera renegotiate, which is visible as a flicker.
     if (torchOnRef.current) {
@@ -1099,13 +1102,11 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
     }
     if (videoRef.current) {
       videoRef.current.onloadedmetadata = null;
-      // Keep the stream attached while it is only reserved - reattaching it on
-      // restart would black out the preview for a moment.
-      if (immediate) videoRef.current.srcObject = null;
+      videoRef.current.srcObject = null;
     }
-    // The stream stays reserved for a moment, so scanning the next product
-    // starts instantly and without another permission prompt.
-    releaseBarcodeStream({ immediate });
+    // Closing the scanner hands the camera back right away - otherwise macOS
+    // and iOS keep showing the camera as active.
+    releaseBarcodeStream();
     setTorchAvailable(false);
     setTorch(false);
     setScanRunning(false);
@@ -1199,6 +1200,19 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
         stopScan();
         return;
       }
+
+      // Stopping the camera from the OS ends the track behind our back. Without
+      // this the preview would sit frozen and the scanner would look stuck.
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        const handleEnded = () => {
+          stopScan();
+          setError('Die Kamera wurde beendet. Tippe auf „Neu starten" – falls das nicht greift, lade die Seite neu.');
+        };
+        track.addEventListener('ended', handleEnded);
+        endedListenerRef.current = () => track.removeEventListener('ended', handleEnded);
+      }
+
       setTorchAvailable(await applyCameraTuning(stream));
 
       const nativeDetector = await createNativeBarcodeDetector();
@@ -1257,7 +1271,7 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
   // away instead of after the grace period.
   useEffect(() => {
     function handleVisibility() {
-      if (document.visibilityState === 'hidden') stopScan({ immediate: true });
+      if (document.visibilityState === 'hidden') stopScan();
     }
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
