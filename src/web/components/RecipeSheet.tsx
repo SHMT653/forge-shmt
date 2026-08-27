@@ -141,20 +141,44 @@ export function RecipeSheet({
     >
       <div className="stack-sm" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 6 }}>
-          {RECIPE_STEPS.map((entry, index) => (
-            <div
-              key={entry}
-              style={{
-                flex: 1,
-                height: 4,
-                borderRadius: 99,
-                background: index <= stepIndex ? 'var(--violet)' : 'var(--border)',
-                transition: 'background 0.2s',
-              }}
-            />
-          ))}
+          {RECIPE_STEPS.map((entry, index) => {
+            // Backwards is always allowed; forwards only once everything in
+            // between is filled in. Editing a saved recipe opens on the
+            // overview, so jumping straight to the ingredients matters.
+            const reachable =
+              index <= stepIndex ||
+              RECIPE_STEPS.slice(0, index).every((earlier) => stepIssue(draft, earlier) === null);
+
+            return (
+              <button
+                key={entry}
+                type="button"
+                onClick={() => reachable && setStep(entry)}
+                disabled={!reachable}
+                aria-label={`Zu Schritt ${index + 1}: ${RECIPE_STEP_LABEL[entry]}`}
+                aria-current={entry === step ? 'step' : undefined}
+                style={{
+                  flex: 1,
+                  padding: '10px 0',
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: reachable ? 'pointer' : 'default',
+                }}
+              >
+                <span
+                  style={{
+                    display: 'block',
+                    height: 4,
+                    borderRadius: 99,
+                    background: index <= stepIndex ? 'var(--violet)' : 'var(--border)',
+                    transition: 'background 0.2s',
+                  }}
+                />
+              </button>
+            );
+          })}
         </div>
-        <p className="muted-sm">
+        <p className="muted-sm" style={{ marginTop: -6 }}>
           Schritt {stepIndex + 1} von {RECIPE_STEPS.length} · {RECIPE_STEP_LABEL[step]}
         </p>
       </div>
