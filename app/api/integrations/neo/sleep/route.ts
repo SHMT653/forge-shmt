@@ -138,8 +138,16 @@ export async function POST(req: NextRequest) {
       cycles,
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : ''
+    if (message.includes('SUPABASE_SERVICE_ROLE_KEY')) {
+      return NextResponse.json(
+        { error: 'Forge ist live noch nicht mit dem Supabase-Service-Key verbunden.' },
+        { status: 500 },
+      );
+    }
+
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Forge-Schlafimport fehlgeschlagen.' },
+      { error: message || 'Forge-Schlafimport fehlgeschlagen.' },
       { status: 500 },
     );
   }
