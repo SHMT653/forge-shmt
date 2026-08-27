@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Plus, Search, Trash2, X } from 'lucide-react';
 import { Sheet } from './Sheet';
 import { useFoodSearch } from '@/web/hooks/useFoodSearch';
 import type { RecipeInput } from '@/data/foodLibrary';
@@ -20,6 +20,7 @@ import {
   filledIngredients,
   firstOpenStep,
   ingredientDraftFromSaved,
+  ingredientAmount,
   ingredientFromPortion,
   ingredientMacros,
   manualIngredient,
@@ -269,9 +270,11 @@ function IngredientStep({
 }) {
   const search = useFoodSearch({ foods: allFoods, recipes: [], recentMeals: [] });
   const [manualOpen, setManualOpen] = useState(false);
+  /** Picked from the search, waiting for its amount. */
+  const [pending, setPending] = useState<IngredientDraft | null>(null);
 
-  function addCandidate(candidate: ScoredCandidate) {
-    onAdd(
+  function pickCandidate(candidate: ScoredCandidate) {
+    setPending(
       ingredientFromPortion({
         key: `${candidate.id}-${Date.now()}`,
         name: candidate.name,
@@ -281,6 +284,12 @@ function IngredientStep({
         foodItemId: candidate.libraryKind === 'food' ? candidate.libraryId ?? null : null,
       }),
     );
+  }
+
+  function confirmPending() {
+    if (!pending || ingredientAmount(pending) <= 0) return;
+    onAdd(pending);
+    setPending(null);
     search.reset();
   }
 
@@ -303,7 +312,16 @@ function IngredientStep({
         </div>
       </div>
 
-      {search.results.length > 0 && (
+      {pending && (
+        <AmountPrompt
+          ingredient={pending}
+          onChange={(amount) => setPending({ ...pending, amount })}
+          onCancel={() => setPending(null)}
+          onConfirm={confirmPending}
+        />
+      )}
+
+      {!pending && search.results.length > 0 && (
         <div className="stack-sm">
           {search.results.slice(0, 6).map((candidate) => (
             <button
@@ -311,7 +329,7 @@ function IngredientStep({
               type="button"
               className="panel soft"
               style={{ padding: 10, textAlign: 'left', cursor: 'pointer', border: '1px solid var(--border)' }}
-              onClick={() => addCandidate(candidate)}
+              onClick={() => pickCandidate(candidate)}
             >
               <div className="row-between">
                 <div style={{ minWidth: 0 }}>
@@ -328,9 +346,9 @@ function IngredientStep({
         </div>
       )}
 
-      {search.searchingOff && <p className="muted-sm">Suche in der Produktdatenbank …</p>}
+      {!pending && search.searchingOff && <p className="muted-sm">Suche in der Produktdatenbank …</p>}
 
-      {search.query.trim().length >= 3 && search.results.length === 0 && !search.searchingOff && (
+      {!pending && search.query.trim().length >= 3 && search.results.length === 0 && !search.searchingOff && (
         <p className="muted-sm">Nichts gefunden — trag die Zutat unten von Hand ein.</p>
       )}
 
@@ -416,6 +434,72 @@ function IngredientStep({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The amount is asked for right at the pick: "400" over "g Hähnchenhack" is
+ * how a recipe gets written down, and the macros underneath update while you
+ * type - adding first and correcting the amount afterwards was a detour.
+ */
+function AmountPrompt({
+  ingredient,
+  onChange,
+  onCancel,
+  onConfirm,
+}: {
+  ingredient: IngredientDraft;
+  onChange: (amount: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const amount = ingredientAmount(ingredient);
+  const macros = ingredientMacros(ingredient);
+  const unit = ingredient.unit === 'portion'
+    ? (amount === 1 ? 'Portion' : 'Portionen')
+    : UNIT_LABEL[ingredient.unit];
+
+  return (
+    <form
+      className="panel soft"
+      style={{ padding: 10, border: '1px solid color-mix(in srgb, var(--violet) 34%, transparent)' }}
+      onSubmit={(event) => {
+        event.preventDefault();
+        onConfirm();
+      }}
+    >
+      <div className="row-between" style={{ gap: 8 }}>
+        <div style={{ minWidth: 0 }}>
+          <p className="h3" style={{ fontSize: 14 }}>{ingredient.name}</p>
+          <p className="muted-sm">Wie viel kommt ins Rezept?</p>
+        </div>
+        <button type="button" className="icon-button" onClick={onCancel} aria-label="Zutat verwerfen">
+          <X size={15} />
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+        <input
+          className="input compact"
+          inputMode="decimal"
+          value={ingredient.amount}
+          onChange={(event) => onChange(event.target.value)}
+          onFocus={(event) => event.target.select()}
+          aria-label={`Menge ${ingredient.name}`}
+          style={{ width: 96 }}
+          autoFocus
+        />
+        <span className="muted-sm" style={{ flex: 1 }}>{unit}</span>
+        <button type="submit" className="button compact" disabled={amount <= 0}>
+          <Plus size={14} /> Hinzufügen
+        </button>
+      </div>
+
+      <p className="muted-sm" style={{ marginTop: 8 }}>
+        {Math.round(macros.kcal)} kcal · {Math.round(macros.proteinG)} g Protein ·{' '}
+        {Math.round(macros.carbsG)} g KH · {Math.round(macros.fatG)} g Fett
+      </p>
+    </form>
   );
 }
 
