@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import {
-  Utensils, Droplets, Plus, Star, Box, ChefHat, Pencil, Trash2,
+  Utensils, Droplets, Plus, Star, Box, ChefHat, Pencil, Trash2, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { useNutrition } from '@/web/hooks/useNutrition';
 import { RangeBar, GoalBar } from '@/web/components/RangeBar';
 import { QuickTextInput } from '@/web/components/QuickTextInput';
 import { QuickAddSheet } from '@/web/components/QuickAddSheet';
 import { RecipeSheet } from '@/web/components/RecipeSheet';
+import { StepNumber } from '@/web/components/StepNumber';
 import { DailyTimeline, mealToEvent, type TimelineEvent } from '@/web/components/DailyTimeline';
 import { evaluateRange, evaluateGoal, TONE_COLOR } from '@/domain/goalPhase';
 import { isDayInProgress, formatLiters } from '@/domain/dayEvaluation';
@@ -35,6 +36,8 @@ export function NutritionView() {
   const [sheetOpen, setSheetOpen] = useState(false);
   /** null = closed, { recipe: null } = new, { recipe } = editing. */
   const [recipeSheet, setRecipeSheet] = useState<{ recipe: Recipe | null } | null>(null);
+  /** Which recipe currently shows its ingredients and steps. */
+  const [openRecipeId, setOpenRecipeId] = useState<string | null>(null);
 
   const meals = state.meals;
   const bySlot = useMemo(() => {
@@ -265,6 +268,44 @@ export function NutritionView() {
                     </button>
                   ))}
                 </div>
+
+                <button
+                  type="button"
+                  className="button ghost compact"
+                  style={{ marginTop: 6, padding: 0 }}
+                  onClick={() => setOpenRecipeId((current) => (current === recipe.id ? null : recipe.id))}
+                >
+                  {openRecipeId === recipe.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  {recipe.steps.length > 0 ? 'Zutaten & Zubereitung' : 'Zutaten'}
+                </button>
+
+                {openRecipeId === recipe.id && (
+                  <div className="stack-sm" style={{ marginTop: 8 }}>
+                    <p className="section-label">Zutaten</p>
+                    {recipe.ingredients.map((ingredient) => (
+                      <div key={ingredient.id} className="row-between">
+                        <span style={{ fontSize: 13, minWidth: 0 }}>{ingredient.name}</span>
+                        <span className="muted-sm" style={{ flexShrink: 0 }}>
+                          {ingredient.amountLabel || '—'} · {Math.round(ingredient.macros.kcal)} kcal
+                        </span>
+                      </div>
+                    ))}
+
+                    {recipe.steps.length > 0 && (
+                      <>
+                        <p className="section-label" style={{ marginTop: 4 }}>Zubereitung</p>
+                        <ol className="stack-sm" style={{ margin: 0, paddingLeft: 0, listStyle: 'none' }}>
+                          {recipe.steps.map((entry, index) => (
+                            <li key={index} style={{ display: 'flex', gap: 10 }}>
+                              <StepNumber index={index} />
+                              <p className="copy" style={{ margin: 0, flex: 1 }}>{entry}</p>
+                            </li>
+                          ))}
+                        </ol>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

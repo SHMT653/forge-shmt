@@ -48,15 +48,18 @@ export type RecipeDraft = {
   servings: string;
   servingLabel: string;
   ingredients: IngredientDraft[];
+  /** Preparation, one entry per step. Empty rows are dropped on save. */
+  steps: string[];
 };
 
-export const RECIPE_STEPS = ['basics', 'ingredients', 'review'] as const;
+export const RECIPE_STEPS = ['basics', 'ingredients', 'preparation', 'review'] as const;
 
 export type RecipeStep = (typeof RECIPE_STEPS)[number];
 
 export const RECIPE_STEP_LABEL: Record<RecipeStep, string> = {
   basics: 'Grunddaten',
   ingredients: 'Zutaten',
+  preparation: 'Zubereitung',
   review: 'Übersicht',
 };
 
@@ -67,7 +70,24 @@ export const UNIT_LABEL: Record<IngredientUnit, string> = {
 };
 
 export function emptyRecipeDraft(): RecipeDraft {
-  return { name: '', servings: '4', servingLabel: 'Portion', ingredients: [] };
+  return { name: '', servings: '4', servingLabel: 'Portion', ingredients: [], steps: [''] };
+}
+
+/** The steps worth saving: trimmed, empty rows dropped, order kept. */
+export function filledSteps(draft: RecipeDraft): string[] {
+  return draft.steps.map((step) => step.trim()).filter(Boolean);
+}
+
+/** Moves a step by one position; out-of-range moves leave the list alone. */
+export function moveStep(steps: readonly string[], index: number, direction: -1 | 1): string[] {
+  const target = index + direction;
+  if (index < 0 || index >= steps.length || target < 0 || target >= steps.length) return [...steps];
+
+  const next = [...steps];
+  const moved = next[index] as string;
+  next[index] = next[target] as string;
+  next[target] = moved;
+  return next;
 }
 
 /** The amount as a number; anything unparsable counts as nothing. */
@@ -119,6 +139,8 @@ export function stepIssue(draft: RecipeDraft, step: RecipeStep): string | null {
     return null;
   }
 
+  // Preparation and overview never block: a recipe without written steps is
+  // still a recipe.
   return null;
 }
 

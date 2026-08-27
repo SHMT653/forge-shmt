@@ -158,6 +158,7 @@ type RecipeRow = {
   favorite: boolean;
   notes: string;
   use_count: number;
+  steps: string[] | null;
 };
 
 type IngredientRow = {
@@ -198,6 +199,7 @@ function assembleRecipe(row: RecipeRow, ingredientRows: IngredientRow[]): Recipe
     favorite: row.favorite,
     notes: row.notes ?? '',
     useCount: num(row.use_count),
+    steps: (row.steps ?? []).map((step) => step.trim()).filter(Boolean),
     ingredients,
     totalMacros,
     perServing: scaleMacros(totalMacros, 1 / totalServings),
@@ -212,6 +214,7 @@ export type RecipeInput = {
   isMealPrep?: boolean;
   favorite?: boolean;
   notes?: string;
+  steps?: string[];
   ingredients: { foodItemId?: string | null; name: string; amountLabel?: string; macros: Macros }[];
 };
 
@@ -221,7 +224,7 @@ export async function listRecipes(userId: string): Promise<Recipe[]> {
   const supabase = getSupabaseClient();
   const { data: recipes, error } = await supabase
     .from('forge_recipes')
-    .select('id, name, total_servings, serving_label, is_meal_prep, favorite, notes, use_count')
+    .select('id, name, total_servings, serving_label, is_meal_prep, favorite, notes, use_count, steps')
     .eq('user_id', userId)
     .order('favorite', { ascending: false })
     .order('name', { ascending: true });
@@ -249,6 +252,7 @@ export async function createRecipe(userId: string, input: RecipeInput): Promise<
       is_meal_prep: input.isMealPrep ?? false,
       favorite: input.favorite ?? false,
       notes: input.notes ?? '',
+      steps: input.steps ?? [],
     })
     .select('id')
     .single();
@@ -268,6 +272,7 @@ export async function updateRecipe(userId: string, recipeId: string, input: Reci
       is_meal_prep: input.isMealPrep ?? false,
       favorite: input.favorite ?? false,
       notes: input.notes ?? '',
+      steps: input.steps ?? [],
     })
     .eq('id', recipeId)
     .eq('user_id', userId);

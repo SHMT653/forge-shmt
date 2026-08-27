@@ -244,6 +244,8 @@ export type Recipe = {
   favorite: boolean;
   notes: string;
   useCount: number;
+  /** Preparation, one entry per step, in order. */
+  steps: string[];
   ingredients: RecipeIngredient[];
   /** Sum over all ingredients. */
   totalMacros: Macros;

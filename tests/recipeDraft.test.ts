@@ -4,7 +4,9 @@ import {
   draftPerServing,
   draftTotals,
   emptyRecipeDraft,
+  filledSteps,
   firstOpenStep,
+  moveStep,
   ingredientDraftFromSaved,
   ingredientFromPortion,
   ingredientMacros,
@@ -167,6 +169,29 @@ describe('ingredientDraftFromSaved', () => {
     };
 
     expect(ingredientMacros(ingredientDraftFromSaved(saved)).kcal).toBeCloseTo(195);
+  });
+});
+
+describe('cooking steps', () => {
+  it('keeps empty rows out of what gets saved', () => {
+    const draft = { ...draftWith([CHICKEN]), steps: ['Hack anbraten', '   ', 'Reis kochen', ''] };
+    expect(filledSteps(draft)).toEqual(['Hack anbraten', 'Reis kochen']);
+  });
+
+  it('moves a step without losing the others', () => {
+    const steps = ['Anbraten', 'Würzen', 'Servieren'];
+    expect(moveStep(steps, 2, -1)).toEqual(['Anbraten', 'Servieren', 'Würzen']);
+    expect(moveStep(steps, 0, 1)).toEqual(['Würzen', 'Anbraten', 'Servieren']);
+  });
+
+  it('leaves the list alone at the edges', () => {
+    const steps = ['Anbraten', 'Würzen'];
+    expect(moveStep(steps, 0, -1)).toEqual(steps);
+    expect(moveStep(steps, 1, 1)).toEqual(steps);
+  });
+
+  it('never blocks saving - a recipe without steps is still a recipe', () => {
+    expect(stepIssue({ ...draftWith([CHICKEN]), steps: [''] }, 'preparation')).toBeNull();
   });
 });
 

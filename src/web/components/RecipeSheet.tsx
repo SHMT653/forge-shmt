@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, Plus, Search, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, ChevronDown, ChevronUp, Plus, Search, Trash2, X } from 'lucide-react';
 import { Sheet } from './Sheet';
+import { StepNumber } from './StepNumber';
 import { useFoodSearch } from '@/web/hooks/useFoodSearch';
 import type { RecipeInput } from '@/data/foodLibrary';
 import type { FoodItem, Macros, Recipe } from '@/domain/types';
@@ -18,7 +19,9 @@ import {
   draftTotals,
   emptyRecipeDraft,
   filledIngredients,
+  filledSteps,
   firstOpenStep,
+  moveStep,
   ingredientDraftFromSaved,
   ingredientAmount,
   ingredientFromPortion,
@@ -209,6 +212,13 @@ export function RecipeSheet({
         />
       )}
 
+      {step === 'preparation' && (
+        <PreparationStep
+          steps={draft.steps}
+          onChange={(steps) => patch({ steps })}
+        />
+      )}
+
       {step === 'review' && (
         <div className="stack-sm">
           <div>
@@ -246,6 +256,20 @@ export function RecipeSheet({
               </div>
             ))}
           </div>
+
+          {filledSteps(draft).length > 0 && (
+            <>
+              <p className="section-label" style={{ marginTop: 6 }}>Zubereitung</p>
+              <ol className="stack-sm" style={{ margin: 0, paddingLeft: 0, listStyle: 'none' }}>
+                {filledSteps(draft).map((entry, index) => (
+                  <li key={index} style={{ display: 'flex', gap: 10 }}>
+                    <StepNumber index={index} />
+                    <p className="copy" style={{ margin: 0, flex: 1 }}>{entry}</p>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
         </div>
       )}
     </Sheet>
@@ -438,6 +462,87 @@ function IngredientStep({
   );
 }
 
+// ── Step 3: preparation ─────────────────────────────────────────────────────
+
+/**
+ * The cooking steps, one row each. Optional on purpose - a recipe is worth
+ * saving for its macros alone, and being forced to write prose before the
+ * numbers can be stored would be the wrong trade.
+ */
+function PreparationStep({
+  steps,
+  onChange,
+}: {
+  steps: string[];
+  onChange: (steps: string[]) => void;
+}) {
+  function update(index: number, value: string) {
+    onChange(steps.map((entry, position) => (position === index ? value : entry)));
+  }
+
+  function remove(index: number) {
+    const next = steps.filter((_, position) => position !== index);
+    onChange(next.length > 0 ? next : ['']);
+  }
+
+  return (
+    <div className="stack-sm">
+      <p className="muted-sm">
+        Ein Schritt pro Zeile — beim Kochen liest du sie später der Reihe nach ab. Kannst du auch leer lassen.
+      </p>
+
+      {steps.map((entry, index) => (
+        <div key={index} className="panel soft" style={{ padding: 10 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <StepNumber index={index} />
+            <textarea
+              className="textarea"
+              value={entry}
+              onChange={(event) => update(index, event.target.value)}
+              placeholder={index === 0 ? 'Hack in der Pfanne anbraten' : 'Nächster Schritt'}
+              aria-label={`Schritt ${index + 1}`}
+              rows={2}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, marginTop: 6 }}>
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => onChange(moveStep(steps, index, -1))}
+              disabled={index === 0}
+              aria-label={`Schritt ${index + 1} nach oben`}
+            >
+              <ChevronUp size={15} />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => onChange(moveStep(steps, index, 1))}
+              disabled={index === steps.length - 1}
+              aria-label={`Schritt ${index + 1} nach unten`}
+            >
+              <ChevronDown size={15} />
+            </button>
+            <button
+              type="button"
+              className="icon-button danger"
+              onClick={() => remove(index)}
+              aria-label={`Schritt ${index + 1} löschen`}
+            >
+              <Trash2 size={15} />
+            </button>
+          </div>
+        </div>
+      ))}
+
+      <button type="button" className="button ghost compact" onClick={() => onChange([...steps, ''])}>
+        <Plus size={14} /> Schritt
+      </button>
+    </div>
+  );
+}
+
 /**
  * The amount is asked for right at the pick: "400" over "g Hähnchenhack" is
  * how a recipe gets written down, and the macros underneath update while you
@@ -621,6 +726,7 @@ function draftFromRecipe(recipe: Recipe): RecipeDraft {
     servings: String(recipe.totalServings),
     servingLabel: recipe.servingLabel,
     ingredients: recipe.ingredients.map(ingredientDraftFromSaved),
+    steps: recipe.steps.length > 0 ? [...recipe.steps] : [''],
   };
 }
 
@@ -631,6 +737,7 @@ function recipeInput(draft: RecipeDraft, favorite: boolean): RecipeInput {
     totalServings: draftServings(draft),
     servingLabel: draft.servingLabel.trim() || 'Portion',
     favorite,
+    steps: filledSteps(draft),
     ingredients: filledIngredients(draft).map((ingredient) => ({
       foodItemId: ingredient.foodItemId,
       name: ingredient.name.trim(),
