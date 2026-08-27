@@ -107,6 +107,8 @@ describe('the body gets a say', () => {
     expect(r.state).toBe('rest');
     expect(r.offerStart).toBe(false);
     expect(r.detail).toMatch(/Gestern trainiert/);
+    expect(r.recoveryScore).toBeLessThan(50);
+    expect(r.recoveryLabel).toBe('Recovery');
   });
 
   it('keeps recovery across the Sunday-to-Monday week boundary', () => {
@@ -130,6 +132,16 @@ describe('the body gets a say', () => {
     expect(r.state).toBe('rest');
     expect(r.preferMini).toBe(true);
     expect(r.offerStart).toBe(true);
+  });
+
+  it('surfaces a high recovery score after multiple quiet days', () => {
+    const r = assessReadiness(input({
+      lastWorkoutDate: '2026-08-15',
+      sorenessHistory: [{ date: '2026-08-19', soreness: null }],
+    }));
+    expect(r.recoveryScore).toBeGreaterThanOrEqual(90);
+    expect(r.recoveryLabel).toBe('Bereit');
+    expect(r.recoveryFactors.join(' ')).toMatch(/Tage Abstand/);
   });
 });
 

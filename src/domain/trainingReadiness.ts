@@ -41,6 +41,9 @@ export type Readiness = {
   /** Rest days still affordable this week. Negative means the target is out of reach. */
   slack: number;
   daysSinceLast: number | null;
+  recoveryScore: number;
+  recoveryLabel: string;
+  recoveryFactors: string[];
 };
 
 export type ReadinessInput = {
@@ -87,6 +90,78 @@ export function sorenessStreak(
   return streak;
 }
 
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function recoveryLabel(score: number): string {
+  if (score >= 80) return 'Bereit';
+  if (score >= 62) return 'Locker';
+  if (score >= 42) return 'Vorsichtig';
+  return 'Recovery';
+}
+
+function recoveryScore(input: ReadinessInput, daysSinceLast: number | null, slack: number, todaySoreness: Soreness | null, streak: number) {
+  let score = 76;
+  const factors: string[] = [];
+
+  if (daysSinceLast === null) {
+    score -= 4;
+    factors.push('noch keine Trainingshistorie');
+  } else if (daysSinceLast === 0) {
+    score -= 28;
+    factors.push('heute schon trainiert');
+  } else if (daysSinceLast === 1) {
+    score -= 14;
+    factors.push('letzte Einheit gestern');
+  } else if (daysSinceLast >= 3) {
+    score += 10;
+    factors.push(`${daysSinceLast} Tage Abstand`);
+  } else {
+    factors.push(`${daysSinceLast} Tage Abstand`);
+  }
+
+  if (todaySoreness === 'strong') {
+    score -= 44;
+    factors.push('starker Muskelkater');
+  } else if (todaySoreness === 'medium') {
+    score -= 28;
+    factors.push('deutlicher Muskelkater');
+  } else if (todaySoreness === 'light') {
+    score -= 12;
+    factors.push('leichter Muskelkater');
+  } else {
+    score += 6;
+    factors.push('kein Muskelkater gemeldet');
+  }
+
+  if (streak >= 2) {
+    const penalty = Math.min(26, streak * 7);
+    score -= penalty;
+    factors.push(`${streak} Tage Belastung im Verlauf`);
+  }
+
+  if (input.hasActiveSession || input.trainedToday) {
+    score = Math.min(score, 58);
+  } else if (input.fullWorkoutsThisWeek >= input.weeklyTarget) {
+    score += 8;
+    factors.push('Wochenziel steht');
+  } else if (slack <= 0) {
+    score -= 8;
+    factors.push('kaum Wochen-Puffer');
+  } else if (slack >= 2) {
+    score += 6;
+    factors.push(`${slack} Ruhetage Puffer`);
+  }
+
+  const finalScore = clampScore(score);
+  return {
+    recoveryScore: finalScore,
+    recoveryLabel: recoveryLabel(finalScore),
+    recoveryFactors: factors.slice(0, 3),
+  };
+}
+
 export function assessReadiness(input: ReadinessInput): Readiness {
   const daysSinceLast = input.lastWorkoutDate ? daysBetween(input.lastWorkoutDate, input.today) : null;
   const daysLeft = Math.max(1, daysBetween(input.today, input.weekEnd) + 1);
@@ -96,7 +171,7 @@ export function assessReadiness(input: ReadinessInput): Readiness {
   const todaySoreness = input.sorenessHistory.find((e) => e.date === input.today)?.soreness ?? null;
   const streak = sorenessStreak(input.sorenessHistory, input.today);
 
-  const base = { slack, daysSinceLast };
+  const base = { slack, daysSinceLast, ...recoveryScore(input, daysSinceLast, slack, todaySoreness, streak) };
 
   if (input.hasActiveSession) {
     return {

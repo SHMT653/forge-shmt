@@ -2422,6 +2422,45 @@ button:disabled {
 
 /* ── Training readiness ──────────────────────────────────────────────────
    One card decides what to do today, with the reasoning visible under it. */
+.recovery-score {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
+}
+.recovery-score strong {
+  color: var(--text);
+  font-size: 30px;
+  font-weight: 950;
+  line-height: 1;
+}
+.recovery-title {
+  margin: 3px 0 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 850;
+}
+.recovery-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+.recovery-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--violet);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--violet) 38%, transparent);
+}
+.recovery-score.good .recovery-track span { background: var(--teal); }
+.recovery-score.ok .recovery-track span { background: var(--violet); }
+.recovery-score.warn .recovery-track span { background: var(--gold); }
+.recovery-score.bad .recovery-track span { background: var(--danger); }
+
 .readiness-headline {
   margin: 0;
   font-size: 15px;

@@ -283,6 +283,12 @@ export function DashboardView() {
 
         {/* What to do today, and the arithmetic behind it — week slack against
             what the body has been reporting (§ domain/trainingReadiness). */}
+        <RecoveryScoreCard
+          score={readiness.recoveryScore}
+          label={readiness.recoveryLabel}
+          factors={readiness.recoveryFactors}
+        />
+
         <div className="readiness">
           <p className={`readiness-headline tone-${readiness.state}`}>{readiness.headline}</p>
           <p className="readiness-detail">{readiness.detail}</p>
@@ -400,5 +406,31 @@ export function DashboardView() {
 
 
     </>
+  );
+}
+
+function RecoveryScoreCard({ score, label, factors }: { score: number; label: string; factors: string[] }) {
+  const tone =
+    score >= 80 ? 'good'
+    : score >= 62 ? 'ok'
+    : score >= 42 ? 'warn'
+    : 'bad';
+
+  return (
+    <div className={`recovery-score ${tone}`}>
+      <div className="row-between">
+        <div>
+          <p className="section-label">Recovery Score</p>
+          <p className="recovery-title">{label}</p>
+        </div>
+        <strong>{score}</strong>
+      </div>
+      <div className="recovery-track" aria-hidden="true">
+        <span style={{ width: `${score}%` }} />
+      </div>
+      {factors.length > 0 && (
+        <p className="muted-sm">{factors.join(' · ')}</p>
+      )}
+    </div>
   );
 }

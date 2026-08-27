@@ -390,6 +390,7 @@ function FoodPanel({
   const [manualFat, setManualFat] = useState('');
   const [manualName, setManualName] = useState('');
   const [manualBrand, setManualBrand] = useState('');
+  const [manualBarcode, setManualBarcode] = useState<string | null>(null);
   const [manualAmount, setManualAmount] = useState('1');
   const [manualUnit, setManualUnit] = useState<ManualUnit>('portion');
   const [manualFavorite, setManualFavorite] = useState(false);
@@ -505,7 +506,8 @@ function FoodPanel({
     setLocalBusy(true);
     try {
       const name = manualName.trim() || `${macros.kcal} kcal`;
-      const savedFood = manualFavorite && manualName.trim()
+      const shouldRememberFood = Boolean(manualName.trim() && (manualFavorite || manualBarcode));
+      const savedFood = shouldRememberFood
         ? await saveFoodFromSheet({
             name,
             brand: manualBrand.trim(),
@@ -513,7 +515,8 @@ function FoodPanel({
             servingG: serving.grams,
             macros,
             dataQuality: 'verified',
-            favorite: true,
+            barcode: manualBarcode,
+            favorite: manualFavorite,
           })
         : undefined;
       const displayName = serving.label === '1 Portion' ? name : `${serving.label} ${name}`;
@@ -536,6 +539,7 @@ function FoodPanel({
       setManualFat('');
       setManualName('');
       setManualBrand('');
+      setManualBarcode(null);
       setManualAmount(manualUnitOption(manualUnit).placeholder);
     } finally {
       setLocalBusy(false);
@@ -570,7 +574,12 @@ function FoodPanel({
         scanPaused={selected !== null}
         onFound={(candidate) => {
           search.reset();
+          setManualBarcode(null);
           setSelected(candidate);
+        }}
+        onUnknown={(code) => {
+          setManualBarcode(code);
+          setSelected(null);
         }}
       />
 
@@ -679,6 +688,9 @@ function FoodPanel({
             onChange={(e) => setManualName(e.target.value)}
             aria-label="Bezeichnung"
           />
+          {manualBarcode && (
+            <p className="muted-sm">Barcode {manualBarcode} wird mit diesem Lebensmittel verknüpft.</p>
+          )}
           <input
             className="input"
             placeholder="Marke optional"
@@ -767,11 +779,13 @@ function BarcodePanel({
   busy,
   scanPaused,
   onFound,
+  onUnknown,
 }: {
   allFoods: readonly FoodItem[];
   busy: boolean;
   scanPaused: boolean;
   onFound: (candidate: ScoredCandidate) => void;
+  onUnknown: (barcode: string) => void;
 }) {
   const [barcode, setBarcode] = useState('');
   const [status, setStatus] = useState<string | null>(null);
@@ -810,12 +824,13 @@ function BarcodePanel({
           return;
         }
 
-        setStatus('Kein Produkt gefunden. Du kannst es unten manuell eintragen.');
+        onUnknown(code);
+        setStatus('Kein Produkt gefunden. Wenn du es unten anlegst, kennt FORGE den Barcode danach.');
       } finally {
         setLookingUp(false);
       }
     },
-    [allFoods, onFound],
+    [allFoods, onFound, onUnknown],
   );
 
   const handleDetected = useCallback(
@@ -1056,7 +1071,7 @@ function barcodeCameraConstraints(tuned = true): MediaStreamConstraints {
   return {
     audio: false,
     video: {
-      facingMode: { exact: 'environment' },
+      facingMode: { ideal: 'environment' },
       width: { ideal: tuned ? 1280 : 640 },
       height: { ideal: tuned ? 720 : 480 },
       ...(tuned ? { advanced: CAMERA_TUNING } : {}),
@@ -1064,18 +1079,68 @@ function barcodeCameraConstraints(tuned = true): MediaStreamConstraints {
   };
 }
 
+async function rearCameraDeviceId(): Promise<string | null> {
+  if (!navigator.mediaDevices?.enumerateDevices) return null;
+  const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+  const videoDevices = devices.filter((device) => device.kind === 'videoinput');
+  const rear = videoDevices.find((device) => {
+    const label = device.label.toLowerCase();
+    return (
+      label.includes('back') ||
+      label.includes('rear') ||
+      label.includes('environment') ||
+      label.includes('rück') ||
+      label.includes('umgebung')
+    );
+  });
+  return rear?.deviceId || null;
+}
+
+async function requestStreamWithDeviceId(deviceId: string): Promise<MediaStream> {
+  return navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: {
+      deviceId: { exact: deviceId },
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+      advanced: CAMERA_TUNING,
+    } as MediaTrackConstraints,
+  });
+}
+
 async function requestBarcodeCameraStream(): Promise<MediaStream> {
-  try {
-    return assertRearCamera(await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints()));
-  } catch {
-    return assertRearCamera(await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints(false)));
+  const rearDeviceId = await rearCameraDeviceId();
+  if (rearDeviceId) {
+    const exactRearStream = await requestStreamWithDeviceId(rearDeviceId).catch(() => null);
+    if (exactRearStream) return exactRearStream;
   }
+
+  let stream: MediaStream | null = null;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints());
+  } catch {
+    stream = await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints(false));
+  }
+
+  const nextRearDeviceId = await rearCameraDeviceId();
+  if (nextRearDeviceId) {
+    const currentDeviceId = stream.getVideoTracks()[0]?.getSettings?.().deviceId;
+    if (currentDeviceId !== nextRearDeviceId) {
+      stopMediaStream(stream);
+      const rearStream = await requestStreamWithDeviceId(nextRearDeviceId).catch(() => null);
+      if (rearStream) return rearStream;
+      stream = await navigator.mediaDevices.getUserMedia(barcodeCameraConstraints(false));
+    }
+  }
+
+  return assertRearCamera(stream);
 }
 
 function assertRearCamera(stream: MediaStream): MediaStream {
   const track = stream.getVideoTracks()[0];
   const settings = track?.getSettings?.();
   const label = `${settings?.facingMode ?? ''} ${track?.label ?? ''}`.toLowerCase();
+  if (settings?.facingMode === 'environment') return stream;
   if (label.includes('user') || label.includes('front') || label.includes('selfie') || label.includes('facetime')) {
     stopMediaStream(stream);
     throw new Error('Front camera is not allowed for barcode scanning.');
@@ -1281,6 +1346,7 @@ const CameraScanner = forwardRef<CameraScannerHandle, {
       <div style={{ position: 'relative', aspectRatio: '16 / 10', overflow: 'hidden', borderRadius: 'var(--radius)', background: 'var(--surface-2)' }}>
         <video
           ref={videoRef}
+          autoPlay
           playsInline
           muted
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
