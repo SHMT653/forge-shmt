@@ -387,10 +387,17 @@ function FoodPanel({
   const [manualUnit, setManualUnit] = useState<ManualUnit>('portion');
   const [manualFavorite, setManualFavorite] = useState(false);
   const [selected, setSelected] = useState<ScoredCandidate | null>(null);
+  const scannedRef = useRef<HTMLDivElement>(null);
   const [localBusy, setLocalBusy] = useState(false);
   const [favoriteBusyId, setFavoriteBusyId] = useState<string | null>(null);
 
   const search = useFoodSearch({ foods: allFoods, recipes: [], recentMeals });
+
+  const scannedId = selected?.matchedByBarcode ? selected.id : null;
+  useEffect(() => {
+    if (!scannedId) return;
+    scannedRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [scannedId]);
   const slot = slotForHour(new Date().getHours());
   const actionBusy = busy || localBusy;
 
@@ -558,8 +565,30 @@ function FoodPanel({
     return Boolean(onSaveFood);
   }
 
+  // Nur ein Treffer aus dem Scanner wandert nach oben. Aus der Suche gewaehlte
+  // Kandidaten bleiben da stehen, wo man sie angetippt hat.
+  const scannedSelection = selected?.matchedByBarcode ? selected : null;
+
   return (
     <div className="stack-sm">
+      {scannedSelection && (
+        <div className="stack-sm" ref={scannedRef}>
+          <div className="row-between">
+            <p className="section-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <ScanBarcode size={14} color="var(--violet)" /> Gescannt
+            </p>
+            <span className="muted-sm">Menge wählen und eintragen</span>
+          </div>
+          <PortionPicker
+            key={scannedSelection.id}
+            candidate={scannedSelection}
+            busy={actionBusy}
+            onPick={(choice) => void addCandidate(scannedSelection, choice)}
+            onCancel={() => setSelected(null)}
+          />
+        </div>
+      )}
+
       <BarcodePanel
         allFoods={allFoods}
         busy={actionBusy}
@@ -613,13 +642,15 @@ function FoodPanel({
       </div>
 
       {selected ? (
-        <PortionPicker
-          key={selected.id}
-          candidate={selected}
-          busy={actionBusy}
-          onPick={(choice) => void addCandidate(selected, choice)}
-          onCancel={() => setSelected(null)}
-        />
+        !scannedSelection && (
+          <PortionPicker
+            key={selected.id}
+            candidate={selected}
+            busy={actionBusy}
+            onPick={(choice) => void addCandidate(selected, choice)}
+            onCancel={() => setSelected(null)}
+          />
+        )
       ) : (
         <>
           {search.results.length > 0 && (
