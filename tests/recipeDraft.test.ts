@@ -108,6 +108,23 @@ describe('draftTotals', () => {
     const sauce = manualIngredient('e', 'Soße', { kcal: 90, proteinG: 1, carbsG: 6, fatG: 7 });
     expect(draftTotals(draftWith([sauce])).kcal).toBe(90);
   });
+
+  it('keeps a hand-typed product usable at another amount', () => {
+    // "400 g Hähnchenhack, 660 kcal" - the values belong to those 400 g.
+    const mince = manualIngredient(
+      'f',
+      'Hähnchenhack',
+      { kcal: 660, proteinG: 80, carbsG: 0, fatG: 36 },
+      { amount: 400, unit: 'g' },
+    );
+
+    expect(mince.unit).toBe('g');
+    expect(mince.amount).toBe('400');
+    expect(draftTotals(draftWith([mince])).kcal).toBeCloseTo(660);
+    // Half the pack in the next recipe, half the numbers.
+    expect(ingredientMacros({ ...mince, amount: '200' }).kcal).toBeCloseTo(330);
+    expect(ingredientMacros({ ...mince, amount: '200' }).proteinG).toBeCloseTo(40);
+  });
 });
 
 describe('ingredientDraftFromSaved', () => {

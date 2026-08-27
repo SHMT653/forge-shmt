@@ -174,9 +174,29 @@ export function ingredientFromPortion(input: {
   };
 }
 
-/** A hand-typed ingredient: the macros are for the amount as entered. */
-export function manualIngredient(key: string, name: string, macros: Macros): IngredientDraft {
-  return { key, name, amount: '1', unit: 'portion', perUnit: macros, foodItemId: null };
+/**
+ * A hand-typed ingredient, for something no database knows.
+ *
+ * `reference` is the amount the typed macros belong to - "660 kcal" only means
+ * something as "660 kcal per 400 g". Without it the values would be stuck to
+ * whatever amount happened to be entered, and using 250 g of the same product
+ * in the recipe would be guesswork.
+ */
+export function manualIngredient(
+  key: string,
+  name: string,
+  macros: Macros,
+  reference: { amount: number; unit: IngredientUnit } = { amount: 1, unit: 'portion' },
+): IngredientDraft {
+  const amount = reference.amount > 0 ? reference.amount : 1;
+  return {
+    key,
+    name,
+    amount: String(amount),
+    unit: reference.unit,
+    perUnit: scaleExact(macros, 1 / amount),
+    foodItemId: null,
+  };
 }
 
 /**

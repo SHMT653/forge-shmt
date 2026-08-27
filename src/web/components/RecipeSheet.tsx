@@ -28,6 +28,7 @@ import {
   previousStep,
   stepIssue,
   type IngredientDraft,
+  type IngredientUnit,
   type RecipeDraft,
   type RecipeStep,
 } from '@/domain/recipeDraft';
@@ -408,14 +409,14 @@ function IngredientStep({
       {manualOpen ? (
         <ManualIngredientForm
           onCancel={() => setManualOpen(false)}
-          onAdd={(name, macros) => {
-            onAdd(manualIngredient(`manual-${Date.now()}`, name, macros));
+          onAdd={(name, macros, reference) => {
+            onAdd(manualIngredient(`manual-${Date.now()}`, name, macros, reference));
             setManualOpen(false);
           }}
         />
       ) : (
         <button type="button" className="button ghost compact" onClick={() => setManualOpen(true)}>
-          <Plus size={14} /> Zutat von Hand
+          <Plus size={14} /> Zutat kennt FORGE nicht
         </button>
       )}
 
@@ -503,14 +504,21 @@ function AmountPrompt({
   );
 }
 
+/**
+ * A product no database knows. The reference amount is the point: "660 kcal"
+ * is only usable once it says "per 400 g" - then the same product can go into
+ * the next recipe at 250 g and the numbers still hold.
+ */
 function ManualIngredientForm({
   onAdd,
   onCancel,
 }: {
-  onAdd: (name: string, macros: Macros) => void;
+  onAdd: (name: string, macros: Macros, reference: { amount: number; unit: IngredientUnit }) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState('');
+  const [amount, setAmount] = useState('100');
+  const [unit, setUnit] = useState<IngredientUnit>('g');
   const [kcal, setKcal] = useState('');
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
@@ -522,32 +530,68 @@ function ManualIngredientForm({
     carbsG: parseDecimalOr(carbs, 0),
     fatG: parseDecimalOr(fat, 0),
   };
+  const referenceAmount = parseDecimalOr(amount, 0);
+  const unitName = unit === 'portion'
+    ? (referenceAmount === 1 ? 'Portion' : 'Portionen')
+    : UNIT_LABEL[unit];
 
   return (
     <div className="panel soft" style={{ padding: 10 }}>
-      <p className="section-label" style={{ marginBottom: 8 }}>Zutat von Hand</p>
+      <p className="section-label" style={{ marginBottom: 8 }}>Neue Zutat</p>
       <div className="stack-sm">
         <input
           className="input compact"
-          placeholder="Name"
+          placeholder="Name, z. B. Hähnchenhack"
           value={name}
           onChange={(e) => setName(e.target.value)}
           aria-label="Name der Zutat"
         />
+
+        <div className="field">
+          <label className="field-label">Werte gelten für</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              className="input compact"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              aria-label="Menge des Produkts"
+              style={{ width: 96 }}
+            />
+            <select
+              className="select"
+              value={unit}
+              onChange={(e) => setUnit(e.target.value as IngredientUnit)}
+              aria-label="Einheit"
+              style={{ flex: 1 }}
+            >
+              <option value="g">Gramm</option>
+              <option value="ml">Milliliter</option>
+              <option value="portion">Portion</option>
+            </select>
+          </div>
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <input className="input compact" inputMode="numeric" placeholder="kcal" value={kcal} onChange={(e) => setKcal(e.target.value)} aria-label="Kalorien" />
           <input className="input compact" inputMode="decimal" placeholder="Protein g" value={protein} onChange={(e) => setProtein(e.target.value)} aria-label="Protein" />
           <input className="input compact" inputMode="decimal" placeholder="KH g" value={carbs} onChange={(e) => setCarbs(e.target.value)} aria-label="Kohlenhydrate" />
           <input className="input compact" inputMode="decimal" placeholder="Fett g" value={fat} onChange={(e) => setFat(e.target.value)} aria-label="Fett" />
         </div>
+
+        <p className="muted-sm">
+          Werte von der Verpackung für {referenceAmount > 0 ? formatNumber(referenceAmount) : '…'} {unitName}.
+          Die Menge fürs Rezept stellst du danach in der Zutatenzeile ein.
+        </p>
+
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" className="button secondary compact" onClick={onCancel}>Abbrechen</button>
           <button
             type="button"
             className="button compact"
             style={{ flex: 1 }}
-            disabled={!name.trim() || macros.kcal <= 0}
-            onClick={() => onAdd(name.trim(), macros)}
+            disabled={!name.trim() || macros.kcal <= 0 || referenceAmount <= 0}
+            onClick={() => onAdd(name.trim(), macros, { amount: referenceAmount, unit })}
           >
             <Plus size={14} /> Hinzufügen
           </button>
