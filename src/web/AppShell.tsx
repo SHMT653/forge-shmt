@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -12,6 +12,13 @@ import { signOut } from '@/services/supabase/auth';
 import { QuickActionBar } from '@/web/components/QuickActionBar';
 import { TodayDataProvider } from '@/web/hooks/TodayDataProvider';
 import { OfflineBanner } from '@/web/components/OfflineBanner';
+import { DashboardView } from '@/web/views/DashboardView';
+import { CalendarView } from '@/web/views/CalendarView';
+import { NutritionView } from '@/web/views/NutritionView';
+import { PlansView } from '@/web/views/PlansView';
+import { ProgressView } from '@/web/views/ProgressView';
+import { CardioView } from '@/web/views/CardioView';
+import { SettingsView } from '@/web/views/SettingsView';
 
 /**
  * One primary navigation, four destinations (§49).
@@ -57,6 +64,21 @@ function initialsFor(name: string): string {
 function isActive(pathname: string, href: string): boolean {
   if (href === '/') return pathname === '/';
   return pathname.startsWith(href);
+}
+
+function isPlainClick(event: MouseEvent<HTMLAnchorElement>) {
+  return event.button === 0 && !event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey;
+}
+
+function instantViewFor(pathname: string) {
+  if (pathname === '/') return <DashboardView />;
+  if (pathname === '/kalender') return <CalendarView />;
+  if (pathname === '/nutrition') return <NutritionView />;
+  if (pathname === '/plans') return <PlansView />;
+  if (pathname === '/progress') return <ProgressView />;
+  if (pathname === '/cardio') return <CardioView />;
+  if (pathname === '/settings') return <SettingsView />;
+  return null;
 }
 
 function Brand() {
@@ -109,11 +131,12 @@ function AppHeader({ user }: { user: { email?: string | null; user_metadata?: Re
 }
 
 /* ── Drawer (mobile full-nav) ────────────────────────────── */
-function Drawer({ open, onClose, pathname, user }: {
+function Drawer({ open, onClose, pathname, user, onNavigate }: {
   open: boolean;
   onClose: () => void;
   pathname: string;
   user: { email?: string | null; user_metadata?: Record<string, unknown> };
+  onNavigate: (href: string) => void;
 }) {
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
@@ -144,29 +167,33 @@ function Drawer({ open, onClose, pathname, user }: {
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
           {PRIMARY_NAV.map(({ href, label, icon: Icon }) => (
-            <Link
+            <AppNavLink
               key={href}
               href={href}
-              prefetch={false}
               className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}
-              onClick={onClose}
+              onNavigate={(nextHref) => {
+                onNavigate(nextHref);
+                onClose();
+              }}
             >
               <Icon size={18} />
               <span>{label}</span>
-            </Link>
+            </AppNavLink>
           ))}
           <p className="section-label" style={{ margin: '12px 0 4px 13px' }}>Mehr</p>
           {SECONDARY_NAV.map(({ href, label, icon: Icon }) => (
-            <Link
+            <AppNavLink
               key={href}
               href={href}
-              prefetch={false}
               className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}
-              onClick={onClose}
+              onNavigate={(nextHref) => {
+                onNavigate(nextHref);
+                onClose();
+              }}
             >
               <Icon size={18} />
               <span>{label}</span>
-            </Link>
+            </AppNavLink>
           ))}
         </nav>
 
@@ -186,16 +213,52 @@ function Drawer({ open, onClose, pathname, user }: {
 }
 
 /* ── Fixed 4-item bottom nav ─────────────────────────────── */
-function BottomNav({ pathname }: { pathname: string }) {
+function BottomNav({ pathname, onNavigate }: { pathname: string; onNavigate: (href: string) => void }) {
   return (
     <nav className="bottom-nav" aria-label="Hauptnavigation">
       {PRIMARY_NAV.map(({ href, label, icon: Icon }) => (
-        <Link key={href} href={href} prefetch={false} className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}>
+        <AppNavLink key={href} href={href} className={`nav-button${isActive(pathname, href) ? ' active' : ''}`} onNavigate={onNavigate}>
           <Icon size={20} />
           <span>{label}</span>
-        </Link>
+        </AppNavLink>
       ))}
     </nav>
+  );
+}
+
+function AppNavLink({
+  href,
+  className,
+  children,
+  onNavigate,
+  style,
+  ariaLabel,
+}: {
+  href: string;
+  className?: string;
+  children: ReactNode;
+  onNavigate: (href: string) => void;
+  style?: CSSProperties;
+  ariaLabel?: string;
+}) {
+  const router = useRouter();
+
+  return (
+    <Link
+      href={href}
+      prefetch
+      className={className}
+      aria-label={ariaLabel}
+      style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', ...style }}
+      onClick={(event) => {
+        if (!isPlainClick(event)) return;
+        event.preventDefault();
+        onNavigate(href);
+        router.push(href);
+      }}
+    >
+      {children}
+    </Link>
   );
 }
 
@@ -205,11 +268,21 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [instantPath, setInstantPath] = useState(pathname);
   const openDrawer = useCallback(() => setDrawerOpen(true), []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const displayedPath = instantPath || pathname;
+  const instantView = instantViewFor(displayedPath);
+
+  const navigateInstantly = useCallback((href: string) => {
+    setInstantPath(href);
+  }, []);
 
   // Close drawer on route change
-  useEffect(() => { setDrawerOpen(false); }, [pathname]);
+  useEffect(() => {
+    setDrawerOpen(false);
+    setInstantPath(pathname);
+  }, [pathname]);
 
   useEffect(() => {
     if (!loading && !user) router.replace('/auth');
@@ -228,22 +301,22 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="app-shell">
       {/* Desktop sidebar */}
       <aside className="sidebar">
-        <Link href="/" prefetch={false} aria-label="Startseite" style={{ textDecoration: 'none' }}>
+        <AppNavLink href="/" ariaLabel="Startseite" style={{ textDecoration: 'none' }} onNavigate={navigateInstantly}>
           <Brand />
-        </Link>
+        </AppNavLink>
         <nav className="nav-list">
           {PRIMARY_NAV.map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href} prefetch={false} className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}>
+            <AppNavLink key={href} href={href} className={`nav-button${isActive(displayedPath, href) ? ' active' : ''}`} onNavigate={navigateInstantly}>
               <Icon size={18} />
               <span>{label}</span>
-            </Link>
+            </AppNavLink>
           ))}
           <p className="section-label" style={{ margin: '14px 0 2px 13px' }}>Mehr</p>
           {SECONDARY_NAV.map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href} prefetch={false} className={`nav-button${isActive(pathname, href) ? ' active' : ''}`}>
+            <AppNavLink key={href} href={href} className={`nav-button${isActive(displayedPath, href) ? ' active' : ''}`} onNavigate={navigateInstantly}>
               <Icon size={18} />
               <span>{label}</span>
-            </Link>
+            </AppNavLink>
           ))}
         </nav>
         <div className="sidebar-footer">
@@ -252,14 +325,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Mobile drawer */}
-      <Drawer open={drawerOpen} onClose={closeDrawer} pathname={pathname} user={user} />
+      <Drawer open={drawerOpen} onClose={closeDrawer} pathname={displayedPath} user={user} onNavigate={navigateInstantly} />
 
       <div className="main">
         {/* Mobile topbar */}
         <header className="topbar">
-          <Link href="/" prefetch={false} aria-label="Startseite" style={{ textDecoration: 'none' }}>
+          <AppNavLink href="/" ariaLabel="Startseite" style={{ textDecoration: 'none' }} onNavigate={navigateInstantly}>
             <Brand />
-          </Link>
+          </AppNavLink>
           <button type="button" className="hamburger" onClick={openDrawer} aria-label="Menü öffnen">
             <Menu size={20} />
           </button>
@@ -269,7 +342,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <div className="page">
           <AppHeader user={user} />
-          {children}
+          {instantView ?? children}
         </div>
       </div>
 
@@ -277,7 +350,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <QuickActionBar />
 
       {/* Mobile 4-item bottom nav */}
-      <BottomNav pathname={pathname} />
+      <BottomNav pathname={displayedPath} onNavigate={navigateInstantly} />
     </div>
     </TodayDataProvider>
   );
