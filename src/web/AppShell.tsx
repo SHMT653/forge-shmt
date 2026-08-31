@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { flushSync } from 'react-dom';
 import {
   Flame, Dumbbell, TrendingUp, Settings, LogOut, Menu, X, Utensils, Activity, CalendarDays,
 } from 'lucide-react';
@@ -250,10 +251,18 @@ function AppNavLink({
       className={className}
       aria-label={ariaLabel}
       style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', ...style }}
+      onPointerDown={(event: PointerEvent<HTMLAnchorElement>) => {
+        if (
+          event.defaultPrevented ||
+          event.pointerType === 'mouse' ||
+          (typeof window !== 'undefined' && href === window.location.pathname)
+        ) return;
+        flushSync(() => onNavigate(href));
+      }}
       onClick={(event) => {
         if (!isPlainClick(event)) return;
         event.preventDefault();
-        onNavigate(href);
+        flushSync(() => onNavigate(href));
         router.push(href);
       }}
     >
