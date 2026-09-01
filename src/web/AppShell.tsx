@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { flushSync } from 'react-dom';
 import {
   Flame, Dumbbell, TrendingUp, LogOut, Menu, X, Utensils, Activity, CalendarDays, Sun, Moon,
 } from 'lucide-react';
@@ -293,6 +294,16 @@ function AppNavLink({
     warmRoutePane(href);
   }
 
+  /**
+   * Der sichtbare Wechsel wird sofort gezeichnet, nicht erst mit dem naechsten
+   * Rendern: React fasst Zustandsaenderungen sonst zusammen und der Tab bleibt
+   * bis nach der Router-Arbeit stehen — auf dem Handy sind das die paar
+   * hundert Millisekunden, die sich wie Warten anfuehlen.
+   */
+  function switchNow() {
+    flushSync(() => onNavigate?.(href));
+  }
+
   return (
     <Link
       href={href}
@@ -304,10 +315,21 @@ function AppNavLink({
       onMouseEnter={warm}
       onFocus={warm}
       onTouchStart={warm}
+      onPointerDown={(event) => {
+        // Am Finger haengt der Wechsel schon am Beruehren; die Maus wartet auf
+        // ihren Klick, sonst zieht ein Rechtsklick die Ansicht mit.
+        if (
+          event.defaultPrevented ||
+          event.pointerType === 'mouse' ||
+          (typeof window !== 'undefined' && href === window.location.pathname)
+        ) return;
+        warm();
+        switchNow();
+      }}
       onClick={(event) => {
         if (!isPlainClick(event)) return;
         event.preventDefault();
-        onNavigate?.(href);
+        switchNow();
         router.push(href);
       }}
     >
@@ -399,7 +421,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       if (destination.origin !== window.location.origin) return;
       if (!isKnownPath(destination.pathname)) return;
 
-      setInstantPath(destination.pathname);
+      flushSync(() => setInstantPath(destination.pathname));
     }
 
     document.addEventListener('click', handleClick, true);
