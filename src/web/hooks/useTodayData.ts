@@ -62,6 +62,7 @@ import type {
   UserGoals,
   WorkoutSession,
 } from '@/domain/types';
+import { useRefreshWhenVisible } from '@/web/components/RoutePanes';
 
 const HISTORY_DAYS = 120;
 
@@ -142,7 +143,7 @@ export function useTodayData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (quiet = false) => {
     if (!user) return;
     setError(null);
 
@@ -342,6 +343,9 @@ export function useTodayData() {
     void load();
   }, [load]);
 
+  // Zurueck auf dem Screen: still nachladen statt neu aufbauen.
+  useRefreshWhenVisible(() => void load(true));
+
   const metricHabits = useMemo(() => pickMetricHabits(data?.habits ?? []), [data?.habits]);
 
   /**
@@ -439,16 +443,23 @@ export function useTodayData() {
     [user, data?.allFoods, data?.metrics.waterMl, metricHabits.water, load],
   );
 
-  const removeEntry = useCallback(
-    async (entryId: string) => {
-      if (!user) return;
+  /** Nimmt Einträge zurück — einen oder einen ganzen Stapel in einem Rutsch. */
+  const removeEntries = useCallback(
+    async (entryIds: readonly string[]) => {
+      if (!user || entryIds.length === 0) return;
       const today = todayKey();
-      setData((prev) => (prev ? { ...prev, entries: prev.entries.filter((e) => e.id !== entryId) } : prev));
-      await deleteMealEntry(user.id, entryId);
+      const removed = new Set(entryIds);
+      setData((prev) => (prev ? { ...prev, entries: prev.entries.filter((e) => !removed.has(e.id)) } : prev));
+      for (const entryId of entryIds) await deleteMealEntry(user.id, entryId);
       await syncNutritionTotals(user.id, today);
       await load();
     },
     [user, load],
+  );
+
+  const removeEntry = useCallback(
+    async (entryId: string) => removeEntries([entryId]),
+    [removeEntries],
   );
 
   const setSoreness = useCallback(
@@ -521,6 +532,7 @@ export function useTodayData() {
     reload: load,
     addEntry,
     removeEntry,
+    removeEntries,
     addWater,
     setMetric,
     setSoreness,

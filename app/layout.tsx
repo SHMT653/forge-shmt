@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { AuthProvider } from '@/web/hooks/useAuth';
+import { ThemeProvider } from '@/web/hooks/useTheme';
 import { ServiceWorkerRegistrar } from '@/web/components/ServiceWorkerRegistrar';
 import './globals.css';
 
@@ -47,10 +48,34 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="de">
+    <html lang="de" className="dark" suppressHydrationWarning>
+      <head>
+        {/* Vor dem ersten Pixel Theme setzen — sonst blitzt Weiß auf. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var mode = localStorage.getItem('theme-mode');
+                var src = localStorage.getItem('theme-source');
+                var chosen = src === 'system' ? null : mode;
+                var dark = chosen
+                  ? chosen === 'dark'
+                  : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.classList.toggle('dark', dark);
+                var accent = localStorage.getItem('theme-accent');
+                if (accent) document.documentElement.setAttribute('data-accent', accent);
+              } catch(e) {
+                document.documentElement.classList.add('dark');
+              }
+            `,
+          }}
+        />
+      </head>
       <body>
         <ServiceWorkerRegistrar />
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <ThemeProvider>{children}</ThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   );

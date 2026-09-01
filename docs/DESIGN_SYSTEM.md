@@ -1,27 +1,54 @@
 # FORGE — Designsystem
 
-Der visuelle Grundcharakter von FORGE bleibt unverändert: sehr dunkler Hintergrund,
-Purple als Markenfarbe, Türkis für positive Werte, große klare Typografie,
-Card-UI, Bottom Navigation, mobile-first. Dieses Dokument hält fest, was es
-gibt und wann man was benutzt — damit neue Screens nicht wie Fremdkörper wirken.
+Der visuelle Grundcharakter von FORGE: Purple als Markenfarbe, Türkis für
+positive Werte, große klare Typografie, Card-UI, Bottom Navigation, mobile-first.
+Dieses Dokument hält fest, was es gibt und wann man was benutzt — damit neue
+Screens nicht wie Fremdkörper wirken.
 
 Alle Tokens leben in [`app/globals.css`](../app/globals.css). Es gibt keine
 CSS-Framework-Abhängigkeit und keine zweite Quelle für Farben.
+
+## 0. FORGE ist Teil von drei Apps
+
+NEO (Haushalt), FORGE (Training & Ernährung) und VAULT (Finanzen) teilen sich
+**denselben Tokensatz und dieselben Klassennamen** — `.app-shell`, `.sidebar`,
+`.nav-button`, `.panel`, `.pill`, `.profile-card`, `.icon-button`,
+`.app-switch`. Wer hier eine Komponente ändert, ändert sie sinngemäß in allen
+dreien. Zwei Regeln folgen daraus:
+
+- **Nie eine Farbe hart schreiben.** Immer Token — sonst bricht Hell/Dunkel
+  und die Akzentumschaltung.
+- **Einstellungen sind kein Navigationspunkt.** Man erreicht sie über die
+  Profilkarte im Sidebar-Fuß. Das ist in allen drei Apps gleich.
+
+### Hell/Dunkel und Akzentfarbe
+
+`<html>` trägt die Klasse `dark` und das Attribut `data-accent`. Ein kleines
+Skript in `app/layout.tsx` setzt beides vor dem ersten Pixel, `useTheme`
+(`src/web/hooks/useTheme.tsx`) danach. Der helle Tokensatz steht unter
+`html:not(.dark)` — **keine** `prefers-color-scheme`-Abfragen mehr, sonst
+lässt sich das Theme nicht bewusst wählen.
+
+Die Wahl gilt appübergreifend: FORGE holt sie über `/api/design` von NEO und
+schreibt sie dorthin zurück.
 
 ---
 
 ## 1. Farben
 
-| Token | Wert | Verwendung |
+Werte hier sind die des Dunkelmodus; `html:not(.dark)` definiert dieselben
+Token für Hell.
+
+| Token | Wert (dunkel) | Verwendung |
 |---|---|---|
-| `--bg` | `#0a0a0d` | Seitenhintergrund |
-| `--bg-2` | `#111116` | Bottom Sheets |
-| `--surface` / `--surface-2` / `--surface-3` | `#16161b` … `#25252e` | Cards, Inputs, Badges |
-| `--border` / `--border-strong` | weiß 8 % / 16 % | Trennlinien, Card-Ränder |
-| `--text` | `#f5f5f7` | Fließtext, Zahlen |
-| `--muted` | `#9a9aa4` | Sekundärtext |
-| `--subtle` | `#6b6b75` | Labels, Hilfstext |
-| `--violet` | `#8b5cf6` | Marke, primäre Aktion, aktive Navigation |
+| `--bg` | `#08070c` | Seitenhintergrund |
+| `--bg-2` | `#100e17` | Bottom Sheets |
+| `--surface` / `--surface-2` / `--surface-3` | `#16151d` … `#2b2837` | Cards, Inputs, Badges |
+| `--border` / `--border-strong` | weiß 9 % / 16 % | Trennlinien, Card-Ränder |
+| `--text` | `#f6f5f9` | Fließtext, Zahlen |
+| `--muted` | `#a2a0af` | Sekundärtext |
+| `--subtle` | `#6d6a7d` | Labels, Hilfstext |
+| `--violet` | `#8b5cf6` | Marke, primäre Aktion, aktive Navigation (folgt `data-accent`) |
 | `--teal` | `#5fd6c4` | Positiv, im Zielbereich |
 | `--gold` | `#f0c674` | Achtung, leicht daneben |
 | `--danger` | `#f87171` | Deutlich daneben, Löschen |

@@ -6,6 +6,7 @@ import { ensureProfile, getUserGoals, saveUserGoals, updateDisplayName } from '@
 import { getTotalTrainingSeconds, listCompletedSessionDates } from '@/data/workouts';
 import { errorMessage } from '@/domain/errors';
 import type { Profile, UserGoals } from '@/domain/types';
+import { useRefreshWhenVisible } from '@/web/components/RoutePanes';
 
 export function useSettings() {
   const { user } = useAuth();
@@ -15,9 +16,9 @@ export function useSettings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (quiet = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!quiet) setLoading(true);
     setError(null);
     try {
       const fallbackName = (user.user_metadata?.display_name as string | undefined) ?? user.email?.split('@')[0] ?? '';
@@ -40,6 +41,9 @@ export function useSettings() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Zurueck auf dem Screen: still nachladen statt neu aufbauen.
+  useRefreshWhenVisible(() => void load(true));
 
   const saveName = useCallback(
     async (displayName: string) => {

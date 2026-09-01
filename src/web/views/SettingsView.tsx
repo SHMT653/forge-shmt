@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Trash2, LogOut, Moon, User, Target, ShieldCheck, Calculator } from 'lucide-react';
+import { Trash2, LogOut, Moon, User, Target, ShieldCheck, Calculator, LayoutGrid } from 'lucide-react';
 import { useAuth } from '@/web/hooks/useAuth';
 import { useSettings } from '@/web/hooks/useSettings';
 import { signOut } from '@/services/supabase/auth';
@@ -19,6 +19,8 @@ import type { ActivityLevel, Gender, GoalType, UserGoals } from '@/domain/types'
 import type { ProgramId, FastingProtocol } from '@/domain/programs';
 import { parseDecimal, parseDecimalOr } from '@/domain/numbers';
 import { DataDeleteCard } from '@/web/components/DataDeleteCard';
+import { DesignPanel } from '@/web/components/DesignPanel';
+import { AppSwitcher } from '@/web/components/AppSwitcher';
 
 const WEEKDAYS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
 
@@ -296,6 +298,8 @@ export function SettingsView() {
           </div>
         </form>
       </section>
+
+      <DesignPanel />
 
       {/* Fitness profile */}
       <section className="panel">
@@ -699,6 +703,15 @@ export function SettingsView() {
         </div>
       </section>
       )}
+
+      {/* Schwester-Apps */}
+      <section className="panel">
+        <CardHead icon={LayoutGrid} tone="teal" title="SHMT-Apps" />
+        <p className="copy" style={{ marginBottom: 14 }}>
+          FORGE gehört zu drei Apps, die dieselbe Design- und Kontoeinstellung teilen.
+        </p>
+        <AppSwitcher showLabel={false} />
+      </section>
 
       {/* Sign out */}
       <section className="panel">

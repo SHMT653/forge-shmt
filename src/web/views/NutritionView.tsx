@@ -9,15 +9,18 @@ import { RangeBar, GoalBar } from '@/web/components/RangeBar';
 import { QuickTextInput } from '@/web/components/QuickTextInput';
 import { QuickAddSheet } from '@/web/components/QuickAddSheet';
 import { RecipeSheet } from '@/web/components/RecipeSheet';
+import { SendToNeoButton } from '@/web/components/SendToNeoButton';
 import { StepNumber } from '@/web/components/StepNumber';
-import { DailyTimeline, mealToEvent, type TimelineEvent } from '@/web/components/DailyTimeline';
+import { DailyTimeline, mealStackToEvent, type TimelineEvent } from '@/web/components/DailyTimeline';
+import { ServingPickerSheet } from '@/web/components/ServingPickerSheet';
+import { stackMealEntries } from '@/domain/mealStacks';
 import { evaluateRange, evaluateGoal, TONE_COLOR } from '@/domain/goalPhase';
 import { isDayInProgress, formatLiters } from '@/domain/dayEvaluation';
 import {
   MEAL_SLOTS, MEAL_SLOT_LABEL, MEAL_SLOT_ICON, sumMacros,
 } from '@/domain/nutritionMath';
 import type { MealEntryInput } from '@/data/nutrition';
-import type { MealSlot, Recipe } from '@/domain/types';
+import type { FoodItem, MealSlot, Recipe } from '@/domain/types';
 
 const WATER_STEPS = [250, 500, 750];
 
@@ -30,7 +33,7 @@ const RECIPE_PORTIONS = [
 
 export function NutritionView() {
   const {
-    state, favorites, addMeal, removeMeal, addWater, saveAsFood, setFavorite,
+    state, favorites, addMeal, removeMeal, removeMeals, addWater, saveAsFood, setFavorite,
     saveRecipe, removeRecipe, logRecipeServings,
   } = useNutrition();
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -38,6 +41,8 @@ export function NutritionView() {
   const [recipeSheet, setRecipeSheet] = useState<{ recipe: Recipe | null } | null>(null);
   /** Which recipe currently shows its ingredients and steps. */
   const [openRecipeId, setOpenRecipeId] = useState<string | null>(null);
+  /** Der Favorit, für den gerade nach der Menge gefragt wird. */
+  const [servingPick, setServingPick] = useState<FoodItem | null>(null);
 
   const meals = state.meals;
   const bySlot = useMemo(() => {
@@ -62,6 +67,18 @@ export function NutritionView() {
   const proteinEval = evaluateRange(totals.proteinG, targets.protein, { dayInProgress: inProgress, overTolerance: 9999 });
   const waterEval = evaluateGoal(state.water.todayMl, state.water.goalMl, inProgress);
 
+
+  /** Trägt einen Favoriten ein — das Plus mit einer Portion, der Sheet mit seiner. */
+  function logFavorite(food: FoodItem, servings: number) {
+    handleEntry({
+      name: food.name,
+      macros: food.macros,
+      dataQuality: food.dataQuality,
+      foodItemId: food.id,
+      source: 'favorite',
+      servings,
+    });
+  }
 
   /** Resolve library references to their stored macros before saving. */
   function handleEntry(entry: MealEntryInput) {
@@ -165,25 +182,30 @@ export function NutritionView() {
         <section className="panel soft">
           <div className="section-head">
             <p className="h3" style={{ fontSize: 15 }}>Favoriten</p>
+            <span className="muted-sm">Plus loggt sofort, Tipp fragt nach der Menge</span>
           </div>
           <div className="chip-row">
             {favorites.map((food) => (
-              <button
-                key={food.id}
-                type="button"
-                className="chip"
-                onClick={() => handleEntry({
-                  name: food.name,
-                  macros: food.macros,
-                  dataQuality: food.dataQuality,
-                  foodItemId: food.id,
-                  source: 'favorite',
-                })}
-              >
-                {food.favorite && <Star size={12} color="var(--gold)" />}
-                {food.name}
-                <span className="chip-meta">{Math.round(food.macros.kcal)} kcal</span>
-              </button>
+              <div key={food.id} className="chip-split">
+                <button
+                  type="button"
+                  className="chip-split-main"
+                  onClick={() => setServingPick(food)}
+                  title={`Menge für ${food.name} wählen`}
+                >
+                  {food.favorite && <Star size={12} color="var(--gold)" />}
+                  {food.name}
+                  <span className="chip-meta">{Math.round(food.macros.kcal)} kcal</span>
+                </button>
+                <button
+                  type="button"
+                  className="chip-split-add"
+                  onClick={() => logFavorite(food, 1)}
+                  aria-label={`Eine Portion ${food.name} eintragen`}
+                >
+                  <Plus size={15} />
+                </button>
+              </div>
             ))}
           </div>
         </section>
@@ -304,6 +326,8 @@ export function NutritionView() {
                         </ol>
                       </>
                     )}
+
+                    <SendToNeoButton recipe={recipe} />
                   </div>
                 )}
               </div>
@@ -332,18 +356,27 @@ export function NutritionView() {
               const meals = bySlot.get(slot) ?? [];
               if (meals.length === 0) return null;
               const slotTotals = sumMacros(meals.map((m) => ({ kcal: m.kcal, proteinG: m.proteinG, carbsG: m.carbsG, fatG: m.fatG })));
-              const events: TimelineEvent[] = meals.map((meal) =>
-                mealToEvent(meal, {
-                  onDelete: () => void removeMeal(meal.id),
+              // Zweimal dasselbe steht als „2× …" in einer Zeile.
+              const events: TimelineEvent[] = stackMealEntries(meals).map((stack) =>
+                mealStackToEvent(stack, {
+                  onDelete: () => void removeMeals(stack.entries.map((entry) => entry.id)),
+                  ...(stack.entries.length > 1
+                    ? { onRemoveOne: () => void removeMeal(stack.latest.id) }
+                    : {}),
                   // Already-saved products have nothing to promote.
-                  ...(meal.foodItemId
+                  ...(stack.first.foodItemId
                     ? {}
                     : {
                         onFavorite: () =>
                           void saveAsFood({
-                            name: meal.name,
-                            macros: { kcal: meal.kcal, proteinG: meal.proteinG, carbsG: meal.carbsG, fatG: meal.fatG },
-                            dataQuality: meal.dataQuality,
+                            name: stack.first.name,
+                            macros: {
+                              kcal: stack.first.kcal,
+                              proteinG: stack.first.proteinG,
+                              carbsG: stack.first.carbsG,
+                              fatG: stack.first.fatG,
+                            },
+                            dataQuality: stack.first.dataQuality,
                             favorite: true,
                           }),
                       }),
@@ -367,8 +400,13 @@ export function NutritionView() {
               <div>
                 <p className="section-label">Ohne Zuordnung</p>
                 <DailyTimeline
-                  events={(bySlot.get('other') ?? []).map((meal) =>
-                    mealToEvent(meal, { onDelete: () => void removeMeal(meal.id) }),
+                  events={stackMealEntries(bySlot.get('other') ?? []).map((stack) =>
+                    mealStackToEvent(stack, {
+                      onDelete: () => void removeMeals(stack.entries.map((entry) => entry.id)),
+                      ...(stack.entries.length > 1
+                        ? { onRemoveOne: () => void removeMeal(stack.latest.id) }
+                        : {}),
+                    }),
                   )}
                 />
               </div>
@@ -404,6 +442,16 @@ export function NutritionView() {
           allFoods={state.foods}
           onClose={() => setRecipeSheet(null)}
           onSave={saveRecipe}
+        />
+      )}
+
+      {servingPick && (
+        <ServingPickerSheet
+          name={servingPick.name}
+          macros={servingPick.macros}
+          servingLabel={servingPick.servingLabel}
+          onClose={() => setServingPick(null)}
+          onPick={(servings) => logFavorite(servingPick, servings)}
         />
       )}
 

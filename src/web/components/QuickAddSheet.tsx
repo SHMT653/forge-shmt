@@ -8,13 +8,14 @@ import {
 import { Sheet } from './Sheet';
 import { useFoodSearch } from '@/web/hooks/useFoodSearch';
 import { scaleCandidate, type ScoredCandidate } from '@/domain/foodResolver';
-import { slotForHour } from '@/domain/nutritionMath';
+import { scaleMacros, slotForHour } from '@/domain/nutritionMath';
 import { formatLiters, formatHours } from '@/domain/dayEvaluation';
 import { barcodeLookupVariants, defaultPortionG, findProductByBarcode, normalizeBarcode, offPortion, type OffFood } from '@/data/foodSearch';
 import type { MealEntry, MealEntryInput } from '@/data/nutrition';
 import type { FoodItemInput } from '@/data/foodLibrary';
 import type { FoodItem, Recipe } from '@/domain/types';
 import { parseDecimal, parseDecimalOr, parsePositive } from '@/domain/numbers';
+import { ServingChoice } from './ServingPickerSheet';
 import {
   acquireBarcodeStream,
   applyCameraTuning,
@@ -396,6 +397,8 @@ function FoodPanel({
   const scannedRef = useRef<HTMLDivElement>(null);
   const [localBusy, setLocalBusy] = useState(false);
   const [favoriteBusyId, setFavoriteBusyId] = useState<string | null>(null);
+  /** Der Favorit, der gerade nach seiner Menge gefragt wird. */
+  const [servingPickId, setServingPickId] = useState<string | null>(null);
 
   const search = useFoodSearch({ foods: allFoods, recipes, recentMeals });
 
@@ -407,13 +410,21 @@ function FoodPanel({
   const slot = slotForHour(new Date().getHours());
   const actionBusy = busy || localBusy;
 
-  function addOwnFood(food: FoodItem) {
+  /**
+   * Trägt einen gespeicherten Favoriten ein.
+   *
+   * Der Name bleibt der Name — die Menge steht in `servings`, damit zweimal
+   * dasselbe in der Liste als „2× …" zusammenfällt statt als zwei Zeilen mit
+   * unterschiedlicher Beschriftung.
+   */
+  function addOwnFood(food: FoodItem, servings = 1) {
     void onAdd({
       name: food.name,
-      macros: food.macros,
+      macros: scaleMacros(food.macros, servings),
       dataQuality: food.dataQuality,
       foodItemId: food.id,
       source: 'favorite',
+      servings,
       slot,
     }, true);
   }
@@ -617,18 +628,34 @@ function FoodPanel({
         <div className="stack-sm">
           <div className="row-between">
             <p className="section-label">Favoriten</p>
-            <span className="muted-sm">Plus loggt sofort</span>
+            <span className="muted-sm">Plus loggt sofort, Tipp fragt nach der Menge</span>
           </div>
           <div className="stack-sm">
             {favoriteFoods.slice(0, 8).map((food) => (
-              <SavedFoodRow
-                key={food.id}
-                food={food}
-                busy={actionBusy}
-                favoriteBusy={favoriteBusyId === food.id}
-                onAdd={() => addOwnFood(food)}
-                {...(onSetFavorite ? { onToggleFavorite: () => void toggleFood(food) } : {})}
-              />
+              <div key={food.id} className="stack-sm">
+                <SavedFoodRow
+                  food={food}
+                  busy={actionBusy}
+                  favoriteBusy={favoriteBusyId === food.id}
+                  open={servingPickId === food.id}
+                  onAdd={() => addOwnFood(food)}
+                  onPickAmount={() => setServingPickId((current) => (current === food.id ? null : food.id))}
+                  {...(onSetFavorite ? { onToggleFavorite: () => void toggleFood(food) } : {})}
+                />
+                {servingPickId === food.id && (
+                  <div className="panel soft" style={{ padding: 12 }}>
+                    <ServingChoice
+                      macros={food.macros}
+                      servingLabel={food.servingLabel}
+                      busy={actionBusy}
+                      onPick={(servings) => {
+                        setServingPickId(null);
+                        addOwnFood(food, servings);
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </div>
@@ -1404,21 +1431,27 @@ function SavedFoodRow({
   food,
   busy,
   favoriteBusy,
+  open,
   onAdd,
+  onPickAmount,
   onToggleFavorite,
 }: {
   food: FoodItem;
   busy: boolean;
   favoriteBusy: boolean;
+  open: boolean;
   onAdd: () => void;
+  onPickAmount: () => void;
   onToggleFavorite?: () => void;
 }) {
   return (
     <div className="habit-row" style={{ width: '100%', padding: '11px 12px', gap: 10 }}>
       <button
         type="button"
-        onClick={onAdd}
+        onClick={onPickAmount}
         disabled={busy}
+        aria-expanded={open}
+        title={`Menge für ${food.name} wählen`}
         style={{
           flex: '1 1 auto',
           minWidth: 0,

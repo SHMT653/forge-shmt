@@ -6,6 +6,7 @@ import { addCardioLog, deleteCardioLog, listCardioLogs, listRecentCardioLogs, ty
 import { getUserGoals } from '@/data/profile';
 import { errorMessage } from '@/domain/errors';
 import { todayKey } from '@/domain/dates';
+import { useRefreshWhenVisible } from '@/web/components/RoutePanes';
 
 export function useCardio() {
   const { user } = useAuth();
@@ -15,9 +16,9 @@ export function useCardio() {
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (quiet = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!quiet) setLoading(true);
     setError(null);
     try {
       const today = todayKey();
@@ -37,6 +38,9 @@ export function useCardio() {
   }, [user]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Zurueck auf dem Screen: still nachladen statt neu aufbauen.
+  useRefreshWhenVisible(() => void load(true));
 
   const addLog = useCallback(async (entry: {
     activity: string; durationMinutes: number; distanceKm: number | null; kcalBurned: number;

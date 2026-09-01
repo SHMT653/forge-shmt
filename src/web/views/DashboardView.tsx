@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import { useTodayContext } from '@/web/hooks/TodayDataProvider';
 import { DayRings, type RingSpec } from '@/web/components/DayRings';
-import { DailyTimeline, mealToEvent, type TimelineEvent } from '@/web/components/DailyTimeline';
+import { DailyTimeline, mealStackToEvent, type TimelineEvent } from '@/web/components/DailyTimeline';
+import { stackMealEntries } from '@/domain/mealStacks';
 import { QuickAddSheet } from '@/web/components/QuickAddSheet';
 import { SorenessPicker } from '@/web/components/SorenessPicker';
 import { GoalCard } from '@/web/components/GoalCard';
@@ -30,7 +31,7 @@ function todayLabel(): string {
 const FOREGROUND_RELOAD_INTERVAL_MS = 60_000;
 
 export function DashboardView() {
-  const { data, loading, error, addEntry, removeEntry, addWater, setMetric, setSoreness, saveFood, setFoodFavorite, startSuggestedWorkout, reload } =
+  const { data, loading, error, addEntry, removeEntry, removeEntries, addWater, setMetric, setSoreness, saveFood, setFoodFavorite, startSuggestedWorkout, reload } =
     useTodayContext();
   const { user } = useAuth();
   const router = useRouter();
@@ -77,9 +78,12 @@ export function DashboardView() {
 
   const timeline: TimelineEvent[] = useMemo(() => {
     if (!data) return [];
-    const events: TimelineEvent[] = data.entries.map((entry) =>
-      mealToEvent(entry, {
-        onDelete: () => void removeEntry(entry.id),
+    // Zweimal dasselbe steht als „2× …" in einer Zeile.
+    const events: TimelineEvent[] = stackMealEntries(data.entries).map((stack) => {
+      const entry = stack.latest;
+      return mealStackToEvent(stack, {
+        onDelete: () => void removeEntries(stack.entries.map((stacked) => stacked.id)),
+        ...(stack.entries.length > 1 ? { onRemoveOne: () => void removeEntry(entry.id) } : {}),
         onDuplicate: () =>
           void addEntry({
             name: entry.name,
@@ -94,8 +98,8 @@ export function DashboardView() {
             recipeId: entry.recipeId,
             batchId: entry.batchId,
           }),
-      }),
-    );
+      });
+    });
 
     if (data.activeSession?.startedAt) {
       events.push({
@@ -108,7 +112,7 @@ export function DashboardView() {
       });
     }
     return events;
-  }, [data, addEntry, removeEntry]);
+  }, [data, addEntry, removeEntry, removeEntries]);
 
   if (error && !data) {
     return (

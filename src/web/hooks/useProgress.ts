@@ -20,6 +20,7 @@ import { computeTrend, type ExerciseSnapshot, type ProgressionTrend } from '@/do
 import { summarizeRange, type RangeStats } from '@/domain/rangeStats';
 import { loadDayAggregates } from '@/data/overview';
 import type { BodyMetric, PhotoPose, ProgressPhoto, UserGoals } from '@/domain/types';
+import { useRefreshWhenVisible } from '@/web/components/RoutePanes';
 
 export type ExerciseProgress = {
   name: string;
@@ -41,7 +42,7 @@ export function useProgress() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (quiet = false) => {
     if (!user) return;
     setError(null);
     try {
@@ -100,6 +101,9 @@ export function useProgress() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Zurueck auf dem Screen: still nachladen statt neu aufbauen.
+  useRefreshWhenVisible(() => void load(true));
 
   const addMetric = useCallback(
     async (logDate: string, values: BodyMetricInput) => {

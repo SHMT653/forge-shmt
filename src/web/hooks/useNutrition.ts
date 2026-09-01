@@ -38,6 +38,7 @@ import { combineQuality, macrosForServings, slotForHour, sumMacros } from '@/dom
 import type { DataQuality, FoodItem, Habit, Macros, Recipe, UserGoals } from '@/domain/types';
 import { fluidFromEntry } from '@/domain/fluids';
 import { foodKey } from '@/domain/foodMemory';
+import { useRefreshWhenVisible } from '@/web/components/RoutePanes';
 
 export type NutritionState = {
   meals: MealEntry[];
@@ -74,7 +75,7 @@ export function useNutrition() {
     error: null,
   });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (quiet = false) => {
     if (!user) return;
     const today = todayKey();
     try {
@@ -127,6 +128,9 @@ export function useNutrition() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Zurueck auf dem Screen: still nachladen statt neu aufbauen.
+  useRefreshWhenVisible(() => void load(true));
 
   const addMeal = useCallback(
     async (entry: MealEntryInput) => {
@@ -184,19 +188,33 @@ export function useNutrition() {
     [user, state.foods, state.water.habit, state.water.todayMl, load],
   );
 
-  const removeMeal = useCallback(
-    async (entryId: string) => {
-      if (!user) return;
+  /**
+   * Nimmt Einträge zurück — einen oder einen ganzen Stapel.
+   *
+   * Ein Stapel geht in einem Rutsch: erst alle löschen, dann einmal die
+   * Tagessumme nachziehen. Einzeln nacheinander hätte für jeden Eintrag eine
+   * eigene Runde bedeutet, und die zwischendurch zurückkommenden Ergebnisse
+   * hätten bereits Gelöschtes kurz wieder aufblitzen lassen.
+   */
+  const removeMeals = useCallback(
+    async (entryIds: readonly string[]) => {
+      if (!user || entryIds.length === 0) return;
       const today = todayKey();
+      const removed = new Set(entryIds);
       setState((prev) => {
-        const meals = prev.meals.filter((m) => m.id !== entryId);
+        const meals = prev.meals.filter((m) => !removed.has(m.id));
         return { ...prev, meals, totals: totalsOf(meals), quality: combineQuality(meals.map((m) => m.dataQuality)) };
       });
-      await deleteMealEntry(user.id, entryId);
+      for (const entryId of entryIds) await deleteMealEntry(user.id, entryId);
       await syncNutritionTotals(user.id, today);
       void load();
     },
     [user, load],
+  );
+
+  const removeMeal = useCallback(
+    async (entryId: string) => removeMeals([entryId]),
+    [removeMeals],
   );
 
   const editMeal = useCallback(
@@ -314,6 +332,7 @@ export function useNutrition() {
     favorites,
     addMeal,
     removeMeal,
+    removeMeals,
     editMeal,
     addWater,
     saveAsFood,

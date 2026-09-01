@@ -11,6 +11,7 @@ import { startWorkoutSession } from '@/data/workouts';
 import { errorMessage } from '@/domain/errors';
 import type { PlanTemplate } from '@/domain/planTemplates';
 import type { PlanDay, TrainingPlan } from '@/domain/types';
+import { useRefreshWhenVisible } from '@/web/components/RoutePanes';
 
 export function usePlans() {
   const { user } = useAuth();
@@ -18,9 +19,9 @@ export function usePlans() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (quiet = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!quiet) setLoading(true);
     setError(null);
     try {
       setPlans(await listPlans(user.id));
@@ -34,6 +35,9 @@ export function usePlans() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Zurueck auf dem Screen: still nachladen statt neu aufbauen.
+  useRefreshWhenVisible(() => void load(true));
 
   const applyTemplate = useCallback(
     async (template: PlanTemplate) => {

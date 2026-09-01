@@ -22,6 +22,7 @@ import { listHabits } from '@/data/habits';
 import { fluidFromEntry } from '@/domain/fluids';
 import { listPlans } from '@/data/plans';
 import { logPastWorkout } from '@/data/workouts';
+import { useRefreshWhenVisible } from '@/web/components/RoutePanes';
 
 /** Grid bounds for a month view: whole weeks, Monday first. */
 export function monthGrid(anchor: string): { start: string; end: string; days: string[] } {
@@ -56,9 +57,9 @@ export function useCalendar() {
 
   const grid = useMemo(() => monthGrid(`${anchor}-01`), [anchor]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (quiet = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!quiet) setLoading(true);
     setError(null);
     try {
       const [userGoals, phase, aggregates, habitList, plans, progressDates] = await Promise.all([
@@ -119,6 +120,9 @@ export function useCalendar() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Zurueck auf dem Screen: still nachladen statt neu aufbauen.
+  useRefreshWhenVisible(() => void load(true));
 
   const summary = useMemo(() => summarizeRatings([...ratings.values()]), [ratings]);
 
