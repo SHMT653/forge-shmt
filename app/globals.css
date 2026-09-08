@@ -1180,6 +1180,18 @@ button:disabled {
   box-shadow: var(--edge);
 }
 
+.set-timer-button {
+  min-width: 88px;
+  padding: 0 10px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.set-timer-button span {
+  min-width: 36px;
+  text-align: left;
+}
+
 .field {
   display: grid;
   gap: 6px;
@@ -1470,7 +1482,17 @@ button:disabled {
   }
 
   .set-row {
-    grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-columns: 28px minmax(0, 1fr) minmax(72px, 0.82fr) auto;
+    gap: 7px;
+  }
+
+  .set-timer-button {
+    min-width: 72px;
+    padding: 0 8px;
+  }
+
+  .set-timer-button span {
+    min-width: 28px;
   }
 
   .ring {

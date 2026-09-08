@@ -48,6 +48,38 @@ export function metricForSets(sets: readonly SetEntry[]): MetricKind {
   return 'reps';
 }
 
+export function targetLooksTimed(targetReps: string): boolean {
+  return /\b\d+(?:[,.]\d+)?(?:\s*[-–]\s*\d+(?:[,.]\d+)?)?\s*(?:s|sek\.?|sekunden?|sec\.?|seconds?|min\.?|minuten?|minutes?)\b/i
+    .test(targetReps);
+}
+
+export function exerciseLooksTimed(exerciseName: string, targetReps: string): boolean {
+  if (targetLooksTimed(targetReps)) return true;
+  const name = exerciseName.trim().toLowerCase();
+  return (
+    name === 'plank' ||
+    name.includes('seitlicher plank') ||
+    name.includes('side plank') ||
+    name.includes('unterarmstuetz') ||
+    name.includes('unterarmstütz') ||
+    name.includes('hollow body hold') ||
+    name.includes('dead hang') ||
+    name.includes('wall sit') ||
+    /\bhold\b/.test(name) ||
+    /\bhang\b/.test(name)
+  );
+}
+
+export function metricForExercise(
+  exercise: Pick<SessionExercise, 'exerciseName' | 'targetReps' | 'sets'>,
+  previous?: LastPerformance,
+): MetricKind {
+  if (previous?.metric) return previous.metric;
+  const metricFromSets = metricForSets(exercise.sets);
+  if (metricFromSets !== 'reps') return metricFromSets;
+  return exerciseLooksTimed(exercise.exerciseName, exercise.targetReps) ? 'duration' : 'reps';
+}
+
 /** Collapses one exercise inside one session into a single comparable snapshot. */
 export function snapshotExercise(exercise: SessionExercise, date: string): ExerciseSnapshot {
   const done = exercise.sets.filter((s) => s.completed);

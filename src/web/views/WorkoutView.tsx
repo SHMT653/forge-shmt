@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, ChevronLeft, ChevronRight, Flag, Flame, Info, Timer, Trophy, X, Dumbbell, Zap, Activity, PersonStanding } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Flag, Flame, Info, Play, Square, Timer, Trophy, X, Dumbbell, Zap, Activity, PersonStanding } from 'lucide-react';
 import { useActiveWorkout } from '@/web/hooks/useActiveWorkout';
 import { useAuth } from '@/web/hooks/useAuth';
 import { useTodayContextOptional } from '@/web/hooks/TodayDataProvider';
@@ -12,10 +12,9 @@ import { calcKcalBurned } from '@/domain/cardioActivities';
 import { getUserGoals } from '@/data/profile';
 import { todayKey } from '@/domain/dates';
 import { ExerciseInfoModal } from '@/web/components/ExerciseInfoModal';
-import { metricForSets, planSession, type LastPerformance, type MetricKind, type SetTarget } from '@/domain/progression';
+import { metricForExercise, planSession, type LastPerformance, type MetricKind, type SetTarget } from '@/domain/progression';
 import { listExerciseSnapshots } from '@/data/workouts';
 import { RestTimer } from '@/web/components/RestTimer';
-import { HoldTimer } from '@/web/components/HoldTimer';
 import type { SetUpdate } from '@/data/workouts';
 import type { SetEntry } from '@/domain/types';
 import { parseDecimal, parseDecimalOr } from '@/domain/numbers';
@@ -51,6 +50,12 @@ function getExerciseIcon(name: string): { icon: IconComponent; color: string } {
   return { icon: Dumbbell, color: 'var(--subtle)' };
 }
 
+function formatTimer(total: number): string {
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return minutes > 0 ? `${minutes}:${String(seconds).padStart(2, '0')}` : `${seconds}s`;
+}
+
 function SetRow({
   set,
   index,
@@ -58,7 +63,6 @@ function SetRow({
   metric,
   target,
   onSave,
-  onStartHold,
 }: {
   set: SetEntry;
   index: number;
@@ -67,14 +71,17 @@ function SetRow({
   /** What to aim for on this set today (§ progressive overload). */
   target: SetTarget | undefined;
   onSave: (patch: SetUpdate) => void;
-  /** Opens the stopwatch for this set — only used by holds. */
-  onStartHold?: (index: number) => void;
 }) {
   const [reps, setReps] = useState(set.reps !== null ? String(set.reps) : '');
   const [weight, setWeight] = useState(set.weightKg !== null ? String(set.weightKg) : '');
   const [seconds, setSeconds] = useState(set.durationSeconds !== null ? String(set.durationSeconds) : '');
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [elapsed, setElapsed] = useState(set.durationSeconds ?? 0);
+  const reachedTarget = useRef(false);
 
   const isHold = metric === 'duration';
+  const timerRunning = startedAt !== null;
+  const targetSeconds = target?.value ?? suggestion?.durationSeconds ?? null;
 
   function buildPatch(completed: boolean): SetUpdate {
     const patch: SetUpdate = { completed };
@@ -87,6 +94,47 @@ function SetRow({
       if (weight.trim() || set.weightKg !== null) patch.weightKg = weight.trim() ? parseDecimal(weight) : null;
     }
     return patch;
+  }
+
+  useEffect(() => {
+    if (timerRunning) return;
+    const saved = set.durationSeconds ?? 0;
+    setElapsed(saved);
+    setSeconds(set.durationSeconds !== null ? String(set.durationSeconds) : '');
+  }, [set.durationSeconds, timerRunning]);
+
+  useEffect(() => {
+    if (startedAt === null) return;
+
+    const tick = () => {
+      const next = Math.floor((Date.now() - startedAt) / 1000);
+      setElapsed(next);
+      setSeconds(next > 0 ? String(next) : '');
+      if (targetSeconds && next >= targetSeconds && !reachedTarget.current) {
+        reachedTarget.current = true;
+        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate?.(160);
+      }
+    };
+
+    tick();
+    const id = setInterval(tick, 200);
+    return () => clearInterval(id);
+  }, [startedAt, targetSeconds]);
+
+  function startTimer() {
+    reachedTarget.current = false;
+    setElapsed(0);
+    setSeconds('');
+    setStartedAt(Date.now());
+  }
+
+  function stopTimer() {
+    if (startedAt === null) return;
+    const recorded = Math.max(1, Math.floor((Date.now() - startedAt) / 1000));
+    setStartedAt(null);
+    setElapsed(recorded);
+    setSeconds(String(recorded));
+    onSave({ durationSeconds: recorded, completed: true });
   }
 
   const done = set.completed;
@@ -103,6 +151,7 @@ function SetRow({
           value={seconds}
           onChange={(e) => setSeconds(e.target.value)}
           onBlur={() => onSave(buildPatch(done))}
+          disabled={timerRunning}
           aria-label={`Satz ${index + 1} Sekunden`}
         />
       ) : (
@@ -120,11 +169,13 @@ function SetRow({
       {isHold ? (
         <button
           type="button"
-          className="button secondary compact"
-          onClick={() => onStartHold?.(index)}
+          className={`button compact set-timer-button${timerRunning ? '' : ' secondary'}`}
+          onClick={timerRunning ? stopTimer : startTimer}
           style={{ minHeight: 40 }}
+          aria-label={timerRunning ? `Satz ${index + 1} Timer stoppen` : `Satz ${index + 1} Timer starten`}
         >
-          <Timer size={14} /> Stoppuhr
+          {timerRunning ? <Square size={14} /> : <Play size={14} />}
+          <span>{timerRunning ? formatTimer(elapsed) : 'Start'}</span>
         </button>
       ) : (
         <input
@@ -265,7 +316,6 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
   const [plan, setPlan] = useState<ReturnType<typeof planSession> | null>(null);
   // Bumped whenever a set is finished, which starts the rest countdown.
   const [restSignal, setRestSignal] = useState(0);
-  const [holdingSet, setHoldingSet] = useState<number | null>(null);
 
   // Everything below reads the current exercise, which may not exist yet while
   // the session loads. It is resolved here, above the early returns, because
@@ -273,8 +323,8 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
   // comment at the returns below.
   const exercise = session?.exercises[exerciseIndex];
   const suggestion = exercise ? lastPerformance.get(exercise.exerciseName) : undefined;
-  // Infer from previous sessions first — an empty new set carries no signal.
-  const setMetric: MetricKind = suggestion?.metric ?? (exercise ? metricForSets(exercise.sets) : 'reps');
+  // Infer from target/name too — a fresh plank has no saved seconds yet.
+  const setMetric: MetricKind = exercise ? metricForExercise(exercise, suggestion) : 'reps';
 
   const exerciseName = exercise?.exerciseName;
   const targetSets = exercise?.targetSets;
@@ -297,9 +347,6 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
       .catch(() => { if (active) setPlan(null); });
     return () => { active = false; };
   }, [user, exerciseName, targetSets, targetReps, setMetric]);
-
-  // A hold running on exercise 3 must not still be running on exercise 4.
-  useEffect(() => { setHoldingSet(null); }, [exerciseIndex]);
 
   // ── Early returns start here. Nothing below may call a hook: React counts
   //    them per render, and a hook that only runs once the session has loaded
@@ -407,21 +454,6 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
         </div>
       )}
 
-      {!isCardio && holdingSet !== null && (
-        <div className="panel soft" style={{ padding: 12, marginBottom: 12 }}>
-          <p className="section-label" style={{ marginBottom: 8 }}>Satz {holdingSet + 1} halten</p>
-          <HoldTimer
-            targetSeconds={plan?.targets[holdingSet]?.value ?? null}
-            onFinish={(recorded) => {
-              const set = exercise.sets[holdingSet];
-              if (set) void saveSet(set.id, { durationSeconds: recorded, completed: true });
-              setHoldingSet(null);
-              setRestSignal((n) => n + 1);
-            }}
-          />
-        </div>
-      )}
-
       {/* Always on screen during a workout: a rest you can only start by
           ticking off a set is a rest you cannot start when you need it. */}
       {!isCardio && (
@@ -464,7 +496,6 @@ export function WorkoutView({ sessionId }: { sessionId: string }) {
                 suggestion={suggestion}
                 metric={setMetric}
                 target={plan?.targets[index]}
-                onStartHold={(i) => setHoldingSet(i)}
                 onSave={(patch) => {
                   // Finishing a set is the moment the rest starts.
                   if (patch.completed && !set.completed) setRestSignal((n) => n + 1);

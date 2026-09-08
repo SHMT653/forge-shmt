@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor, act } from '@testing-library/react';
 import type { WorkoutSession } from '@/domain/types';
 
 const state: { loading: boolean; session: WorkoutSession | null } = { loading: true, session: null };
@@ -12,6 +12,7 @@ vi.mock('@/data/profile', () => ({ getUserGoals: async () => ({ currentWeight: 8
 vi.mock('@/data/cardio', () => ({ addCardioLog: vi.fn() }));
 vi.mock('@/data/exercises', () => ({ findCustomExerciseByName: async () => null }));
 const abandon = vi.fn(async () => {});
+const saveSet = vi.fn(async () => {});
 const reload = vi.fn(async () => {});
 vi.mock('@/web/hooks/TodayDataProvider', () => ({
   TodayDataProvider: ({ children }: { children: unknown }) => children,
@@ -23,7 +24,7 @@ vi.mock('@/web/hooks/useActiveWorkout', () => ({
     loading: state.loading,
     error: null,
     lastPerformance: new Map(),
-    saveSet: vi.fn(), addSet: vi.fn(), finish: vi.fn(), abandon, reload: vi.fn(),
+    saveSet, addSet: vi.fn(), finish: vi.fn(), abandon, reload: vi.fn(),
   }),
 }));
 
@@ -38,7 +39,7 @@ const session: WorkoutSession = {
   }],
 } as unknown as WorkoutSession;
 
-afterEach(() => { cleanup(); vi.clearAllMocks(); state.loading = true; state.session = null; });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); state.loading = true; state.session = null; });
 
 describe('WorkoutView', () => {
   it('survives the transition from loading to loaded', () => {
@@ -61,6 +62,31 @@ describe('WorkoutView', () => {
     state.session = session;
     render(<WorkoutView sessionId="s1" />);
     expect(screen.getByRole('button', { name: /Pause starten/ })).toBeTruthy();
+  });
+
+  it('records a timed set from the inline timer', () => {
+    vi.useFakeTimers();
+    state.loading = false;
+    state.session = {
+      ...session,
+      exercises: [{
+        id: 'se1',
+        exerciseName: 'Plank',
+        targetSets: 3,
+        targetReps: '30-60s',
+        orderIndex: 0,
+        sets: [{ id: 'set1', setIndex: 0, reps: null, weightKg: null, durationSeconds: null, resistance: null, completed: false }],
+      }],
+    };
+
+    render(<WorkoutView sessionId="s1" />);
+    fireEvent.click(screen.getByRole('button', { name: /Satz 1 Timer starten/ }));
+    act(() => { vi.advanceTimersByTime(12_000); });
+
+    expect(screen.getByDisplayValue('12')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /Satz 1 Timer stoppen/ }));
+    expect(saveSet).toHaveBeenCalledWith('set1', { durationSeconds: 12, completed: true });
   });
 
   it('reports a missing session instead of crashing', () => {

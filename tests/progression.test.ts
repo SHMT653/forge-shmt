@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  computeTrend, formatRepsPerSet, metricForSets, overloadAdvice, planSession,
-  primaryScore, snapshotExercise, targetRepsLowerBound, targetRepsUpperBound,
+  computeTrend, exerciseLooksTimed, formatRepsPerSet, metricForExercise, metricForSets, overloadAdvice, planSession,
+  primaryScore, snapshotExercise, targetLooksTimed, targetRepsLowerBound, targetRepsUpperBound,
 } from '@/domain/progression';
 import type { SessionExercise, SetEntry } from '@/domain/types';
 
@@ -37,6 +37,26 @@ describe('metricForSets', () => {
 
   it('does not treat a zero weight as a weighted exercise', () => {
     expect(metricForSets([set({ reps: 10, weightKg: 0 })])).toBe('reps');
+  });
+});
+
+describe('metricForExercise', () => {
+  it('treats a fresh plank as duration even before seconds exist', () => {
+    expect(metricForExercise(exercise([set({ completed: false })], '30-60s'))).toBe('duration');
+    expect(metricForExercise({ ...exercise([], '20-45'), exerciseName: 'Dead Hang' })).toBe('duration');
+    expect(metricForExercise({ ...exercise([], '30-60'), exerciseName: 'Wall Sit' })).toBe('duration');
+  });
+
+  it('does not turn dynamic plank variations into timers without a time target', () => {
+    expect(metricForExercise({ ...exercise([], '16-24'), exerciseName: 'Plank mit Schulterberührung' })).toBe('reps');
+  });
+
+  it('recognises explicit time targets in German and English', () => {
+    expect(targetLooksTimed('45 sek')).toBe(true);
+    expect(targetLooksTimed('30-60s')).toBe(true);
+    expect(targetLooksTimed('1 min')).toBe(true);
+    expect(exerciseLooksTimed('Custom Hold', '20-40')).toBe(true);
+    expect(targetLooksTimed('8-12')).toBe(false);
   });
 });
 
