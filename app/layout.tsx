@@ -34,12 +34,11 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // The status bar follows the phone too, so the tile and the chrome agree.
+  // Kein `themeColor` hier: das Tag setzt der Startskript unten selbst und
+  // `useTheme` schreibt es spaeter um. Wuerde Next es liefern, gehoerte es
+  // Reacts Baum — und fremde Aenderungen daran haben die App zerlegt (siehe
+  // Kommentar in `applyThemeColor`).
   colorScheme: 'light dark',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f4f5fb' },
-    { media: '(prefers-color-scheme: dark)', color: '#08070c' },
-  ],
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -64,6 +63,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 document.documentElement.classList.toggle('dark', dark);
                 var accent = localStorage.getItem('theme-accent');
                 if (accent) document.documentElement.setAttribute('data-accent', accent);
+                // Systemleisten-Farbe sofort passend setzen. Das Tag gehoert
+                // bewusst nicht React, damit useTheme es spaeter gefahrlos
+                // umschreiben kann.
+                var meta = document.createElement('meta');
+                meta.name = 'theme-color';
+                meta.content = dark ? '#08070c' : '#f4f5fb';
+                document.head.appendChild(meta);
               } catch(e) {
                 document.documentElement.classList.add('dark');
               }

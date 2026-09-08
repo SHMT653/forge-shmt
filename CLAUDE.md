@@ -43,6 +43,21 @@ Getrennte Deployments, ein Erscheinungsbild. Was daraus folgt:
   `transientViewFor` und werden beim Verlassen abgeräumt. Hooks laden leise nach
   mit `load(true)` + `useRefreshWhenVisible()`; der Spinner gehört nur ans erste
   Laden. Dasselbe Muster liegt spiegelbildlich in NEO.
+- **Nie DOM-Knoten entfernen, die React gerendert hat.** FORGE stand deswegen
+  live auf „Lädt …" und reagierte auf gar nichts mehr: `applyThemeColor` in
+  `src/web/hooks/useTheme.tsx` riss die `theme-color`-Metas aus dem
+  `viewport`-Export heraus. Die gehören Reacts Baum — danach zeigte er auf
+  abgehängte Knoten und starb beim nächsten Wechsel mit
+  `parentNode.removeChild`. Deshalb steht im `viewport` kein `themeColor` mehr;
+  das Tag legt der Startskript in `app/layout.tsx` selbst an. Dasselbe galt in
+  NEO. Verwandter Fall: **ein `<a>` nie in ein `<a>` schachteln** — Browser
+  brechen das auf und erzeugen denselben Schaden.
+- **`npm run e2e`** startet einen Rauchtest im echten Browser (Chrome +
+  iPhone/WebKit, `e2e/boot.spec.ts`): startet die App ohne JavaScript-Fehler?
+  Er braucht kein Konto. Genau diese Fehlerklasse erzeugt weder Build- noch
+  Typ- noch Unit-Test-Fehler — nach Änderungen an Layout, `<head>`-Metadaten
+  oder der Shell also bitte laufen lassen. Beim ersten Mal auf einem Rechner:
+  `npx playwright install chromium webkit`.
 - `src/lib/navigation/apps.ts` liegt spiegelbildlich in allen drei Repos und
   listet die App-URLs für den Umschalter.
 

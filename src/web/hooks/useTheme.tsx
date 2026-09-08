@@ -36,11 +36,19 @@ export const ACCENT_HUES: Record<AccentColor, string> = {
  * Systemleisten-Farbe (Safari-Toolbar, Android-Statusleiste, PWA-Titelleiste)
  * an das gewaehlte App-Theme angleichen — sonst behaelt die Leiste die Farbe
  * des Systemmodus und passt nicht zur App.
+ *
+ * Wichtig: Hier wird nur der Inhalt eines Tags geaendert, das der Startskript
+ * in `app/layout.tsx` selbst angelegt hat — nie ein von React geliefertes Tag
+ * entfernt. Frueher stand hier ein `.remove()` auf den `theme-color`-Tags aus
+ * dem `viewport`-Export. Die gehoeren aber Reacts Baum: nach dem Entfernen
+ * zeigte er auf abgehaengte Knoten und der naechste Wechsel liess den ganzen
+ * React-Root mit `parentNode.removeChild` sterben. Die App blieb dann auf
+ * "Laedt ..." stehen und kein Tab ging mehr auf. Deshalb steht im `viewport`
+ * kein `themeColor` mehr.
  */
 function applyThemeColor(theme: Theme) {
   const color = theme === 'dark' ? '#08070c' : '#f4f5fb';
-  document.head.querySelectorAll('meta[name="theme-color"][media]').forEach((el) => el.remove());
-  let meta = document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]:not([media])');
+  let meta = document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   if (!meta) {
     meta = document.createElement('meta');
     meta.name = 'theme-color';

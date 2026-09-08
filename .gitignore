@@ -8,3 +8,7 @@ tsconfig.tsbuildinfo
 npm-debug.log*
 .DS_Store
 .env*
+
+# Playwright-Artefakte
+test-results/
+playwright-report/
