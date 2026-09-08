@@ -4,7 +4,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { flushSync } from 'react-dom';
 import {
   Flame, Dumbbell, TrendingUp, LogOut, Menu, X, Utensils, Activity, CalendarDays, Sun, Moon,
 } from 'lucide-react';
@@ -88,8 +87,12 @@ const ROUTE_PANES: Record<string, () => ReactNode> = {
   '/settings':  () => <SettingsView />,
 };
 
-/** Diese Screens werden nach dem Start still im Hintergrund aufgebaut. */
-const PRELOAD_PATHS = ['/', '/kalender', '/nutrition', '/plans'];
+/**
+ * Diese Screens werden nach dem Start still im Hintergrund aufgebaut.
+ * Bewusst auch die Punkte unter "Mehr": die erreicht man nur ueber das Menue,
+ * und ausgerechnet dort war der erste Aufruf bisher der teuerste.
+ */
+const PRELOAD_PATHS = ['/', '/kalender', '/nutrition', '/plans', '/progress', '/cardio', '/settings'];
 
 /**
  * Detailseiten haengen an einer ID und werden beim Verlassen wieder
@@ -287,50 +290,47 @@ function AppNavLink({
   ariaLabel?: string;
 }) {
   const router = useRouter();
-
-  /** Schon beim Hover/Antippen aufbauen — vor dem eigentlichen Klick. */
-  function warm() {
-    router.prefetch(href);
-    warmRoutePane(href);
-  }
+  const warmed = useRef(false);
 
   /**
-   * Der sichtbare Wechsel wird sofort gezeichnet, nicht erst mit dem naechsten
-   * Rendern: React fasst Zustandsaenderungen sonst zusammen und der Tab bleibt
-   * bis nach der Router-Arbeit stehen — auf dem Handy sind das die paar
-   * hundert Millisekunden, die sich wie Warten anfuehlen.
+   * Schon beim Hover oder der ersten Beruehrung aufbauen — aber in einer
+   * Leerlaufpause, nie im Handler selbst. Der Aufbau eines Screens darf den
+   * Hauptthread nicht ausgerechnet waehrend einer Beruehrung blockieren.
    */
-  function switchNow() {
-    flushSync(() => onNavigate?.(href));
+  function warm() {
+    if (warmed.current) return;
+    warmed.current = true;
+    router.prefetch(href);
+    warmRoutePane(href);
   }
 
   return (
     <Link
       href={href}
-      prefetch
       className={className}
       title={title}
       aria-label={ariaLabel}
       style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', ...style }}
-      onMouseEnter={warm}
+      onPointerEnter={warm}
       onFocus={warm}
       onTouchStart={warm}
-      onPointerDown={(event) => {
-        // Am Finger haengt der Wechsel schon am Beruehren; die Maus wartet auf
-        // ihren Klick, sonst zieht ein Rechtsklick die Ansicht mit.
-        if (
-          event.defaultPrevented ||
-          event.pointerType === 'mouse' ||
-          (typeof window !== 'undefined' && href === window.location.pathname)
-        ) return;
-        warm();
-        switchNow();
-      }}
+      /**
+       * Nur melden, nicht navigieren — den Klick macht `next/link`.
+       *
+       * Frueher lief hier `event.preventDefault()` plus ein eigenes
+       * `router.push`, und im `pointerdown` steckte zusaetzlich ein
+       * `flushSync`. Im Menue schloss dieses `flushSync` die Schublade schon
+       * beim Beruehren: der Link rutschte unter dem Finger weg, bevor der Tipp
+       * fertig war, und der Klick landete ins Leere. Das Menue ging auf, aber
+       * die Punkte darin oeffneten nichts. Dasselbe Muster hat in NEO die
+       * Taps gefressen.
+       *
+       * Den sofortigen Flaechenwechsel uebernimmt die AppShell, die jeden
+       * Link-Klick zentral in der Capture-Phase mithoert.
+       */
       onClick={(event) => {
         if (!isPlainClick(event)) return;
-        event.preventDefault();
-        switchNow();
-        router.push(href);
+        onNavigate?.(href);
       }}
     >
       {children}
@@ -353,6 +353,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [mountedPanes, setMountedPanes] = useState<string[]>(
     () => (ROUTE_PANES[pathname] ? [pathname] : []),
   );
+  // Der sichtbare Screen gehoert in denselben Render wie der Wechsel — sonst
+  // bliebe fuer ein Bild gar nichts stehen, weil `children` bei einer
+  // bekannten Route unterdrueckt wird.
+  const panes = hasPane && !mountedPanes.includes(displayedPath)
+    ? [...mountedPanes, displayedPath]
+    : mountedPanes;
   const scrollPositions = useRef(new Map<string, number>());
   const shownPath = useRef(displayedPath);
 
@@ -421,7 +427,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       if (destination.origin !== window.location.origin) return;
       if (!isKnownPath(destination.pathname)) return;
 
-      flushSync(() => setInstantPath(destination.pathname));
+      // Kein `flushSync`: React verarbeitet das noch vor dem naechsten Bild.
+      // Erzwungenes Rendern mitten im Klick hat mehr kaputt gemacht als geholfen.
+      setInstantPath(destination.pathname);
     }
 
     document.addEventListener('click', handleClick, true);
@@ -496,7 +504,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <div className="page">
           <AppHeader user={user} />
-          {mountedPanes.map((path) => (
+          {panes.map((path) => (
             <RoutePane key={path} active={path === displayedPath}>
               {ROUTE_PANES[path]!()}
             </RoutePane>

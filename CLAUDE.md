@@ -52,6 +52,13 @@ Getrennte Deployments, ein Erscheinungsbild. Was daraus folgt:
   das Tag legt der Startskript in `app/layout.tsx` selbst an. Dasselbe galt in
   NEO. Verwandter Fall: **ein `<a>` nie in ein `<a>` schachteln** — Browser
   brechen das auf und erzeugen denselben Schaden.
+- **Im Eingabe-Handler wird nicht navigiert.** Kein `flushSync`, keine
+  Zustandsänderung im `pointerdown`. Im Menü schloss ein `flushSync` die
+  Schublade schon beim Berühren: der Link rutschte unter dem Finger weg, bevor
+  der Tipp fertig war — das Menü ging auf, aber die Punkte darin öffneten
+  nichts. Der Klick gehört `next/link`; den sofortigen Flächenwechsel macht der
+  zentrale Capture-Listener in der AppShell. Dasselbe Muster hat in NEO die
+  Taps gefressen.
 - **`npm run e2e`** startet einen Rauchtest im echten Browser (Chrome +
   iPhone/WebKit, `e2e/boot.spec.ts`): startet die App ohne JavaScript-Fehler?
   Er braucht kein Konto. Genau diese Fehlerklasse erzeugt weder Build- noch
