@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 /**
@@ -18,6 +19,12 @@ export function Sheet({
   children: ReactNode;
   footer?: ReactNode;
 }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
@@ -31,7 +38,7 @@ export function Sheet({
     };
   }, [onClose]);
 
-  return (
+  const sheet = (
     <>
       <div className="sheet-overlay" onClick={onClose} aria-hidden />
       <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
@@ -49,4 +56,6 @@ export function Sheet({
       </div>
     </>
   );
+
+  return mounted ? createPortal(sheet, document.body) : null;
 }

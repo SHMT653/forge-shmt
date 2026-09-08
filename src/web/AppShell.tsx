@@ -492,12 +492,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           <AppNavLink href="/" ariaLabel="Startseite" style={{ textDecoration: 'none' }} onNavigate={navigateInstantly}>
             <Brand />
           </AppNavLink>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <ThemeToggle />
-            <button type="button" className="hamburger" onClick={openDrawer} aria-label="Menü öffnen">
-              <Menu size={20} />
-            </button>
-          </div>
+          <button type="button" className="hamburger" onClick={openDrawer} aria-label="Menü öffnen">
+            <Menu size={20} />
+          </button>
         </header>
 
         <OfflineBanner />

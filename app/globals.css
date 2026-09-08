@@ -1791,6 +1791,8 @@ button:disabled {
 }
 
 .sheet-body {
+  min-height: 0;
+  flex: 1 1 auto;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 0 18px 20px;
@@ -1800,14 +1802,25 @@ button:disabled {
 
 @media (min-width: 640px) {
   .sheet {
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(100%, 560px);
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    left: calc(var(--sidebar-width) + 24px);
+    right: 24px;
+    bottom: 24px;
+    width: min(560px, calc(100vw - var(--sidebar-width) - 48px));
+    max-height: min(760px, calc(100dvh - 48px));
+    margin: 0 auto;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
   }
   @keyframes sheet-up {
-    from { transform: translate(-50%, 100%); }
-    to { transform: translate(-50%, 0); }
+    from { opacity: 0; transform: translateY(18px) scale(0.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+}
+
+@media (min-width: 640px) and (max-width: 900px) {
+  .sheet {
+    left: 24px;
+    width: min(560px, calc(100vw - 48px));
   }
 }
 

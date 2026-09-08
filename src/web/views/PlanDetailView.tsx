@@ -244,7 +244,9 @@ function DayCard({
         ))}
       </div>
 
-      <AddExerciseRow userId={userId} onAdd={onAddExercise} existing={day.exercises.map((e) => e.name)} />
+      {editMode && (
+        <AddExerciseRow userId={userId} onAdd={onAddExercise} existing={day.exercises.map((e) => e.name)} />
+      )}
     </div>
   );
 }
