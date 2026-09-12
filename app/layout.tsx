@@ -80,7 +80,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ServiceWorkerRegistrar />
         <AuthProvider>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            {children}
+            <div className="shmt-signature" aria-label="SHMT">
+              <img src="/shmt-mark.png" alt="SHMT" loading="lazy" />
+            </div>
+          </ThemeProvider>
         </AuthProvider>
       </body>
     </html>

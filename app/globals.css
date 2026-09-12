@@ -2818,3 +2818,30 @@ button:disabled {
   font-weight: 700;
   color: var(--danger);
 }
+
+.shmt-signature {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 28;
+  width: clamp(68px, 5vw, 92px);
+  opacity: 0.34;
+  pointer-events: none;
+}
+
+.shmt-signature img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.24);
+}
+
+@media (max-width: 900px) {
+  .shmt-signature {
+    right: max(14px, env(safe-area-inset-right));
+    bottom: calc(88px + env(safe-area-inset-bottom));
+    width: 56px;
+    opacity: 0.28;
+  }
+}
