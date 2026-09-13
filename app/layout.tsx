@@ -13,18 +13,23 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
     title: 'FORGE',
   },
-  // Keep install icons deliberately static. macOS/iOS cache PWA artwork very
-  // aggressively, so using one clean tile avoids stale light/dark variants.
+  // Same icon contract as NEO: transparent icons first, then explicit
+  // light/dark app tiles for platforms that honour media queries.
   icons: {
     icon: [
       { url: '/icon-16.png', sizes: '16x16', type: 'image/png' },
       { url: '/icon-32.png', sizes: '32x32', type: 'image/png' },
       { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
       { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
-      { url: '/icons/forge-white-icon-512.png', sizes: '512x512', type: 'image/png' },
+      { url: '/icons/app-icon-light-512.png', sizes: '512x512', type: 'image/png', media: '(prefers-color-scheme: light)' },
+      { url: '/icons/app-icon-dark-512.png', sizes: '512x512', type: 'image/png', media: '(prefers-color-scheme: dark)' },
     ],
     shortcut: '/icon-32.png',
-    apple: [{ url: '/icons/forge-white-apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+      { url: '/icons/apple-touch-icon-light.png', sizes: '180x180', type: 'image/png', media: '(prefers-color-scheme: light)' },
+      { url: '/icons/apple-touch-icon-dark.png', sizes: '180x180', type: 'image/png', media: '(prefers-color-scheme: dark)' },
+    ],
   },
 };
 

@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 
-const WHITE_TILE: [number, number, number] = [255, 255, 255];
+const DARK_TILE: [number, number, number] = [8, 7, 12];
+const LIGHT_TILE: [number, number, number] = [244, 245, 251];
 
 /**
- * The install icon is intentionally static: a plain white tile with only the
- * Forge mark. macOS/iOS cache PWA artwork aggressively, so every legacy icon
- * path also points at the same visual fallback.
+ * The app icon follows the same contract as NEO: transparent lockups for plain
+ * icon slots, plus RGBA light/dark tiles for installed app surfaces.
  */
 
 function png(path: string) {
@@ -47,21 +47,17 @@ function cornerRgba(path: string): [number, number, number, number] {
 }
 
 describe('app icons', () => {
-  it('ships one static white tile across legacy light and dark filenames', () => {
+  it('ships a light and a dark tile that are actually different images', () => {
     const light = png('public/icons/apple-touch-icon-light.png');
     const dark = png('public/icons/apple-touch-icon-dark.png');
-    expect(light.bytes.equals(dark.bytes)).toBe(true);
-    expect(png('public/icons/app-icon-light-512.png').bytes.equals(png('public/icons/app-icon-dark-512.png').bytes)).toBe(true);
-    expect(png('public/icon-512.png').bytes.equals(png('public/icons/forge-white-icon-512.png').bytes)).toBe(true);
+    expect(light.bytes.equals(dark.bytes)).toBe(false);
   });
 
-  it('uses RGBA PNGs for every shipped icon slot', () => {
+  it('uses RGBA PNGs like NEO, including transparent lockup icons', () => {
     for (const name of ['favicon-16', 'favicon-32', 'lockup', 'mark', 'mark-256',
                         'apple-touch-icon', 'apple-touch-icon-light', 'apple-touch-icon-dark',
                         'app-icon-light-192', 'app-icon-dark-192', 'app-icon-light-512', 'app-icon-dark-512',
-                        'icon-192', 'icon-512', 'maskable-512',
-                        'forge-white-apple-touch-icon', 'forge-white-icon-192', 'forge-white-icon-512',
-                        'forge-white-maskable-512']) {
+                        'icon-192', 'icon-512', 'maskable-512']) {
       expect(png(`public/icons/${name}.png`).colorType, name).toBe(6);
     }
     for (const name of ['apple-touch-icon', 'icon-16', 'icon-32', 'icon-192', 'icon-512', 'icon-maskable-512']) {
@@ -79,10 +75,6 @@ describe('app icons', () => {
       ['icon-192', 192], ['icon-192-light', 192], ['icon-192-dark', 192],
       ['icon-512', 512], ['icon-512-light', 512], ['icon-512-dark', 512],
       ['icon-192-maskable', 192], ['icon-512-maskable', 512], ['maskable-512', 512],
-      ['forge-white-apple-touch-icon', 180],
-      ['forge-white-icon-192', 192],
-      ['forge-white-icon-512', 512],
-      ['forge-white-maskable-512', 512],
     ] as const) {
       const file = png(`public/icons/${name}.png`);
       expect(file.width, name).toBe(size);
@@ -104,37 +96,24 @@ describe('app icons', () => {
     }
   });
 
-  it('paints every installed app tile white', () => {
-    for (const path of [
-      'public/apple-touch-icon.png',
-      'public/icon-192.png',
-      'public/icon-512.png',
-      'public/icon-maskable-512.png',
-      'public/icons/apple-touch-icon.png',
-      'public/icons/apple-touch-icon-light.png',
-      'public/icons/apple-touch-icon-dark.png',
-      'public/icons/app-icon-light-512.png',
-      'public/icons/app-icon-dark-512.png',
-      'public/icons/icon-512.png',
-      'public/icons/icon-512-light.png',
-      'public/icons/icon-512-dark.png',
-      'public/icons/maskable-512.png',
-      'public/icons/forge-white-apple-touch-icon.png',
-      'public/icons/forge-white-icon-192.png',
-      'public/icons/forge-white-icon-512.png',
-      'public/icons/forge-white-maskable-512.png',
-    ]) {
-      expect(cornerPixel(path), path).toEqual(WHITE_TILE);
-    }
+  it('paints each tile in the colour its name promises', () => {
+    expect(cornerPixel('public/icons/apple-touch-icon-dark.png')).toEqual(DARK_TILE);
+    expect(cornerPixel('public/icons/app-icon-dark-512.png')).toEqual(DARK_TILE);
+    expect(cornerPixel('public/icons/apple-touch-icon-light.png')).toEqual(LIGHT_TILE);
+    expect(cornerPixel('public/icons/app-icon-light-512.png')).toEqual(LIGHT_TILE);
+    // Same visible behaviour as LINGO/NEO: transparent fallback lets the OS
+    // draw the plate instead of baking in a different background colour.
+    expect(cornerRgba('public/icons/apple-touch-icon.png')).toEqual([0, 0, 0, 0]);
+    expect(cornerRgba('public/apple-touch-icon.png')).toEqual([0, 0, 0, 0]);
   });
 
-  it('uses one apple icon without colour-scheme media variants', () => {
+  it('keeps the stable apple fallback before optional light/dark variants', () => {
     const layout = readFileSync('app/layout.tsx', 'utf8');
     const apple = /apple: \[(.*?)\],/s.exec(layout)?.[1] ?? '';
-    expect(apple).toContain("url: '/icons/forge-white-apple-touch-icon.png'");
-    expect(apple).not.toContain('prefers-color-scheme');
-    expect(apple).not.toContain('apple-touch-icon-light.png');
-    expect(apple).not.toContain('apple-touch-icon-dark.png');
+    expect(apple).toMatch(/apple-touch-icon\.png[\s\S]*?apple-touch-icon-light\.png[\s\S]*?apple-touch-icon-dark\.png/);
+    expect(apple).toContain("url: '/apple-touch-icon.png'");
+    expect(apple).toMatch(/apple-touch-icon-light\.png[\s\S]*?prefers-color-scheme: light/);
+    expect(apple).toMatch(/apple-touch-icon-dark\.png[\s\S]*?prefers-color-scheme: dark/);
   });
 
   it('uses the same static manifest path as NEO', () => {
@@ -144,17 +123,17 @@ describe('app icons', () => {
     expect(existsSync('app/manifest.ts')).toBe(false);
   });
 
-  it('keeps favicons first and adds the static install tile', () => {
+  it('keeps both variants for the tab icon, where the query does work', () => {
     const layout = readFileSync('app/layout.tsx', 'utf8');
     const favicons = /icon: \[(.*?)\],/s.exec(layout)?.[1] ?? '';
     expect(favicons).toMatch(/icon-16\.png[\s\S]*?icon-32\.png[\s\S]*?icon-192\.png[\s\S]*?icon-512\.png/);
-    expect(favicons).toContain('/icons/forge-white-icon-512.png');
-    expect(favicons).not.toContain('prefers-color-scheme');
+    expect(favicons).toMatch(/app-icon-light-512\.png[\s\S]*?prefers-color-scheme: light/);
+    expect(favicons).toMatch(/app-icon-dark-512\.png[\s\S]*?prefers-color-scheme: dark/);
   });
 
-  it('keeps the unsuffixed home-screen fallback white for old cached paths', () => {
-    expect(cornerRgba('public/icons/apple-touch-icon.png')).toEqual([255, 255, 255, 255]);
-    expect(cornerRgba('public/apple-touch-icon.png')).toEqual([255, 255, 255, 255]);
+  it('keeps the unsuffixed home-screen fallback transparent like LINGO', () => {
+    expect(cornerRgba('public/icons/apple-touch-icon.png')).toEqual([0, 0, 0, 0]);
+    expect(cornerRgba('public/apple-touch-icon.png')).toEqual([0, 0, 0, 0]);
   });
 
   it('gives maskable its own artwork rather than relabelling the full tile', () => {
@@ -165,18 +144,19 @@ describe('app icons', () => {
     const maskable = readFileSync('public/icons/icon-512-maskable.png');
     expect(full.equals(maskable)).toBe(false);
 
-    const manifest = JSON.parse(readFileSync('public/manifest.json', 'utf8')) as {
-      icons: Array<{ src: string; purpose: string; sizes: string; type: string }>;
-    };
-    expect(manifest.icons).toEqual([
-      { src: '/icons/forge-white-icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-      { src: '/icons/forge-white-icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-      { src: '/icons/forge-white-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-    ]);
+    const manifest = readFileSync('public/manifest.json', 'utf8');
+    expect(manifest).toMatch(/icon-512\.png[\s\S]*?"purpose": "any"/);
+    expect(manifest).toMatch(/app-icon\.svg[\s\S]*?"purpose": "any"/);
+    expect(manifest).toMatch(/maskable-icon\.svg[\s\S]*?"purpose": "maskable"/);
+    expect(manifest).toMatch(/icon-maskable-512\.png[\s\S]*?"purpose": "maskable"/);
+    expect(manifest).toMatch(/maskable-512\.png[\s\S]*?"purpose": "maskable"/);
+    expect(manifest).not.toMatch(/icon-512\.png', sizes: '512x512', type: 'image\/png', purpose: 'maskable'/);
   });
 
-  it('keeps the artwork smaller on maskable icons', () => {
-    expect(readFileSync('public/icons/forge-white-icon-512.png').equals(readFileSync('public/icons/forge-white-maskable-512.png'))).toBe(false);
-    expect(cornerPixel('public/icons/forge-white-maskable-512.png')).toEqual(WHITE_TILE);
+  it('keeps the artwork clear of the mask', () => {
+    // A squircle eats the corners. Anything at the very edge of the tile is a
+    // pixel the phone will not show.
+    expect(cornerRgba('public/icons/apple-touch-icon.png')).toEqual([0, 0, 0, 0]);
+    expect(cornerPixel('public/icons/apple-touch-icon-light.png')).toEqual(LIGHT_TILE);
   });
 });
